@@ -1,0 +1,8 @@
+[package]
+name = "litter"
+license = "MIT OR Apache-2.0"
+version = "0.20220713.0"
+edition = "2021"
+
+[dependencies]
+once_cell = "1.13.0"
