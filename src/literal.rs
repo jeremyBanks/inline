@@ -1,4 +1,17 @@
-pub trait Literal: ::core::fmt::Debug + Clone + Copy + PartialEq + Default {}
+pub trait Literal: ::core::fmt::Debug + Clone + PartialEq + Default {
+    #[track_caller]
+    fn edit(&'static self) -> LiteralEditHandle {
+        let x: Self = self.clone();
+
+        LiteralEditHandle
+    }
+}
+
+struct LiteralEditHandle;
+
+impl Drop for LiteralEditHandle {
+    fn drop(&mut self) {}
+}
 
 impl Literal for &str {}
 impl Literal for &[u8] {}
