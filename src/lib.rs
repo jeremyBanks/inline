@@ -1,10 +1,18 @@
+//! [`litter::Litter`]: crate::Litter
+//! [`litter::Literal`]: crate::Literal
+//! [`litter::LiteralExt`]: crate::LiteralExt
+//!
 #![doc = include_str!("../README.md")]
 //!
 #![doc = ::document_features::document_features!()]
 
+mod literal;
+pub use self::literal::*;
+
+mod litter;
+pub use self::litter::*;
+
 // mod asserts;
-// mod literal;
-// mod litter;
 // mod runtime;
 // test
 

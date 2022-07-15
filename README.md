@@ -5,17 +5,22 @@
 These can be used for snapshot testing, or as a basic way of inlining state into
 scripts. This is only intended for use in code that's being run through Cargo,
 as it relies on `CARGO_` environment variables to locate the source code when
-mutations need to be written back. The implementation uses the `#[track_caller]`
+mutations need to be written back. The implementation uses the
+[`#[track_caller]`](https://doc.rust-lang.org/reference/attributes/codegen.html#the-track_caller-attribute)
 attribute (no macros).
 
 ## Core Capability
 
-The `litter::Litter` type wraps a literal value with information about its
+The [`litter::Litter`] type wraps a literal value with information about its
 location in your source code, allowing it to be mutated with changes reflected
 in the original script file. Literal types supported are integers (`1`, `2`,
 `2_usize`, `-1i16`), floats (`1.5`, `2e6f64`), booleans (`true`, `false`),
 static strings (`"hello"`, `r##"world##"`), static byte strings
-(`b"one two \x12"`, `br"hell\x00"`).
+(`b"one two \x12"`, `br"hell\x00"`). These are described by the
+[`litter::Literal`] trait.
+
+[`litter::Litter`]: https://docs.rs/litter/latest/litter/struct.Litter.html
+[`litter::Literal`]: https://docs.rs/litter/latest/litter/struct.Literal.html
 
 `litter::Litter::inline(literal)` is also available as
 `litter::inline(literal)`, or as the extension method

@@ -19,26 +19,37 @@ toml = { version = "0.5.9", optional = true }
 serde_derive = "1.0.139"
 
 [features]
-#! ## Feature Flags
+#! ## Cargo Features
 
-default = ["mut", "all"]
+default = ["mut", "panic", "all"]
 
-## Support mutating literals and writing them back to the source file. Requires `std`.
+## Support mutating literals and writing them back to the source file. Requires
+## `std`.
 mut = ["dep-std"]
 
-## Support (de)serializing `&str` literals as JSON using `serde`, via the `.edit_json()` extension method.
+## Include functions that may panic on error. If disabled, all potentially
+## panicking functions will be removed, requiring the use of their fallible
+## variants.
+panic = []
+
+## Support (de)serializing `&str` literals as JSON using `serde`, via the
+## `.edit_json()` extension method.
 json = ["dep:serde", "dep:serde_json"]
 
-## Support (de)serializing `&[u8]` literals as Postcard using `serde`, via the `.edit_postcard()` extension method.
+## Support (de)serializing `&[u8]` literals as Postcard using `serde`, via the
+## `.edit_postcard()` extension method.
 postcard = ["dep:serde", "dep:postcard"]
 
-## Support (de)serializing `&str` literals as TOML using `serde`, via the `.edit_toml()` extension method.
+## Support (de)serializing `&str` literals as TOML using `serde`, via the
+## `.edit_toml()` extension method.
 toml = ["dep:serde", "dep:toml"]
 
-## Support (de)serializing `&str` literals as YAML using `serde`, via the `.edit_yaml()` extension method.
+## Support (de)serializing `&str` literals as YAML using `serde`, via the
+## `.edit_yaml()` extension method.
 yaml = ["dep:serde", "dep:serde_yaml"]
 
-## Support (de)serializing `&[u8]` literals using `rkyv`, via the `.edit_rkyv()` extension method.
+## Support (de)serializing `&[u8]` literals using `rkyv`, via the
+## `.edit_rkyv()` extension method.
 rkyv = ["dep:rkyv"]
 
 all = ["mut", "json", "postcard", "toml", "yaml", "rkyv"]
