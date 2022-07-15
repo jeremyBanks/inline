@@ -1,7 +1,12 @@
+#![doc = include_str!("../README.md")]
+//!
+#![doc = ::document_features::document_features!()]
+
 // mod asserts;
 // mod literal;
 // mod litter;
 // mod runtime;
+// test
 
 // #[cfg(feature = "json")]
 // mod json;

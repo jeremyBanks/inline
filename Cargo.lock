@@ -139,6 +139,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "document-features"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b01c09fd63b5136fba41aa625c7b3254f0aa0a435ff6ec4b2c9a28d496c83c88"
+
+[[package]]
 name = "embedded-hal"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -227,9 +233,10 @@ checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "litter"
-version = "0.20220713.0"
+version = "0.20220714.0"
 dependencies = [
  "bstr",
+ "document-features",
  "once_cell",
  "postcard",
  "rkyv",

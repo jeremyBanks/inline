@@ -4,17 +4,18 @@
 
 These can be used for snapshot testing, or as a basic way of inlining state into
 scripts. This is only intended for use in code that's being run through Cargo,
-as it relies on `CARGO_` environment variables to locate the source code. The
-implementation uses the `#[track_caller]` attribute (no macros).
+as it relies on `CARGO_` environment variables to locate the source code when
+mutations need to be written back. The implementation uses the `#[track_caller]`
+attribute (no macros).
 
 ## Core Capability
 
 The `litter::Litter` type wraps a literal value with information about its
 location in your source code, allowing it to be mutated with changes reflected
 in the original script file. Literal types supported are integers (`1`, `2`,
-`2_u8`, `-1i16`), floats (`1.5`, `2e6f64`), booleans (`true`, `false`), static
-strings (`"hello"`, `r##"world##"`), static byte strings (`b"one two \x12"`,
-`br"hell\x00"`).
+`2_usize`, `-1i16`), floats (`1.5`, `2e6f64`), booleans (`true`, `false`),
+static strings (`"hello"`, `r##"world##"`), static byte strings
+(`b"one two \x12"`, `br"hell\x00"`).
 
 `litter::Litter::inline(literal)` is also available as
 `litter::inline(literal)`, or as the extension method
@@ -98,26 +99,50 @@ version is included at `litter::assert_eq(literal, actual)`.
 
 ## `serde` Support
 
-If you enable the `json`, `yaml`, `postcard`, or `toml` features, the `.edit()`
-handles for strings and bytes gain a corresponding method that can be used to
-inline non-primitive values that implement `serde::{ Serialize, Deserialize }`.
+If you enable the `json`, `yaml`, `postcard`, or `toml` features, `LiteralExt`
+for strings and bytes gains corresponding `.edit_json()`, `.edit_yaml()`,
+`.edit_toml()`, or `.edit_postcard()` methods that can be used to be used to
+inline non-primitive values that implement `serde::{ Serialize, Deserialize }`,
+as well as `Debug`, `Clone`, and `Default`. (If your type doesn't implement
+`Default`, you may consider wrapping it in an `Option<...>`.)
+
+As a special case for convenience, if the literal string is empty but
+deserialization fails, the type's `Default::default()` value will be returned.
+Any other (de)serialization errors will cause the program to panic.
 
 ```rust
 fn main() {
-    let list = "[]".edit().json::<Vec<u8>>();
-    list.push(list.len() + 1);
+    // empty string interpreted as default, like "[]"
+    let json_vec = "".edit_json::<Vec<usize>>();
+    json_vec.push(json_vec.len());
+
+    // empty byte string interpreted as default, like b"\x00"
+    let postcard_vec = b"".edit_postcard::<Vec<usize>>();
+    postcard_vec.push(postcard_vec.len());
 }
 ```
 
 ```rust
-let list = "[1]".edit().json::<Vec<u8>>();
-list.push(list.len() + 1);
+    let json_vec = "[0]".edit_json::<Vec<usize>>();
+    json_vec.push(json_vec.len());
+
+    let postcard_vec = b"\x01\x00".edit_postcard::<Vec<usize>>();
+    postcard_vec.postcard_vec(postcard_vec.len());
 ```
 
 ```rust
-let list = "[1, 2]".edit().json::<Vec<u8>>();
-list.push(list.len() + 1);
+    let json_vec = "[0, 1]".edit_json::<Vec<usize>>();
+    json_vec.push(json_vec.len());
+
+    let postcard_vec = b"\x02\x00\x01".edit_postcard::<Vec<usize>>();
+    postcard_vec.push(postcard_vec.len());
 ```
+
+If no type is specified or can be inferred, the `.edit_json()`, `.edit_yaml()`,
+and `.edit_toml()` methods default to dynamic values (`serde_json::Value`,
+`serde_yaml::Value`, and `toml::Value`). However `.edit_postcard()` always
+requires a known type (it's non-self-describing and can't be handled
+dynamically).
 
 ## External Values
 
@@ -125,6 +150,37 @@ If you would prefer to store the literal values in external values (alongside
 your source code), rather than inline in the source code itself, you can use
 `litter::Litter::external("some_relative_file_path.txt")` (also available as
 `litter::external`).
+
+## Performance and Reliability
+
+This is (clearly) intended for convenience, not performance. It should be fast
+enough for use in test snapshotting or dumping some state for a script, but you
+certainly wouldn't want to use it for a high-throughput web server. Access to
+each literal is controlled by an `RwLock` which may block if used concurrently.
+
+The filesystem is only accessed when a mutated value needs to be written back,
+so if a value is never then modified the filesystem won't be accessed, and in
+that case the program can work fine on a different system without the source
+files available.
+
+Before writing changes back to the file, we verify that the existing literal in
+the file matches what we expect. If it doesn't (maybe because it's been modified
+by another copy of your program running concurrently), the program will panic
+instead of clobbering unexpected data. However, no filesystem locking is used so
+this isn't guaranteed, so logic errors _can_ occur if multiple copies of your
+program are running concurrently and both try to modify the same file.
+
+## Future Work
+
+- Future work?! Almost nothing described above has actually been implemented
+  yet!
+- Fallible alternatives instead of panicking, including for the case of writing
+  values when the source files don't exist (they can still be saved in-memory).
+- `no_std` support. Huh?! Yep! This would include _none_ of the significant
+  functionality, only exposing a non-`mut` `Deref` wrapper for the literal
+  value. The intent would be to allow literals to be used in `no_std` builds, if
+  they might occur in a program that can also be run in `std` mode where the
+  functionality would also be used.
 
 ## License
 
