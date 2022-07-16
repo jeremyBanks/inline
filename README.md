@@ -1,5 +1,3 @@
-# 🗑️ `litter`
-
 `litter` provides mutable literals as smart pointers into your source code.
 
 These can be used for snapshot testing, or as a basic way of inlining state into
@@ -19,17 +17,10 @@ static strings (`"hello"`, `r##"world##"`), static byte strings
 (`b"one two \x12"`, `br"hell\x00"`). These are described by the
 [`litter::Literal`] trait.
 
-[`litter::Litter`]: https://docs.rs/litter/latest/litter/struct.Litter.html
-[`litter::Literal`]: https://docs.rs/litter/latest/litter/struct.Literal.html
-
-`litter::Litter::inline(literal)` is also available as
-`litter::inline(literal)`, or as the extension method
-`litter::LiteralExt::edit(self)` on supported types. They're equivalent.
-
-Dereferencing a `Litter` produces a `LitterHandle`. It implements `Deref` and
-`DerefMut` exposing the inner value, as well as various other traits. If the
-inner value is modified, it will be written back to the file when the `Litter`
-is dropped.
+`.edit()`ing a `Literal` or a `Litter` produces a `LitterHandle`. It implements
+`Deref` and `DerefMut`, exposing the inner value, as well as various other
+traits. If the inner value is modified, it will be written back to the file when
+the `Litter` is dropped.
 
 Here's a basic example, of a string that's modified each time the script runs:
 
@@ -72,16 +63,16 @@ fn test_the_ultimate_question() {
 
 #[track_caller] // <- in order to look for literal at this function's call site instead
 fn assert_eq_u64(expected: u64, actual: u64) {
-    let expected = litter::inline(expected);
+    let expected = litter::new(expected);
 
     if expected != actual {
         if std::env::get("UPDATE_EXPECT").unwrap_or("0") != "0" {
-            *expected = actual; // <- updated in memory, written to source file at end of scope
+            *expected = actual; // <- updated in memory, written to source at end of scope
         } else {
             panic!("\
                 Expected {expected:?} but actual value was {actual:?}.\n\
 
-                To update the expected value to {actual:?}, run this again with UPDATE_EXPECT=1.\
+                To update the expected value, run this again with UPDATE_EXPECT=1.\
             ");
         }
     }
@@ -149,13 +140,6 @@ and `.edit_toml()` methods default to dynamic values (`serde_json::Value`,
 requires a known type (it's non-self-describing and can't be handled
 dynamically).
 
-## External Values
-
-If you would prefer to store the literal values in external values (alongside
-your source code), rather than inline in the source code itself, you can use
-`litter::Litter::external("some_relative_file_path.txt")` (also available as
-`litter::external`).
-
 ## Performance and Reliability
 
 This is (clearly) intended for convenience, not performance. It should be fast
@@ -196,3 +180,16 @@ program are running concurrently and both try to modify the same file.
 [the `expect-test` library](https://docs.rs/expect-test), which is also under
 `MIT OR Apache-2.0` and is Copyright the rust-analyzer developers, including
 Aleksey Kladov and Dylan MacKenzie.
+
+<!--
+NB: We need to specify these manually (as links to docs.rs) so that they'll be
+visible when README.md is rendered directly, such as on GitHub and on Crates.io.
+However, when we're rendering it in the generate crate documentation, we want
+to allow rustdoc to resolve the links for us, particularly for local types.
+Therefore, any change made to these links below must be accompanied by a
+corresponding change to `src/pre-readme.md`, which will take precedence and
+allow us to use rustdoc's resolution.
+-->
+
+[`litter::Litter`]: https://docs.rs/litter/latest/litter/struct.Litter.html
+[`litter::Literal`]: https://docs.rs/litter/latest/litter/struct.Literal.html

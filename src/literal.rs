@@ -1,21 +1,96 @@
+use core::fmt::{Debug, Display};
+use derive_more::{From, TryInto};
+use std::fmt::Write;
+
 /// A type representing a literal value in the source code that can be edited
 /// by `litter`. Using this type with a value that is not actually a literal in
 /// your source code may result in logic errors or panics.
 pub trait Literal:
-    Sized + 'static + ::core::fmt::Debug + PartialEq + Clone + Copy + Default
+    'static
+    + Sized
+    + Debug
+    + PartialEq
+    + Clone
+    + Copy
+    + Default
+    + Into<AnyLiteral>
+    + TryFrom<AnyLiteral>
 {
     /// For strings and byte strings, this is the inner unsized type, to allow
     /// for operations with similarly-typed values with non-static lifetimes. This
     /// is simply `Self` for other types.
-    type Inner: ?Sized + 'static + ::core::fmt::Debug + PartialEq;
+    type Inner: 'static + ?Sized + Debug + PartialEq;
+
+    /// Formats this literal as we would like it to appear in source code.
+    ///
+    /// By default this will use the type's `Debug` implementation.
+    fn fmt_source(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{self:#?}")
+    }
 }
 
 impl Literal for &'static str {
     type Inner = str;
+
+    fn fmt_source(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        // TODO: better
+        write!(f, "{self:#?}")
+    }
 }
 
 impl Literal for &'static [u8] {
     type Inner = [u8];
+
+    fn fmt_source(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        // XXX: maybe we should use formatter::pad() and similar?
+        let mut s = String::with_capacity((self.len() + 1) * 4);
+        let mut last_newline_index = 2;
+        let mut previous_was_printable = false;
+        write!(s, "b\"").unwrap();
+        for byte in self.iter() {
+            let line_length = s.len() as i64 - last_newline_index;
+            let line_broken = line_length + 4 > 64;
+            if line_broken {
+                write!(s, "\\\n  ").unwrap();
+                last_newline_index = s.len() as i64;
+            }
+            match byte {
+                b'\n' => {
+                    // a newline following a printable character is converted into an escaped
+                    // newline to maintain the content and our own indentation, using \n.
+                    // other newlines are hex-encoded like a non-printable value, using \x10.
+                    if previous_was_printable {
+                        write!(s, "\\n\\\n  ").unwrap();
+                        last_newline_index = s.len() as i64;
+                    } else {
+                        write!(s, "\\x0A").unwrap();
+                    }
+                    previous_was_printable = false;
+                }
+                // leading spaces (following a backslashed-newline) would be trimmed unless encoded
+                b' ' => {
+                    if line_broken || !previous_was_printable {
+                        write!(s, "\\x20").unwrap();
+                    } else {
+                        write!(s, " ").unwrap();
+                    }
+                    previous_was_printable = true;
+                }
+                // most ascii printable characters are left as-is
+                b'!' | b'#'..=b'[' | b']'..=b'~' => {
+                    write!(s, "{}", *byte as char).unwrap();
+                    previous_was_printable = true;
+                }
+                // but backslash and double quotes are uppercase hex escaped along with everything else
+                b'\\' | b'"' | 0..=0x1F | 0x7F..=0xFF => {
+                    write!(s, "\\x{byte:02X}").unwrap();
+                    previous_was_printable = false;
+                }
+            }
+        }
+        s.push_str("\"");
+        write!(f, "{s}")
+    }
 }
 
 impl Literal for bool {
@@ -80,4 +155,59 @@ impl Literal for f32 {
 
 impl Literal for f64 {
     type Inner = f64;
+}
+
+#[allow(non_camel_case_types)]
+#[derive(From, TryInto, Debug, PartialEq, Clone, Copy)]
+#[non_exhaustive]
+pub enum AnyLiteral {
+    string(&'static str),
+    bytes(&'static [u8]),
+    bool(bool),
+    char(char),
+    u8(u8),
+    u16(u16),
+    u32(u32),
+    u64(u64),
+    u128(u128),
+    usize(usize),
+    i8(i8),
+    i16(i16),
+    i32(i32),
+    i64(i64),
+    i128(i128),
+    isize(isize),
+    f32(f32),
+    f64(f64),
+}
+
+impl AnyLiteral {
+    pub fn fmt_source(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            AnyLiteral::string(literal) => literal.fmt_source(f),
+            AnyLiteral::bytes(literal) => literal.fmt_source(f),
+            AnyLiteral::bool(literal) => literal.fmt_source(f),
+            AnyLiteral::char(literal) => literal.fmt_source(f),
+            AnyLiteral::u8(literal) => literal.fmt_source(f),
+            AnyLiteral::u16(literal) => literal.fmt_source(f),
+            AnyLiteral::u32(literal) => literal.fmt_source(f),
+            AnyLiteral::u64(literal) => literal.fmt_source(f),
+            AnyLiteral::u128(literal) => literal.fmt_source(f),
+            AnyLiteral::usize(literal) => literal.fmt_source(f),
+            AnyLiteral::i8(literal) => literal.fmt_source(f),
+            AnyLiteral::i16(literal) => literal.fmt_source(f),
+            AnyLiteral::i32(literal) => literal.fmt_source(f),
+            AnyLiteral::i64(literal) => literal.fmt_source(f),
+            AnyLiteral::i128(literal) => literal.fmt_source(f),
+            AnyLiteral::isize(literal) => literal.fmt_source(f),
+            AnyLiteral::f32(literal) => literal.fmt_source(f),
+            AnyLiteral::f64(literal) => literal.fmt_source(f),
+        }
+    }
+}
+
+impl Display for AnyLiteral {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        self.fmt_source(f)
+    }
 }

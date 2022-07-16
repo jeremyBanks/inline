@@ -1,10 +1,8 @@
-//! [`litter::Litter`]: crate::Litter
-//! [`litter::Literal`]: crate::Literal
-//! [`litter::LiteralExt`]: crate::LiteralExt
+#![doc = include_str!("./pre-readme.md")]
 //!
 #![doc = include_str!("../README.md")]
 //!
-#![doc = ::document_features::document_features!()]
+#![doc = document_features::document_features!()]
 
 mod literal;
 pub use self::literal::*;
@@ -12,29 +10,28 @@ pub use self::literal::*;
 mod litter;
 pub use self::litter::*;
 
-// mod asserts;
-// mod runtime;
-// test
+mod literal_ext;
+pub use self::literal_ext::*;
 
-// #[cfg(feature = "json")]
-// mod json;
+mod asserts;
+pub use self::asserts::*;
 
-// #[cfg(feature = "json")]
-// pub use json::*;
+#[cfg(feature = "std")]
+mod litter_index;
+#[cfg(feature = "std")]
+pub use self::litter_index::*;
 
-// #[cfg(feature = "yaml")]
-// mod yaml;
+#[cfg(feature = "std")]
+mod litter_handle;
+#[cfg(feature = "std")]
+pub use self::litter_handle::*;
 
-// #[cfg(feature = "yaml")]
-// pub use yaml::*;
+#[cfg(feature = "serde")]
+mod serde;
+#[cfg(feature = "serde")]
+pub use self::serde::*;
 
-// #[cfg(feature = "toml")]
-// mod toml;
-
-// #[cfg(feature = "toml")]
-// pub use toml::*;
-
-// pub use asserts::*;
-// pub use literal::*;
-// pub use litter::*;
-// pub use runtime::*;
+#[cfg(feature = "rkyv")]
+mod rkyv;
+#[cfg(feature = "rkyv")]
+pub use self::rkyv::*;

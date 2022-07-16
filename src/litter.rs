@@ -1,84 +1,50 @@
-use once_cell::sync::OnceCell;
-use std::{
-    ops::{Deref, DerefMut},
-    path::PathBuf,
-};
+use crate::LitterHandle;
 
-#[derive(Clone, Debug)]
-pub enum Litter<Literal: crate::Literal> {
-    Inline(crate::Inline<Literal>),
-    External(crate::External<Literal>),
-}
-
-#[derive(Clone, Debug)]
-pub struct External<Literal: crate::Literal> {
-    loaded: OnceCell<Literal>,
-    source: PathBuf,
-    target: PathBuf,
-}
-
-#[derive(Clone, Debug)]
-pub struct Inline<Literal: crate::Literal> {
-    value: Literal,
-    loaded: OnceCell<Literal>,
-    source: PathBuf,
-    line: usize,
-    column: usize,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Litter<Literal: crate::Literal> {
+    literal: Literal,
+    location: Location,
 }
 
 impl<Literal: crate::Literal> Litter<Literal> {
     #[track_caller]
-    pub fn inline(value: Literal) -> Litter<Literal> {
-        Litter::Inline(crate::Inline {
-            value,
-            loaded: OnceCell::new(),
-            source: PathBuf::new(),
-            line: 0,
-            column: 0,
-        })
-    }
-
-    #[track_caller]
-    pub fn external(target: PathBuf) -> Litter<Literal> {
-        Litter::External(crate::External {
-            loaded: OnceCell::new(),
-            source: PathBuf::new(),
-            target,
-        })
-    }
-
-    /// the internal literal value
-    pub fn literal(&self) -> &Literal {
-        match self {
-            Litter::Inline(inline) => &inline.value,
-            Litter::External(external) => self.loaded(),
+    pub fn new(literal: Literal) -> Self {
+        Self {
+            literal,
+            location: core::panic::Location::caller().into(),
         }
     }
 
-    /// the internal value as loaded from the source file
-    pub fn loaded(&self) -> &Literal {
-        match self {
-            Litter::Inline(inline) => &inline.loaded.get().unwrap(),
-            Litter::External(external) => &external.loaded.get().unwrap(),
-        }
+    pub fn edit(&self) -> LitterHandle<Literal> {
+        todo!()
+    }
+
+    pub fn read(&self) -> Literal {
+        // XXX: consider the case where it's updated elsewhere
+        // XXX: does this need to check whether we have a handle
+        // XXX: for this key already, and if so go to that for
+        // XXX: the updated value?
+        self.literal
+    }
+
+    pub fn write(&self, _value: &Literal::Inner) {
+        todo!()
     }
 }
 
-impl<Literal: crate::Literal> Deref for Litter<Literal> {
-    type Target = Literal;
-
-    fn deref(&self) -> &Literal {
-        self.literal()
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct Location {
+    file: &'static str,
+    line: u32,
+    column: u32,
 }
 
-impl<Literal: crate::Literal> PartialEq<Literal> for Litter<Literal> {
-    fn eq(&self, other: &Literal) -> bool {
-        if self.literal() == other {
-            true
-        } else {
-            // inequality! record this if we're in replacement mode
-            false
+impl From<&'static core::panic::Location<'static>> for Location {
+    fn from(location: &'static core::panic::Location<'static>) -> Self {
+        Location {
+            file: location.file(),
+            line: location.line(),
+            column: location.column(),
         }
     }
 }

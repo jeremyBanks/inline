@@ -1,4 +1,4 @@
-use ::litter::{self, json, Litter};
+use litter::{self, json, Litter};
 
 #[test]
 fn test() {

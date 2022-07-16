@@ -1,4 +1,4 @@
-use {crate::Litter, ::serde_json::Value as Json};
+use {crate::Litter, serde_json::Value as Json};
 
 #[macro_export]
 macro_rules! json {
