@@ -1,15 +1,16 @@
 [package]
+description = "🗑️ litter makes your literals mutable with smart pointers into your source code"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "litter"
 version = "0.20220715.0-dev-incomplete-test-unstable-dont-use-me-fixme-todo-do-not-commit"
 
 [dependencies]
-anymap = "0.12.1"
 bstr = "0.2.17"
 derive_more = "0.99.17"
 document-features = "0.2.1"
 once_cell = "1.13.0"
+parking_lot = { version = "0.12.1", features = ["send_guard"] }
 postcard = { version = "1.0.0", optional = true, features = ["use-std"] }
 rkyv = { version = "0.7.39", optional = true }
 serde = { version = "1.0.139", optional = true }
@@ -23,42 +24,41 @@ serde_derive = "1.0.139"
 [features]
 #! ## Cargo Features
 
-default = ["mut", "panic", "all"]
+default = ["mut", "write", "panic", "std", "all"]
 
-## Support mutating literals and writing them back to the source file.
+## Support for "mutating" literals.
 mut = ["std"]
 
-## Include functions that may panic on error. If disabled, all potentially
-## panicking functions will be removed, requiring the use of their fallible
-## variants.
-panic = []
+## Support for writing literal mutations back to their source file.
+write = ["mut"]
 
-## Support (de)serializing `&str` literals as JSON using `serde`, via the
+## Support (de)serializing string/byte literals as JSON using `serde`, via the
 ## `.edit_json()` extension method.
-json = ["serde", "dep:serde_json", "std"]
+json = ["dep:serde", "dep:serde_json", "std"]
 
-## Support (de)serializing `&[u8]` literals as Postcard using `serde`, via the
+## Support (de)serializing byte literals as Postcard using `serde`, via the
 ## `.edit_postcard()` extension method.
-postcard = ["serde", "dep:postcard"]
+postcard = ["dep:serde", "dep:postcard"]
 
-## Support (de)serializing `&str` literals as TOML using `serde`, via the
+## Support (de)serializing string/byte literals as TOML using `serde`, via the
 ## `.edit_toml()` extension method.
-toml = ["serde", "dep:toml", "std"]
+toml = ["dep:serde", "dep:toml", "std"]
 
-## Support (de)serializing `&str` literals as YAML using `serde`, via the
+## Support (de)serializing string/byte literals as YAML using `serde`, via the
 ## `.edit_yaml()` extension method.
-yaml = ["serde", "dep:serde_yaml", "std"]
+yaml = ["dep:serde", "dep:serde_yaml", "std"]
 
-## Support (de)serializing `&[u8]` literals using `rkyv`, via the
+## Support (de)serializing byte literals using `rkyv`, via the
 ## `.edit_rkyv()` extension method.
 rkyv = ["dep:rkyv"]
 
 all = ["mut", "json", "postcard", "toml", "yaml", "rkyv", "panic"]
 
-serde = ["dep:serde"]
-std = ["dep-std"]
-dep-std = ["dep-alloc"]
-dep-alloc = []
+## Include features that may panic on error.
+panic = []
+
+## Include features that require the Rust `std` library/ean operating system.
+std = []
 
 [package.metadata.docs.rs]
 all-features = true
