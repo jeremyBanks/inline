@@ -3,17 +3,18 @@ description = "🗑️ litter makes your literals mutable with smart pointers in
 edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "litter"
-version = "0.20220715.0-dev-incomplete-test-unstable-dont-use-me-fixme-todo-do-not-commit"
+version = "0.20220716.0-WIP-DO-NOT-USE-OR-YOU-WILL-BE-FIRED-AND-I-WILL-BE-FIRED-OH-NO"
 
 [dependencies]
 bstr = "0.2.17"
 derive_more = "0.99.17"
 document-features = "0.2.1"
+log = "0.4.17"
+miette = "5.1.1"
 once_cell = "1.13.0"
 parking_lot = { version = "0.12.1", features = ["send_guard"] }
-postcard = { version = "1.0.0", optional = true, features = ["use-std"] }
-rkyv = { version = "0.7.39", optional = true }
-serde = { version = "1.0.139", optional = true }
+postcard = { version = "1.0.0", optional = true, default-features = false }
+serde = { version = "1.0.139", optional = true, default-features = false }
 serde_json = { version = "1.0.82", optional = true }
 serde_yaml = { version = "0.8.25", optional = true }
 toml = { version = "0.5.9", optional = true }
@@ -21,20 +22,25 @@ toml = { version = "0.5.9", optional = true }
 [dev-dependencies]
 serde_derive = "1.0.139"
 
+[package.metadata.docs.rs]
+all-features = true
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
+
 [features]
 #! ## Cargo Features
 
-default = ["mut", "write", "panic", "std", "all"]
-
-## Support for "mutating" literals.
-mut = ["std"]
+#- We omit the serialization features by default.
+default = ["mut", "write", "panic"]
 
 ## Support for writing literal mutations back to their source file.
 write = ["mut"]
 
+## Support for "mutating" literals.
+mut = ["std"]
+
 ## Support (de)serializing string/byte literals as JSON using `serde`, via the
 ## `.edit_json()` extension method.
-json = ["dep:serde", "dep:serde_json", "std"]
+json = ["dep:serde", "std", "dep:serde_json"]
 
 ## Support (de)serializing byte literals as Postcard using `serde`, via the
 ## `.edit_postcard()` extension method.
@@ -42,23 +48,21 @@ postcard = ["dep:serde", "dep:postcard"]
 
 ## Support (de)serializing string/byte literals as TOML using `serde`, via the
 ## `.edit_toml()` extension method.
-toml = ["dep:serde", "dep:toml", "std"]
+toml = ["dep:serde", "std", "dep:toml"]
 
 ## Support (de)serializing string/byte literals as YAML using `serde`, via the
 ## `.edit_yaml()` extension method.
-yaml = ["dep:serde", "dep:serde_yaml", "std"]
-
-## Support (de)serializing byte literals using `rkyv`, via the
-## `.edit_rkyv()` extension method.
-rkyv = ["dep:rkyv"]
-
-all = ["mut", "json", "postcard", "toml", "yaml", "rkyv", "panic"]
+yaml = ["dep:serde", "std", "dep:serde_yaml"]
 
 ## Include features that may panic on error.
 panic = []
 
-## Include features that require the Rust `std` library/ean operating system.
-std = []
+#- Include features that require the built-in `std` module (operating system bindings).
+std = ["alloc", "serde?/std", "postcard?/use-std"]
 
-[package.metadata.docs.rs]
-all-features = true
+#- Include features that require the built-in `alloc` module (memory allocation).
+alloc = ["serde?/alloc", "postcard?/alloc"]
+
+#- Internal pseudo feature that should only be activated by `--all-features`.
+__all__ = []
+
