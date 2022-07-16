@@ -140,6 +140,10 @@ and `.edit_toml()` methods default to dynamic values (`serde_json::Value`,
 requires a known type (it's non-self-describing and can't be handled
 dynamically).
 
+For text formats, encoding to a string literal will be pretty/verbose, while
+encoding to a byte string literal will be use a compact representation. (This
+obviously isn't relevant to binary-only formats like `postcard` and `rkyv`.)
+
 ## Performance and Reliability
 
 This is (clearly) intended for convenience, not performance. It should be fast
@@ -170,6 +174,7 @@ program are running concurrently and both try to modify the same file.
   value. The intent would be to allow literals to be used in `no_std` builds, if
   they might occur in a program that can also be run in `std` mode where the
   functionality would also be used.
+- Disable writing in non-debug builds? Or have an option, or different method?
 
 ## License
 

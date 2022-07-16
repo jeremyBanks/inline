@@ -3,6 +3,7 @@
 #![doc = include_str!("../README.md")]
 //!
 #![doc = document_features::document_features!()]
+#![cfg_attr(debug_assertions, allow(unused))]
 
 mod literal;
 pub use self::literal::*;

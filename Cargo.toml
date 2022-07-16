@@ -2,7 +2,7 @@
 edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "litter"
-version = "0.20220714.0"
+version = "0.20220715.0-dev-incomplete-test-unstable-dont-use-me-fixme-todo-do-not-commit"
 
 [dependencies]
 anymap = "0.12.1"

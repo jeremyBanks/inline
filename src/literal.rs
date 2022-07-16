@@ -1,6 +1,8 @@
-use core::fmt::{Debug, Display};
-use derive_more::{From, TryInto};
-use std::fmt::Write;
+use {
+    core::fmt::{Debug, Display},
+    derive_more::{From, TryInto},
+    std::fmt::Write,
+};
 
 /// A type representing a literal value in the source code that can be edited
 /// by `litter`. Using this type with a value that is not actually a literal in
@@ -55,10 +57,10 @@ impl Literal for &'static [u8] {
                 last_newline_index = s.len() as i64;
             }
             match byte {
+                // a newline following a printable character is converted into an escaped
+                // newline to maintain the content and our own indentation, using \n.
+                // other newlines are hex-encoded like a non-printable value, using \x10.
                 b'\n' => {
-                    // a newline following a printable character is converted into an escaped
-                    // newline to maintain the content and our own indentation, using \n.
-                    // other newlines are hex-encoded like a non-printable value, using \x10.
                     if previous_was_printable {
                         write!(s, "\\n\\\n  ").unwrap();
                         last_newline_index = s.len() as i64;
@@ -66,7 +68,8 @@ impl Literal for &'static [u8] {
                         write!(s, "\\x0A").unwrap();
                     }
                     previous_was_printable = false;
-                }
+                },
+
                 // leading spaces (following a backslashed-newline) would be trimmed unless encoded
                 b' ' => {
                     if line_broken || !previous_was_printable {
@@ -75,17 +78,20 @@ impl Literal for &'static [u8] {
                         write!(s, " ").unwrap();
                     }
                     previous_was_printable = true;
-                }
+                },
+
                 // most ascii printable characters are left as-is
                 b'!' | b'#'..=b'[' | b']'..=b'~' => {
                     write!(s, "{}", *byte as char).unwrap();
                     previous_was_printable = true;
-                }
-                // but backslash and double quotes are uppercase hex escaped along with everything else
+                },
+
+                // but backslash and double quotes are uppercase hex escaped along with everything
+                // else
                 b'\\' | b'"' | 0..=0x1F | 0x7F..=0xFF => {
                     write!(s, "\\x{byte:02X}").unwrap();
                     previous_was_printable = false;
-                }
+                },
             }
         }
         s.push_str("\"");

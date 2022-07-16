@@ -258,7 +258,7 @@ checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "litter"
-version = "0.20220714.0"
+version = "0.20220715.0-dev-incomplete-test-unstable-dont-use-me-fixme-todo-do-not-commit"
 dependencies = [
  "anymap",
  "bstr",
