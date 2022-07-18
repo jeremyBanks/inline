@@ -203,7 +203,7 @@ checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "litter"
-version = "0.20220716.0-WIP-DO-NOT-USE-OR-YOU-WILL-BE-FIRED-AND-I-WILL-BE-FIRED-YIKES"
+version = "0.20220718.0-dev"
 dependencies = [
  "arbitrary",
  "derive_more",
