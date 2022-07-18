@@ -7,7 +7,7 @@ mutations need to be written back. The implementation uses the
 [`#[track_caller]`](https://doc.rust-lang.org/reference/attributes/codegen.html#the-track_caller-attribute)
 attribute (no macros).
 
-## Core Capability
+## Basic Use
 
 The [`litter::Litter`] type wraps a literal value with information about its
 location in your source code, allowing it to be mutated with changes reflected
@@ -71,7 +71,7 @@ fn assert_eq_u64(expected: u64, actual: u64) {
         } else {
             panic!("\
                 Expected {expected:?} but actual value was {actual:?}.\n\
-
+                \n\
                 To update the expected value, run this again with UPDATE_EXPECT=1.\
             ");
         }
@@ -93,7 +93,7 @@ fn test_the_ultimate_question() {
 Although you don't need to write this particular function yourself: a generic
 version is included at `litter::assert_eq(literal, actual)`.
 
-## `serde` Support
+## Serialization
 
 If you enable the `json`, `yaml`, `postcard`, or `toml` features, `LiteralExt`
 for strings and bytes gains corresponding `.edit_json()`, `.edit_yaml()`,
@@ -163,8 +163,11 @@ instead of clobbering unexpected data. However, no filesystem locking is used so
 this isn't guaranteed, so logic errors _can_ occur if multiple copies of your
 program are running concurrently and both try to modify the same file.
 
-## Future Work
+## To Do
 
+- [ ] implement naive unsyncronized writing
+- [ ] implement better writing
+- [ ] support external data(?)
 - Future work?! Almost nothing described above has actually been implemented
   yet!
 - Fallible alternatives instead of panicking, including for the case of writing

@@ -35,8 +35,31 @@ impl Literal for &'static str {
     type Inner = str;
 
     fn fmt_source(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        // TODO: better
-        write!(f, "{self:#?}")
+        let mut octothorpes_following_quote = None;
+        let mut max_octothorpes_following_quote = None;
+
+        for char in self.chars() {
+            if char == '"' {
+                octothorpes_following_quote = Some(0);
+            } else if char == '#' && let Some(mut current) = octothorpes_following_quote {
+                current += 1;
+            } else {
+                octothorpes_following_quote = None;
+            }
+            if let Some(current) = octothorpes_following_quote {
+                if let Some(max) = max_octothorpes_following_quote {
+                    if current > max {
+                        max_octothorpes_following_quote = Some(current);
+                    }
+                } else {
+                    max_octothorpes_following_quote = Some(current);
+                }
+            }
+        }
+
+        let octothorpes = "#".repeat(max_octothorpes_following_quote.map(|n| n + 1).unwrap_or(0));
+
+        write!(f, "r{octothorpes}\"{self}\"{octothorpes}")
     }
 }
 

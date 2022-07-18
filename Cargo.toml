@@ -44,7 +44,7 @@ dev-dependencies = [
     "arbitrary/derive",
 ]
 
-#! **Serialization Formats**
+#! ### Serialization Formats
 
 ## Support (de)serializing string/byte literals as JSON using `serde` via the `.edit_json()` methods.
 json = ["serde", "std", "serde_json"]
@@ -58,7 +58,7 @@ toml = ["serde", "std", "dep:toml"]
 ## Support (de)serializing string/byte literals as YAML using `serde` via the `.edit_yaml()` methods.
 yaml = ["serde", "std", "serde_yaml"]
 
-#! **Core Capabilities**
+#! ### Core Capabilities
 
 ## Support for writing literal mutations back to their source file.
 write = ["mut", "proc-macro0"]
@@ -66,7 +66,7 @@ write = ["mut", "proc-macro0"]
 ## Support for "mutating" literals.
 mut = ["std", "parking_lot", "once_cell/parking_lot"]
 
-## Include features that may panic on error. (Disabling this doesn't prevent _all_ panics, yet.)
+## Include features that may panic on error. (This does **not** prevent all panics (yet?).)
 panic = []
 
 #- Include features that require `serde`.
@@ -81,14 +81,16 @@ alloc = ["postcard?/alloc", "once_cell?/alloc"]
 #- Internal pseudo feature to be activated by `--all-features`.
 __all_features__ = []
 
-#! **Forbidding Features**
+#! ### Forbidding Features
 #!
-#! These flags are obviously "non-additive" (contra [the normal recommendation](https://doc.rust-lang.org/cargo/reference/features.html#feature-unification)),
+#! These flags are obviously "non-additive" (contra [the normal recommendation][1]),
 #! so they should typically only be activated by the root binary, not libraries.
 #! These don't disable the corresponding features directly; you'll still need to use `default-features = false`.
 #! Rather, these flags will raise a compile errors if the corresponding features are enabled,
 #! to help catch cases where they may inadvertently be reenabled by other crates.
 #! These flags are ignored in `--all-features` builds.
+#!
+#! [1]: https://doc.rust-lang.org/cargo/reference/features.html#feature-unification
 
 ## Forbids the use of the `panic` feature.
 forbid-panic = []
