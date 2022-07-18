@@ -15,8 +15,7 @@ miette = { version = "5.1.1", optional = true }
 once_cell = { version = "1.13.0", optional = true, default-features = false }
 parking_lot = { version = "0.12.1", optional = true, features = ["send_guard"] }
 postcard = { version = "1.0.0", optional = true, default-features = false }
-proc-macro0 = "1.0.40-dev.0"
-proc-macro2 = { version = "1.0.40", optional = true, features = ["span-locations"] }
+proc-macro0 = { version = "1.0.40-dev.0", optional = true }
 serde = { version = "1.0.139", optional = true, default-features = false }
 serde_json = { version = "1.0.82", optional = true }
 serde_yaml = { version = "0.8.25", optional = true }
@@ -37,6 +36,7 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
 default = ["mut", "write", "panic"]
 
 #- Features and dependencies activated for `dev-dependencies`.
+#- (See https://stackoverflow.com/q/73015087/1114.)
 dev-dependencies = [
     "serde/derive",
     "miette/fancy",
@@ -61,7 +61,7 @@ yaml = ["serde", "std", "serde_yaml"]
 #! **Core Capabilities**
 
 ## Support for writing literal mutations back to their source file.
-write = ["mut", "proc-macro2"]
+write = ["mut", "proc-macro0"]
 
 ## Support for "mutating" literals.
 mut = ["std", "parking_lot", "once_cell/parking_lot"]

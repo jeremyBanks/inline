@@ -215,7 +215,7 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "postcard",
- "proc-macro2",
+ "proc-macro0",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -343,6 +343,17 @@ checksum = "beb9d9bc911a7aa6af3596bf01d9810069ac2ebb8b348f36a344af20f441700b"
 dependencies = [
  "cobs",
  "serde",
+]
+
+[[package]]
+name = "proc-macro0"
+version = "1.0.40-dev.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c9592a4df029ed094d8431f85fb27033d2e959f55f1f3f96482bf23ddcad85e"
+dependencies = [
+ "once_cell",
+ "parking_lot",
+ "unicode-ident",
 ]
 
 [[package]]
