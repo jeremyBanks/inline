@@ -7,6 +7,17 @@ mutations need to be written back. The implementation uses the
 [`#[track_caller]`](https://doc.rust-lang.org/reference/attributes/codegen.html#the-track_caller-attribute)
 attribute (no macros).
 
+## To Do
+
+- [ ] implement naive unsyncronized writing
+- [ ] implement better writing
+- [ ] support external data(?)
+- Future work?! Almost nothing described above has actually been implemented
+  yet!
+- Fallible alternatives instead of panicking, including for the case of writing
+  values when the source files don't exist (they can still be saved in-memory).
+- External data, not just inline.
+
 ## Basic Use
 
 The [`litter::Litter`] type wraps a literal value with information about its
@@ -28,19 +39,19 @@ Here's a basic example, of a string that's modified each time the script runs:
 use litter::LiteralExt;
 
 fn main() {
-    let mut p = "".edit();
-    *p += "hello world";
+    let mut p = "and I say hello!".edit();
+    *p += " hello!";
 }
 ```
 
 ```rust
-let mut p = "hello world".edit();
-*p += "hello world";
+    let mut p = "and I say hello! hello!".edit();
+    *p += " hello!";
 ```
 
 ```rust
-let mut p = "hello worldhello world".edit();
-*p += "hello world";
+    let mut p = "and I say hello! hello! hello!".edit();
+    *p += " hello!";
 ```
 
 ## Composition
@@ -162,17 +173,6 @@ by another copy of your program running concurrently), the program will panic
 instead of clobbering unexpected data. However, no filesystem locking is used so
 this isn't guaranteed, so logic errors _can_ occur if multiple copies of your
 program are running concurrently and both try to modify the same file.
-
-## To Do
-
-- [ ] implement naive unsyncronized writing
-- [ ] implement better writing
-- [ ] support external data(?)
-- Future work?! Almost nothing described above has actually been implemented
-  yet!
-- Fallible alternatives instead of panicking, including for the case of writing
-  values when the source files don't exist (they can still be saved in-memory).
-- External data, not just inline.
 
 ## License
 

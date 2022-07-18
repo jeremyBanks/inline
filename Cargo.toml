@@ -30,10 +30,8 @@ all-features = true
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
 
 [features]
-#! ## Feature Flags
-
 #- We omit the serialization features by default.
-default = ["mut", "write", "panic"]
+default = ["mut", "write", "panic", "assertions"]
 
 #- Features and dependencies activated for `dev-dependencies`.
 #- (See https://stackoverflow.com/q/73015087/1114.)
@@ -43,6 +41,8 @@ dev-dependencies = [
     "env_logger",
     "arbitrary/derive",
 ]
+
+#! ## Feature Flags
 
 #! ### Serialization Formats
 
@@ -66,20 +66,13 @@ write = ["mut", "proc-macro0"]
 ## Support for "mutating" literals.
 mut = ["std", "parking_lot", "once_cell/parking_lot"]
 
-## Include features that may panic on error. (This does **not** prevent all panics (yet?).)
+## Include features that may panic on error. (Disabling does **not** prevent all panics (yet?).)
 panic = []
 
-#- Include features that require `serde`.
-serde = ["dep:serde"]
+#! ### Testing Tools
 
-#- Include features that require the built-in `std` module (operating system bindings).
-std = ["alloc", "serde?/std", "postcard?/use-std", "once_cell?/std"]
-
-#- Include features that require the built-in `alloc` module (memory allocation).
-alloc = ["postcard?/alloc", "once_cell?/alloc"]
-
-#- Internal pseudo feature to be activated by `--all-features`.
-__all_features__ = []
+## Include assertion functions for snapshot testing.
+assertions = ["write", "panic", "mut"]
 
 #! ### Forbidding Features
 #!
@@ -103,3 +96,17 @@ forbid-mut = []
 
 ## Forbids the use of features that require `serde`.
 forbid-serde = []
+
+#- ### Internal Features
+
+#- Include features that require `serde`.
+serde = ["dep:serde"]
+
+#- Include features that require the built-in `std` module (operating system bindings).
+std = ["alloc", "serde?/std", "postcard?/use-std", "once_cell?/std"]
+
+#- Include features that require the built-in `alloc` module (memory allocation).
+alloc = ["postcard?/alloc", "once_cell?/alloc"]
+
+#- Internal pseudo feature to be activated by `--all-features`.
+__all_features__ = []

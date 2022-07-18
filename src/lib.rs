@@ -37,8 +37,10 @@ pub use self::litter::*;
 mod literal_ext;
 pub use self::literal_ext::*;
 
-mod asserts;
-pub use self::asserts::*;
+#[cfg(feature = "assertions")]
+mod assertions;
+#[cfg(feature = "assertions")]
+pub use self::assertions::*;
 
 #[cfg(feature = "std")]
 mod litter_index;
