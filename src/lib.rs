@@ -13,9 +13,9 @@
     missing_docs
 )]
 // ...but not in debug builds or the IDE, that's too noisy.
-// So we skip them except in test, doc, and release builds.
+// So we skip them except in test and release builds.
 #![cfg_attr(
-    all(debug_assertions, not(all(any(test, doc), not(feature = "__all__")))),
+    all(debug_assertions, not(feature = "__all__")),
     allow(
         unused,
         unused_crate_dependencies,
@@ -25,11 +25,8 @@
         unused_qualifications
     )
 )]
-// Note that Cargo ignores all of these built-in lints for dependencies, and
-// this crate is a library, not a binary. So although we promote warnings
-// to errors, this is only relevant for when we build or run this as
-// `--release` directly, during development and testing, not for our users.
-#![cfg_attr(not(debug_assertions), deny(warnings))]
+
+mod features;
 
 mod literal;
 pub use self::literal::*;

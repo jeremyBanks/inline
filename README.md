@@ -169,12 +169,7 @@ program are running concurrently and both try to modify the same file.
   yet!
 - Fallible alternatives instead of panicking, including for the case of writing
   values when the source files don't exist (they can still be saved in-memory).
-- `no_std` support. Huh?! Yep! This would include _none_ of the significant
-  functionality, only exposing a non-`mut` `Deref` wrapper for the literal
-  value. The intent would be to allow literals to be used in `no_std` builds, if
-  they might occur in a program that can also be run in `std` mode where the
-  functionality would also be used.
-- Disable writing in non-debug builds? Or have an option, or different method?
+- External data, not just inline.
 
 ## License
 
