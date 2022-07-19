@@ -1,7 +1,7 @@
 use {
     core::fmt::{Debug, Display},
     derive_more::{From, TryInto},
-    std::fmt::Write,
+    std::{fmt::Write, sync::Arc},
 };
 
 /// A type representing a literal value in the source code that can be edited
@@ -24,9 +24,8 @@ pub trait Literal:
     type Inner: 'static + ?Sized + Debug + PartialEq;
 
     /// Formats this literal as we would like it to appear in source code.
-    ///
-    /// By default this will use the type's `Debug` implementation.
     fn fmt_source(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        // By default we use the type's verbose Debug formatting.
         write!(f, "{self:#?}")
     }
 }
@@ -35,16 +34,21 @@ impl Literal for &'static str {
     type Inner = str;
 
     fn fmt_source(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let mut any_quotes_or_backslashes = false;
         let mut octothorpes_following_quote = None;
         let mut max_octothorpes_following_quote = None;
 
         for char in self.chars() {
             if char == '"' {
                 octothorpes_following_quote = Some(0);
+                any_quotes_or_backslashes = true;
             } else if char == '#' && let Some(mut current) = octothorpes_following_quote {
                 current += 1;
             } else {
                 octothorpes_following_quote = None;
+                if char == '\\' {
+                    any_quotes_or_backslashes = true;
+                }
             }
             if let Some(current) = octothorpes_following_quote {
                 if let Some(max) = max_octothorpes_following_quote {
@@ -57,9 +61,10 @@ impl Literal for &'static str {
             }
         }
 
+        let raw = any_quotes_or_backslashes.then_some("r").unwrap_or("");
         let octothorpes = "#".repeat(max_octothorpes_following_quote.map(|n| n + 1).unwrap_or(0));
 
-        write!(f, "r{octothorpes}\"{self}\"{octothorpes}")
+        write!(f, "{raw}{octothorpes}\"{self}\"{octothorpes}")
     }
 }
 
@@ -68,6 +73,7 @@ impl Literal for &'static [u8] {
 
     fn fmt_source(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         // XXX: maybe we should use formatter::pad() and similar?
+        // XXX: this should probably also use raw strings with octothorpes if neccessary
         let mut s = String::with_capacity((self.len() + 1) * 4);
         let mut last_newline_index = 2;
         let mut previous_was_printable = false;
@@ -117,7 +123,7 @@ impl Literal for &'static [u8] {
                 },
             }
         }
-        s.push_str("\"");
+        s.push('\"');
         write!(f, "{s}")
     }
 }

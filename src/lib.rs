@@ -3,30 +3,40 @@
 #![doc = include_str!("../README.md")]
 //!
 #![doc = document_features::document_features!()]
-// We wan to warn about these...
+// We warn to warn about these...
 #![warn(
-    unused_qualifications,
-    unused_macro_rules,
+    absolute_paths_not_starting_with_crate,
+    clippy::missing_panics_doc,
+    missing_debug_implementations,
+    missing_docs,
+    noop_method_call,
+    unreachable_pub,
+    unused_crate_dependencies,
     unused_import_braces,
     unused_lifetimes,
-    unused_crate_dependencies,
-    missing_docs
+    unused_macro_rules,
+    unused_qualifications
 )]
-// ...but not in debug builds or the IDE, that's too noisy.
-// So we skip them except in test and release builds.
+// ...but some can be too noisy in debug builds or the IDE.
+// So we skip those except in test and release builds:
 #![cfg_attr(
     all(debug_assertions, not(feature = "__all__")),
     allow(
-        unused,
-        unused_crate_dependencies,
         missing_docs,
+        unused_crate_dependencies,
         unused_import_braces,
         unused_macro_rules,
-        unused_qualifications
+        unused_qualifications,
+        unused
     )
 )]
+#![cfg_attr(doc, feature(doc_auto_cfg, doc_cfg))]
 
 mod features;
+pub(crate) use self::features::*;
+
+mod util;
+pub(crate) use self::util::*;
 
 mod literal;
 pub use self::literal::*;
@@ -37,22 +47,14 @@ pub use self::litter::*;
 mod literal_ext;
 pub use self::literal_ext::*;
 
-#[cfg(feature = "assertions")]
 mod assertions;
-#[cfg(feature = "assertions")]
-pub use self::assertions::*;
+pub use self::assertions::assert_eq;
 
-#[cfg(feature = "std")]
 mod litter_index;
-#[cfg(feature = "std")]
 pub use self::litter_index::*;
 
-#[cfg(feature = "std")]
 mod litter_handle;
-#[cfg(feature = "std")]
 pub use self::litter_handle::*;
 
-#[cfg(feature = "serde")]
 mod serde;
-#[cfg(feature = "serde")]
 pub use self::serde::*;

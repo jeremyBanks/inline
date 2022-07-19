@@ -17,6 +17,9 @@ attribute (no macros).
 - Fallible alternatives instead of panicking, including for the case of writing
   values when the source files don't exist (they can still be saved in-memory).
 - External data, not just inline.
+- While the value has only been read, we can hold on to a Weak Arc of its state
+  and let it be freed. Once it's been written to, we need to keep it in memory
+  forever, so we leak a reference.
 
 ## Basic Use
 

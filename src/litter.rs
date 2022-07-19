@@ -1,4 +1,4 @@
-use crate::LitterHandle;
+use derive_more::{From, TryInto};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Litter<Literal: crate::Literal> {
@@ -15,7 +15,7 @@ impl<Literal: crate::Literal> Litter<Literal> {
         }
     }
 
-    pub fn edit(&self) -> LitterHandle<Literal> {
+    pub fn edit(&self) -> Litter<Literal> {
         todo!()
     }
 
@@ -47,4 +47,28 @@ impl From<&'static core::panic::Location<'static>> for Location {
             column: location.column(),
         }
     }
+}
+
+#[allow(non_camel_case_types)]
+#[derive(From, TryInto, Debug)]
+#[non_exhaustive]
+pub enum AnyLitter {
+    string(Litter<&'static str>),
+    bytes(Litter<&'static [u8]>),
+    bool(Litter<bool>),
+    char(Litter<char>),
+    u8(Litter<u8>),
+    u16(Litter<u16>),
+    u32(Litter<u32>),
+    u64(Litter<u64>),
+    u128(Litter<u128>),
+    usize(Litter<usize>),
+    i8(Litter<i8>),
+    i16(Litter<i16>),
+    i32(Litter<i32>),
+    i64(Litter<i64>),
+    i128(Litter<i128>),
+    isize(Litter<isize>),
+    f32(Litter<f32>),
+    f64(Litter<f64>),
 }

@@ -9,17 +9,13 @@ pub trait LiteralExt: Literal {
         Litter::new(*self)
     }
 
+    #[cfg(any(doc, all(feature = "write")))]
     #[track_caller]
     fn edit(&'static self) -> LitterHandle<Self> {
-        self.litter().edit()
+        todo!()
     }
 
-    #[track_caller]
-    fn write(&'static self, value: &Self::Inner) {
-        self.litter().write(value)
-    }
-
-    #[cfg(feature = "json")]
+    #[cfg(any(doc, all(feature = "write", feature = "json")))]
     #[track_caller]
     fn edit_json(&'static self) -> !
     where
@@ -28,7 +24,7 @@ pub trait LiteralExt: Literal {
         todo!()
     }
 
-    #[cfg(feature = "postcard")]
+    #[cfg(any(doc, all(feature = "write", feature = "postcard")))]
     #[track_caller]
     fn edit_postcard(&'static self) -> !
     where
@@ -37,7 +33,7 @@ pub trait LiteralExt: Literal {
         todo!()
     }
 
-    #[cfg(feature = "toml")]
+    #[cfg(any(doc, all(feature = "write", feature = "toml")))]
     #[track_caller]
     fn edit_toml(&'static self) -> !
     where
@@ -46,7 +42,7 @@ pub trait LiteralExt: Literal {
         todo!()
     }
 
-    #[cfg(feature = "yaml")]
+    #[cfg(any(doc, all(feature = "write", feature = "yaml")))]
     #[track_caller]
     fn edit_yaml(&'static self) -> !
     where
@@ -55,7 +51,7 @@ pub trait LiteralExt: Literal {
         todo!()
     }
 
-    #[cfg(feature = "rkyv")]
+    #[cfg(any(doc, all(feature = "write", feature = "rkyv")))]
     #[track_caller]
     fn edit_rkyv(&'static self) -> !
     where
