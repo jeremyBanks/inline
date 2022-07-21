@@ -6,7 +6,7 @@ name = "toke"
 version = "0.20220721.0-dev"
 
 [dependencies]
-arcane = { path = "../arcane" }
+arcane = { path = "../arcane", version = "0.20220721.0-dev" }
 
 [lib]
 path = "/dev/null"
