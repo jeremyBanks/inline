@@ -1,3 +1,6 @@
+[workspace]
+members = ["crates/arcane", "crates/"]
+
 [package]
 description = "🗑️ litter makes your literals mutable with smart pointers into your source code"
 edition = "2021"
