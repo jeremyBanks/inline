@@ -1,10 +1,18 @@
 pub(crate) use std::sync::{Arc as Strong, Weak};
 
+use {
+    core::{
+        cmp::Ordering,
+        hash::{Hash, Hasher},
+    },
+    std::ops::Deref,
+};
+
 /// An Arc that may be Strong or Weak.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum Arc<T> {
-    Strong(Strong<T>),
-    Weak(Weak<T>),
+    Strong(OnceCell<Strong<T>>),
+    Weak(OnceCell<Weak<T>>),
 }
 
 impl<T> Arc<T> {
@@ -26,8 +34,7 @@ impl<T> Arc<T> {
         Self::from_weak(Weak::new())
     }
 
-    /// Replaces this Arc with a new Strong Arc with the given value.
-    pub(crate) fn replace(&mut self, t: T) {
+    pub(crate) fn set(&mut self, t: T) {
         *self = Self::new(t)
     }
 
@@ -59,19 +66,27 @@ impl<T> Arc<T> {
     }
 
     /// Upgrades this to a strong Arc in-place.
-    pub(crate) fn upgrade(&mut self) -> Option<&mut Self> {
+    pub(crate) fn upgrade(&mut self) -> Option<&Strong<T>> {
         if let Arc::Weak(weak) = self {
             *self = Arc::Strong(weak.upgrade()?);
         }
-        Some(self)
+        if let Arc::Strong(ref strong) = self {
+            Some(strong)
+        } else {
+            unreachable!()
+        }
     }
 
     /// Downgrades to a weak Arc in-place.
-    pub(crate) fn downgrade(&mut self) -> &mut Self {
+    pub(crate) fn downgrade(&mut self) -> Option<&Weak<T>> {
         if let Arc::Strong(strong) = self {
             *self = Arc::Weak(Strong::downgrade(strong));
         }
-        self
+        if let Arc::Weak(ref weak) = self {
+            Some(weak)
+        } else {
+            unreachable!()
+        }
     }
 
     /// Upgrades this to a strong Arc in-place. If the value has already been dropped,
@@ -81,7 +96,7 @@ impl<T> Arc<T> {
         T: Default,
     {
         if self.upgrade().is_none() {
-            self.replace(T::default());
+            self.set(T::default());
         }
         self
     }
@@ -133,5 +148,40 @@ impl<T> From<Arc<T>> for Weak<T> {
 impl<T> Default for Arc<T> {
     fn default() -> Self {
         Arc::empty()
+    }
+}
+
+impl<T> Ord for Arc<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_ptr().cmp(&other.as_ptr())
+    }
+}
+
+impl<T> PartialOrd for Arc<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.as_ptr().partial_cmp(&other.as_ptr())
+    }
+}
+
+impl<T> PartialEq for Arc<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ptr().eq(&other.as_ptr())
+    }
+}
+
+impl<T> Eq for Arc<T> {}
+
+impl<T> Hash for Arc<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ptr().hash(state);
+    }
+}
+
+impl<T> Clone for Arc<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Arc::Strong(strong) => Arc::Strong(strong.clone()),
+            Arc::Weak(weak) => Arc::Weak(weak.clone()),
+        }
     }
 }

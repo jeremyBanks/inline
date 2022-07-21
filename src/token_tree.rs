@@ -14,45 +14,11 @@ use {
 };
 
 /// A "span" is a pair of byte indices used to slice into a `.source_code`.
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Span {
-    source_code: arc::Weak<String>,
+    source_code: arc::Arc<String>,
     lo: usize,
     hi: usize,
-}
-
-impl Ord for Span {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.source_code
-            .as_ptr()
-            .cmp(&other.source_code.as_ptr())
-            .then_with(|| self.lo.cmp(&other.lo))
-            .then_with(|| self.hi.cmp(&other.hi))
-    }
-}
-
-impl PartialOrd for Span {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for Span {
-    fn eq(&self, other: &Self) -> bool {
-        self.source_code.as_ptr() == other.source_code.as_ptr()
-            && self.lo == other.lo
-            && self.hi == other.hi
-    }
-}
-
-impl Eq for Span {}
-
-impl Hash for Span {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.source_code.as_ptr().hash(state);
-        self.lo.hash(state);
-        self.hi.hash(state);
-    }
 }
 
 /// A "document", a read-only tree/graph view of a Rust source file.
@@ -97,27 +63,6 @@ pub enum SpanError {
     NegativeLength { lo: usize, hi: usize },
 }
 
-impl Span {
-    pub fn as_tuple(&self) -> (usize, usize) {
-        (self.0, self.1)
-    }
-
-    pub fn as_range(&self) -> Range<usize> {
-        self.0..self.1
-    }
-
-    pub fn from_range(range: Range<usize>) -> Self {
-        Span(range.start, range.end)
-    }
-
-    pub fn try_from_tuple(lo: usize, hi: usize) -> Result<Self, SpanError> {
-        if lo > hi {
-            Err(SpanError::NegativeLength { lo, hi })
-        } else {
-            Ok(Span(lo, hi))
-        }
-    }
-}
 impl Document {
     pub fn parse(source: &str) -> Result<Document, ParseError> {
         // let id = NEXT_ANONYMOUS_DOCUMENT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -126,8 +71,10 @@ impl Document {
     }
 
     pub fn parse_named(source: &str, name: &str) -> Result<Document, ParseError> {
-        let source = arc::Arc::new(source.to_string());
+        let source = arc::Strong::new(source.to_string());
+        let source_string = source.as_ref();
         let token_stream = proc_macro2::TokenStream::from_str(source.as_ref())?;
+        let source = arc::Arc::from(source.clone());
         let id = {
             static NEXT_ANONYMOUS_DOCUMENT_ID: AtomicUsize = AtomicUsize::new(1);
             NEXT_ANONYMOUS_DOCUMENT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
@@ -136,7 +83,7 @@ impl Document {
         // let mut children = Vec::new();
 
         let mut line_offsets = vec![];
-        for (offset, byte) in source.bytes().enumerate() {
+        for (offset, byte) in source_string.bytes().enumerate() {
             if byte == b'\n' {
                 line_offsets.push(offset);
             }
@@ -190,13 +137,13 @@ impl Document {
 }
 
 impl Node {
-    fn parse_file(source: &str) -> Result<arc::Arc<Node>, ParseError> {
-        let source = arc::Arc::new(source.to_string());
-        let token_stream = proc_macro2::TokenStream::from_str(source.as_ref())?;
-        let mut children = todo!(); // Vec::new();
+    // fn parse_file(source: &str) -> Result<arc::Arc<Node>, ParseError> {
+    //     let source = arc::Arc::new(source.to_string());
+    //     let token_stream = proc_macro2::TokenStream::from_str(source.as_ref())?;
+    //     let mut children = todo!(); // Vec::new();
 
-        todo!()
-    }
+    //     todo!()
+    // }
 
     fn parse_token(
         token: proc_macro2::TokenTree,
@@ -261,37 +208,7 @@ impl Node {
 
 impl AsRef<str> for Node {
     fn as_ref(&self) -> &str {
-        &self.source[self.span.0..self.span.1]
-    }
-}
-
-/// Trivial impls that we don't need to look at very often.
-mod impls {
-    use super::*;
-
-    impl TryFrom<(usize, usize)> for Span {
-        type Error = SpanError;
-
-        fn try_from(value: (usize, usize)) -> Result<Self, Self::Error> {
-            Span::try_from_tuple(value.0, value.1)
-        }
-    }
-
-    impl From<Range<usize>> for Span {
-        fn from(range: Range<usize>) -> Self {
-            Span::from_range(range)
-        }
-    }
-
-    impl From<Span> for Range<usize> {
-        fn from(span: Span) -> Range<usize> {
-            span.as_range()
-        }
-    }
-
-    impl Debug for Span {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            self.as_range().fmt(f)
-        }
+        todo!()
+        // &self.source[self.span.0..self.span.1]
     }
 }
