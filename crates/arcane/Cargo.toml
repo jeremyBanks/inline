@@ -1,0 +1,9 @@
+[package]
+description = "🗑️"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "arcane"
+version = "0.20220721.0-dev"
+
+[lib]
+path = "/dev/null"

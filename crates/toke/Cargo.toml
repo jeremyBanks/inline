@@ -1,0 +1,12 @@
+[package]
+description = "🗑️"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "toke"
+version = "0.20220721.0-dev"
+
+[dependencies]
+arcane = { path = "../arcane" }
+
+[lib]
+path = "/dev/null"
