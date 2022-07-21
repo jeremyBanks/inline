@@ -2,8 +2,8 @@ use derive_more::{From, TryInto};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Litter<Literal: crate::Literal> {
-    literal: Literal,
-    location: Location,
+    pub(crate) literal: Literal,
+    pub(crate) location: Location,
 }
 
 impl<Literal: crate::Literal> Litter<Literal> {
@@ -34,9 +34,9 @@ impl<Literal: crate::Literal> Litter<Literal> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct Location {
-    file: &'static str,
-    line: u32,
-    column: u32,
+    pub(crate) file: &'static str,
+    pub(crate) line: u32,
+    pub(crate) column: u32,
 }
 
 impl From<&'static core::panic::Location<'static>> for Location {

@@ -1,12 +1,22 @@
 use {
     crate::{AnyLiteral, Litter},
     derive_more::{From, TryInto},
+    std::sync::Arc,
 };
 
 #[derive(Debug)]
 pub struct LitterHandle<Literal: crate::Literal> {
-    original: Litter<Literal>,
-    current: Literal,
+    pub(crate) original: Litter<Literal>,
+    pub(crate) current: Literal,
+}
+
+impl<Literal: crate::Literal> LitterHandle<Literal> {
+    pub(crate) fn new(litter: Litter<Literal>) -> Arc<Self> {
+        Arc::new(Self {
+            original: litter,
+            current: litter.literal,
+        })
+    }
 }
 
 #[allow(non_camel_case_types)]

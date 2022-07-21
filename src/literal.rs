@@ -42,8 +42,8 @@ impl Literal for &'static str {
             if char == '"' {
                 octothorpes_following_quote = Some(0);
                 any_quotes_or_backslashes = true;
-            } else if char == '#' && let Some(mut current) = octothorpes_following_quote {
-                current += 1;
+            } else if char == '#' && octothorpes_following_quote.is_some() {
+                *octothorpes_following_quote.as_mut().unwrap() += 1;
             } else {
                 octothorpes_following_quote = None;
                 if char == '\\' {

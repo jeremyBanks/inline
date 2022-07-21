@@ -170,12 +170,8 @@ so if a value is never then modified the filesystem won't be accessed, and in
 that case the program can work fine on a different system without the source
 files available.
 
-Before writing changes back to the file, we verify that the existing literal in
-the file matches what we expect. If it doesn't (maybe because it's been modified
-by another copy of your program running concurrently), the program will panic
-instead of clobbering unexpected data. However, no filesystem locking is used so
-this isn't guaranteed, so logic errors _can_ occur if multiple copies of your
-program are running concurrently and both try to modify the same file.
+Logic errors can occur if multiple copies of your program are running
+concurrently and both try to modify the same file.
 
 ## License
 

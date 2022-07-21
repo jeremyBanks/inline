@@ -1,5 +1,5 @@
 use {
-    crate::{default, AnyLitterHandle, Location},
+    crate::{litter::Location, litter_handle::AnyLitterHandle},
     once_cell::sync::Lazy,
     parking_lot::RwLock,
     std::{
@@ -8,4 +8,5 @@ use {
     },
 };
 
-pub(crate) static INDEX: Lazy<RwLock<HashMap<Location, Arc<AnyLitterHandle>>>> = default();
+pub(crate) static INDEX: Lazy<RwLock<HashMap<Location, Arc<AnyLitterHandle>>>> =
+    Lazy::new(Default::default);
