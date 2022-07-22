@@ -3,7 +3,7 @@ use {
         cmp::Ordering,
         hash::{Hash, Hasher},
     },
-    miette::{Diagnostic, IntoDiagnostic},
+    miette::Diagnostic,
     std::sync::{Arc, Weak},
     thiserror::Error,
 };
@@ -21,6 +21,8 @@ pub enum Anchor<Inner> {
     url(docsrs),
     help("attempted to get a strong reference from a dropped weak reference")
 )]
+/// This error occurs when you attempt to convert an `Anchor::Weak` to a `std::sync::Arc` but the
+/// anchor's inner value has already been dropped.
 pub struct DroppedAnchor;
 
 impl<Inner> Anchor<Inner> {

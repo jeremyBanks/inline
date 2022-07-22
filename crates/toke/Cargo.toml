@@ -7,6 +7,16 @@ version = "0.20220721.0-dev"
 
 [dependencies]
 arcane = { path = "../arcane", version = "0.20220721.0-dev" }
+miette = "5.1.1"
+once_cell = { version = "1.13.0", features = ["parking_lot"] }
+proc-macro2 = { version = "1.0.40", features = ["span-locations"] }
+thiserror = "1.0.31"
 
-[lib]
-path = "/dev/null"
+[dev-dependencies]
+toke = { path = ".", default-features = false, features = ["dev-dependencies"] }
+
+[features]
+cargo = []
+dev-dependencies = [
+    "miette/fancy",
+]
