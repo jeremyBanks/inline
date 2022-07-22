@@ -17,7 +17,7 @@ pub enum Anchor<Inner> {
 #[derive(Error, Debug, Diagnostic, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[error("arcane anchor already dropped")]
 #[diagnostic(
-    code(arcane::DroppedAnchor),
+    code(arcane::dropped_anchor),
     url(docsrs),
     help("attempted to get a strong reference from a dropped weak reference")
 )]
