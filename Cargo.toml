@@ -6,7 +6,7 @@ name = "litter"
 version = "0.20220721.0-dev"
 
 [workspace]
-members = ["crates/arcane", "crates/toke"]
+members = ["crates/toke"]
 
 [dependencies]
 derive_more = "0.99.17"

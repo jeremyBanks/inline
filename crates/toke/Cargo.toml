@@ -6,7 +6,6 @@ name = "toke"
 version = "0.20220721.0-dev"
 
 [dependencies]
-arcane = { path = "../arcane", version = "0.20220721.0-dev" }
 miette = "5.1.1"
 once_cell = { version = "1.13.0", features = ["parking_lot"] }
 proc-macro2 = { version = "1.0.40", features = ["span-locations"] }
