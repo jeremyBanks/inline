@@ -15,7 +15,6 @@ thiserror = "1.0.31"
 toke = { path = ".", default-features = false, features = ["dev-dependencies"] }
 
 [features]
-cargo = []
 dev-dependencies = [
     "miette/fancy",
 ]
