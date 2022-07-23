@@ -64,7 +64,7 @@ yaml = ["serde", "std", "serde_yaml"]
 #! ### Core Capabilities
 
 ## Support for writing literal mutations back to their source file.
-write = ["mut"]
+write = ["mut", "toke"]
 
 ## Support for "mutating" literals.
 mut = ["std", "parking_lot", "once_cell/parking_lot"]

@@ -3,6 +3,9 @@
 #![doc = include_str!("../README.md")]
 //!
 #![doc = document_features::document_features!()]
+#![doc(html_favicon_url = "https://icons.jeremy.ca/default.png")]
+#![doc(html_logo_url = "https://icons.jeremy.ca/default.png")]
+#![cfg_attr(doc, feature(doc_auto_cfg, doc_cfg))]
 // We warn to warn about these...
 #![warn(
     absolute_paths_not_starting_with_crate,
@@ -30,7 +33,6 @@
         unused
     )
 )]
-#![cfg_attr(doc, feature(doc_auto_cfg, doc_cfg))]
 
 pub(crate) mod assertions;
 pub(crate) mod features;
@@ -41,13 +43,13 @@ pub(crate) mod litter_handle;
 pub(crate) mod litter_index;
 pub(crate) mod serde;
 
-pub use {
-    self::{
-        assertions::assert_eq,
-        literal::{AnyLiteral, Literal},
-        literal_ext::LiteralExt,
-        litter::{AnyLitter, Litter},
-        litter_handle::{AnyLitterHandle, LitterHandle},
-    },
-    ::toke,
+#[cfg(feature = "toke")]
+pub use ::toke;
+
+pub use self::{
+    assertions::assert_eq,
+    literal::{AnyLiteral, Literal},
+    literal_ext::LiteralExt,
+    litter::{AnyLitter, Litter},
+    litter_handle::{AnyLitterHandle, LitterHandle},
 };

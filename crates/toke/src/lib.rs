@@ -1,3 +1,6 @@
+#![doc(html_favicon_url = "https://icons.jeremy.ca/toke.png")]
+#![doc(html_logo_url = "https://icons.jeremy.ca/toke.png")]
+
 use {
     core::{fmt::Debug, hash::Hash, str::FromStr},
     miette::Diagnostic,
