@@ -1,22 +1,18 @@
+//! `toke` provides a read-only graph interface for traversing Rust syntax files.
 #![doc(html_favicon_url = "https://static.jeremy.ca/toke.png")]
 #![doc(html_logo_url = "https://static.jeremy.ca/toke.png")]
 
-use {
-    core::{fmt::Debug, hash::Hash, str::FromStr},
-    miette::Diagnostic,
-    once_cell::sync::OnceCell,
-    proc_macro2,
-    std::{
-        collections::BTreeMap,
-        sync::{atomic::AtomicUsize, Arc},
-    },
-    thiserror::Error,
-};
+pub(crate) mod inner;
 
-// pub(crate) mod inner;
-pub(crate) mod inner {
-    struct Node;
-    struct Document;
-}
 mod outer;
 pub use self::outer::*;
+
+/// Re-exported types from [`miette`][::miette].
+pub mod miette {
+    pub use miette::{Diagnostic, SourceCode, SpanContents};
+}
+
+/// Re-exported types from [`proc_macro2`][::proc_macro2].
+pub mod proc_macro2 {
+    pub use proc_macro2::{TokenStream, TokenTree};
+}

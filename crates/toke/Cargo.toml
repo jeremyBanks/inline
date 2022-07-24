@@ -22,3 +22,4 @@ rustdoc-args = ["--html-in-header", "./src/pre-docs.html"]
 dev-dependencies = [
     "miette/fancy",
 ]
+__all__ = []

@@ -3,8 +3,8 @@
 #![doc = include_str!("../README.md")]
 //!
 #![doc = document_features::document_features!()]
-#![doc(html_favicon_url = "https://static.jeremy.ca/default.png")]
-#![doc(html_logo_url = "https://static.jeremy.ca/default.png")]
+#![doc(html_favicon_url = "https://static.jeremy.ca/litter.png")]
+#![doc(html_logo_url = "https://static.jeremy.ca/litter.png")]
 #![cfg_attr(doc, feature(doc_auto_cfg, doc_cfg))]
 // We warn to warn about these...
 #![warn(
