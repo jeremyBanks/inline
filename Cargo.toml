@@ -32,6 +32,7 @@ litter = { path = ".", default-features = false, features = ["dev-dependencies"]
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
+rustdoc-args = ["--html-in-header", "./src/pre-docs.html"]
 
 [features]
 #- We omit the serialization features by default.
