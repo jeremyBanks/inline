@@ -3,6 +3,7 @@ use {
     miette::{Diagnostic, SourceCode, SpanContents},
     std::{
         fmt::{Debug, Display},
+        hash::Hash,
         ops::Deref,
         sync::Arc,
     },
@@ -31,6 +32,32 @@ pub struct Document {
     inner: Arc<inner::Document>,
 }
 
+impl Hash for Document {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.inner).hash(state)
+    }
+}
+
+impl PartialEq for Document {
+    fn eq(&self, other: &Self) -> bool {
+        core::ptr::eq(Arc::as_ptr(&self.inner), Arc::as_ptr(&other.inner))
+    }
+}
+
+impl Eq for Document {}
+
+impl Ord for Document {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        Arc::as_ptr(&self.inner).cmp(&Arc::as_ptr(&other.inner))
+    }
+}
+
+impl PartialOrd for Document {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl Document {
     /// Parses Rust source code into an anonymous [`Document`].
     pub fn parse(source: &str) -> Result<Document, ParseError> {
@@ -46,6 +73,17 @@ impl Document {
         })
     }
 
+    /// Returns the full source code of this file.
+    pub fn source(&self) -> &Arc<String> {
+        &self.inner.source()
+    }
+
+    /// Returns a span covering the full source code of this file,
+    /// including any leading or trailing whitespace.
+    pub fn span(&self) -> &Span {
+        todo!() // self.inner.span()
+    }
+
     /// The (file) name, if this [`Document`] has one.
     #[doc(alias("location"))]
     pub fn name(&self) -> Option<&str> {
@@ -56,9 +94,30 @@ impl Document {
     #[doc(alias("documentElement"))]
     pub fn root(&self) -> Node {
         Node {
-            inner: self.inner.root(),
+            inner: self.inner.root().clone(),
             document: self.clone(),
         }
+    }
+
+    /// Returns a new [`Document`] based on this one by applying a list of
+    /// `(original, replacement)` pairs to the source code. Each `original`
+    /// must be a distinct non-overlapping [`Node`] in this [`Document`].
+    pub fn replace(pairs: impl IntoIterator<Item = (Node, Node)>) -> Document {
+        todo!()
+    }
+}
+
+impl AsRef<Span> for Document {
+    fn as_ref(&self) -> &Span {
+        self.span()
+    }
+}
+
+impl Deref for Document {
+    type Target = Span;
+
+    fn deref(&self) -> &Self::Target {
+        self.span()
     }
 }
 
@@ -75,6 +134,33 @@ pub struct Node {
     inner: Arc<inner::Node>,
     document: Document,
 }
+
+impl Hash for Node {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.span().hash(state)
+    }
+}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        self.span().eq(other.span())
+    }
+}
+
+impl Eq for Node {}
+
+impl Ord for Node {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.span().cmp(other.span())
+    }
+}
+
+impl PartialOrd for Node {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl Node {
     /// Parses Rust source code into a [`Node`] in an anonymous [`Document`].
     /// If the source contains a single token tree, its `Node` will be returned
@@ -97,8 +183,8 @@ impl Node {
 
     /// Returns the [`Document`] this [`Node`] is a part of.
     #[doc(alias("ownerDocument"))]
-    pub fn document(&self) -> Document {
-        self.document.clone()
+    pub fn document(&self) -> &Document {
+        &self.document
     }
 
     /// Returns the [`Node`]s parent, if it has one.
@@ -143,9 +229,8 @@ impl Node {
         todo!()
     }
 
-    /// Returns a [`Span`] covering this node.
-    /// This won't contain any leading or trailing whitespace, except for the root document node.
-    pub fn span(&self) -> Span {
+    /// Returns a [`Span`] covering this node, without any leading or trailing whitespace.
+    pub fn span(&self) -> &Span {
         todo!()
     }
 
@@ -210,6 +295,20 @@ impl Node {
     }
 }
 
+impl AsRef<Span> for Node {
+    fn as_ref(&self) -> &Span {
+        self.span()
+    }
+}
+
+impl Deref for Node {
+    type Target = Span;
+
+    fn deref(&self) -> &Self::Target {
+        self.span()
+    }
+}
+
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self.span().source(), f)
@@ -232,36 +331,77 @@ pub enum NodeType {
     Literal,
 }
 
-/// A span representing a range index into a Rust source [`Document`].
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// A span representing a slice into a Rust source [`Document`].
+#[derive(Clone)]
 #[doc(alias("offset"))]
-pub struct Span;
+pub struct Span {
+    document: Document,
+    inner: inner::Span,
+}
+
+impl AsRef<str> for Span {
+    fn as_ref(&self) -> &str {
+        self.source()
+    }
+}
+
+impl Deref for Span {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        self.source()
+    }
+}
+
+impl Hash for Span {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (self.document(), self.start(), self.end()).hash(state)
+    }
+}
+
+impl PartialEq for Span {
+    fn eq(&self, other: &Self) -> bool {
+        (self.document(), self.start(), self.end()).eq(&(
+            other.document(),
+            other.start(),
+            other.end(),
+        ))
+    }
+}
+
+impl Eq for Span {}
+
+impl Ord for Span {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.document(), self.start(), self.end()).cmp(&(
+            other.document(),
+            other.start(),
+            other.end(),
+        ))
+    }
+}
+
+impl PartialOrd for Span {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 impl Span {
     /// The document this span indexes into.
     #[doc(alias("source_file"))]
-    pub fn document(&self) -> Document {
+    pub fn document(&self) -> &Document {
+        &self.document
+    }
+
+    /// Inclusive lower bound of this [`Span`] as a byte index in the [`Document`]'s `.source()`.
+    pub fn start(&self) -> usize {
         todo!()
     }
 
-    /// Inclusive lower bound of this [`Span`] as a byte index in the [`Document`].
-    pub fn lo(&self) -> usize {
+    /// Exclusive upper bound of this [`Span`] as a byte index in the [`Document`]'s `.source()`.
+    pub fn end(&self) -> usize {
         todo!()
-    }
-
-    /// Exclusive upper bound of this [`Span`] as a byte index in the [`Document`].
-    pub fn hi(&self) -> usize {
-        todo!()
-    }
-
-    /// Length of this [`Span`] in bytes.
-    pub fn len(&self) -> usize {
-        self.hi() - self.lo()
-    }
-
-    /// Whether this [`Span`] contains any bytes.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 
     /// Returns a zero-length [`Span`] at the beginning of this [`Span`].
@@ -282,7 +422,7 @@ impl Span {
 
     /// The span's source code contents as a string.
     pub fn source(&self) -> &str {
-        todo!()
+        &self.document.inner.source()[self.start()..self.end()]
     }
 }
 
@@ -292,8 +432,65 @@ impl Display for Span {
     }
 }
 
-impl AsRef<str> for Span {
-    fn as_ref(&self) -> &str {
-        self.source()
+pub struct NodeIterator {
+    /// next element to be yielded from the iterator, or none if exhausted.
+    next: Option<Node>,
+    /// optional exclusive element to end iteration at. none if exhausted.
+    end: Option<Node>,
+}
+
+impl NodeIterator {
+    pub fn new(start: Node, end: Node) {
+        debug_assert_eq!(start.document(), end.document());
+    }
+
+    /// Returns a reference to the next Node in this Iterator without advancing it.
+    pub fn peek(&self) -> Option<&Node> {
+        self.next.as_ref()
+    }
+
+    pub fn end(&self) -> Option<&Node> {
+        self.end.as_ref()
+    }
+}
+
+impl IntoIterator for Document {
+    type IntoIter = NodeIterator;
+    type Item = Node;
+
+    /// Iterates over all [`Node`]s in the [`Document`].
+    fn into_iter(self) -> Self::IntoIter {
+        NodeIterator {
+            next: Some(self.root()),
+            end: None,
+        }
+    }
+}
+
+impl IntoIterator for Node {
+    type IntoIter = NodeIterator;
+    type Item = Node;
+
+    /// Iterates over this [`Node`] and all of its descendants.
+    fn into_iter(self) -> Self::IntoIter {
+        NodeIterator {
+            end: self.next_sibling(),
+            next: Some(self),
+        }
+    }
+}
+
+impl Iterator for NodeIterator {
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let node = self.next.take()?;
+        let next = node.next();
+        if next != self.end {
+            self.next = next;
+        } else {
+            self.end = None;
+        }
+        Some(node)
     }
 }

@@ -181,35 +181,3 @@ impl Node {
         // }
         // node
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum NodeType {
-    Group { delimited: bool },
-    Punct { last: bool },
-    Ident,
-    Literal,
-}
-
-impl Node {
-    pub fn inner_span(&self) -> Span {
-        todo!()
-    }
-
-    /// Span of this element including any delimiters.
-    /// Only relevant for delimited groups.
-    pub fn outer_span(&self) -> Span {
-        todo!()
-    }
-
-    pub fn node_type(&self) -> &NodeType {
-        &self.node_type
-    }
-}
-
-impl AsRef<str> for Node {
-    fn as_ref(&self) -> &str {
-        todo!()
-        // &self.source[self.span.0..self.span.1]
-    }
-}

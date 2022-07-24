@@ -17,8 +17,9 @@ thiserror = "1.0.31"
 toke = { path =  "crates/toke", version = "0.20220724.0-dev", optional = true }
 env_logger = { version = "0.9.0", optional = true }
 once_cell = { version = "1.13.0", optional = true, default-features = false }
-parking_lot = { version = "0.12.1", optional = true, features = ["send_guard"] }
+parking_lot = { version = "0.12.1", optional = true }
 postcard = { version = "1.0.0", optional = true, default-features = false }
+proc-macro2 = { version = "1.0.40", optional = true }
 serde = { version = "1.0.139", optional = true, default-features = false }
 serde_json = { version = "1.0.82", optional = true }
 serde_yaml = { version = "0.8.25", optional = true }
@@ -44,6 +45,7 @@ dev-dependencies = [
     "serde/derive",
     "miette/fancy",
     "env_logger",
+    "proc-macro2/span-locations"
 ]
 
 #! ## Crate Feature Flags

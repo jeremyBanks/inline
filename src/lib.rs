@@ -43,9 +43,6 @@ pub(crate) mod litter_handle;
 pub(crate) mod litter_index;
 pub(crate) mod serde;
 
-#[cfg(feature = "toke")]
-pub use ::toke;
-
 pub use self::{
     assertions::assert_eq,
     literal::{AnyLiteral, Literal},
