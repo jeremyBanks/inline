@@ -39,6 +39,11 @@ macro_rules! token {
         ).unwrap()
     };
 }
-pub use crate::token;
+
+/// alias for [`Node::parse()`]
+pub fn token(source: impl AsRef<str>) -> Result<Node, ParseError> {
+    Node::parse(source.as_ref())
+}
+
 #[doc(hidden)]
 pub use crate::token as n;

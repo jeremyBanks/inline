@@ -1,4 +1,4 @@
-`litter` makes your literals mutable with smart pointers into your source code.
+🗑️ `litter` makes your literals mutable with smart pointers into your source code.
 
 These can be used for snapshot testing, or as a basic way of inlining state into
 scripts. This is only intended for use in code that's being run through Cargo,

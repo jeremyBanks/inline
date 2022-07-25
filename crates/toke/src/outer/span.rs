@@ -107,6 +107,11 @@ impl Span {
     pub fn as_str(&self) -> &str {
         &self.document.source()[self.start()..self.end()]
     }
+
+    /// The span's source code contents as a string.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.document.source().as_bytes()[self.start()..self.end()]
+    }
 }
 
 impl Display for Span {

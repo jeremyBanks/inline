@@ -1,5 +1,5 @@
 [package]
-description = "🗑️"
+description = "🌳 toke provides a read-only graph interface for traversing Rust token trees"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "toke"
