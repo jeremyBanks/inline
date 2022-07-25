@@ -37,6 +37,21 @@ macro_rules! n {
     };
 }
 
+// XXX: This can't work in workspaces as-is due to the way the paths are resolved.
+// https://github.com/rust-lang/cargo/issues/3946#issuecomment-1188863621
+// It would be nice if it did!
+//
+// So given this cargo nonsense, I am going to declare anything magical like this to be out-of-scope.
+// toke::n!() is okay, since it's not magic.
+#[macro_export]
+macro_rules! this {
+    () => {
+        $crate::Document::parse_named(
+            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../", file!())))
+    }
+}
+
+
 /// Errors that can arise from [`Document::parse()`] or [`Node::parse()`].
 #[derive(Debug, Error, Diagnostic)]
 pub enum ParseError {
