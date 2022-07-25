@@ -28,29 +28,18 @@ use {
 /// assert_eq!(literal.inner_span().as_str(), "1, 2, \"three\"");
 /// ```
 #[macro_export]
-macro_rules! n {
+macro_rules! token {
     ($($token:tt)+) => {
-        $crate::Node::parse_named(
+        $crate::Node::parse(
             dbg!(concat!($(stringify!($token), "\n"),+)),
-            dbg!(concat!(env!("CARGO_MANIFEST_DIR"), "/", file!(), "/toke-n-", line!(), "-", column!(), ".rs")),
         ).unwrap()
     };
 }
 
-// XXX: This can't work in workspaces as-is due to the way the paths are resolved.
-// https://github.com/rust-lang/cargo/issues/3946#issuecomment-1188863621
-// It would be nice if it did!
-//
-// So given this cargo nonsense, I am going to declare anything magical like this to be out-of-scope.
-// toke::n!() is okay, since it's not magic.
-#[macro_export]
-macro_rules! this {
-    () => {
-        $crate::Document::parse_named(
-            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../", file!())))
-    }
-}
+use std::iter::FusedIterator;
 
+#[doc(hidden)]
+pub use crate::token as n;
 
 /// Errors that can arise from [`Document::parse()`] or [`Node::parse()`].
 #[derive(Debug, Error, Diagnostic)]
@@ -115,7 +104,7 @@ impl Document {
         })
     }
 
-    /// Returns the full source code of this file.
+    /// Returns the full source code of this file as an [`&Arc<str>`][Arc<str>].
     pub fn source(&self) -> &Arc<String> {
         &self.inner.source()
     }
@@ -144,7 +133,10 @@ impl Document {
     /// Returns a new [`Document`] based on this one by applying a list of
     /// `(original, replacement)` pairs to the source code. Each `original`
     /// must be a distinct non-overlapping [`Node`] in this [`Document`].
-    pub fn replace(pairs: impl IntoIterator<Item = (Node, Node)>) -> Document {
+    pub fn replace_nodes<'a>(
+        &'a self,
+        pairs: impl IntoIterator<Item = (&'a Node, &'a Node)>,
+    ) -> Document {
         todo!()
     }
 }
@@ -152,6 +144,12 @@ impl Document {
 impl AsRef<Span> for Document {
     fn as_ref(&self) -> &Span {
         self.span()
+    }
+}
+
+impl AsRef<str> for Document {
+    fn as_ref(&self) -> &str {
+        &self.source()
     }
 }
 
@@ -165,7 +163,7 @@ impl Deref for Document {
 
 impl Display for Document {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.root().span().source())
+        write!(f, "{}", self.root().as_str())
     }
 }
 
@@ -236,6 +234,11 @@ impl Node {
     #[doc(alias("ownerDocument"))]
     pub fn document(&self) -> &Document {
         &self.document
+    }
+
+    /// Returns a copy of the associated [`Document`] with this Node replaced.
+    pub fn replace_with(&self, replacement: Node) -> Document {
+        self.document().replace_nodes([(self, &replacement)])
     }
 
     /// Returns the [`Node`]s parent, if it has one.
@@ -362,7 +365,7 @@ impl Deref for Node {
 
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self.span().source(), f)
+        Display::fmt(self.as_str(), f)
     }
 }
 
@@ -392,7 +395,7 @@ pub struct Span {
 
 impl AsRef<str> for Span {
     fn as_ref(&self) -> &str {
-        self.source()
+        self.as_str()
     }
 }
 
@@ -400,7 +403,7 @@ impl Deref for Span {
     type Target = str;
 
     fn deref(&self) -> &str {
-        self.source()
+        self.as_str()
     }
 }
 
@@ -472,18 +475,19 @@ impl Span {
     }
 
     /// The span's source code contents as a string.
-    pub fn source(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         &self.document.inner.source()[self.start()..self.end()]
     }
 }
 
 impl Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self.source(), f)
+        Display::fmt(self.as_str(), f)
     }
 }
 
 /// An [`Iterator`] traversing through a [`Document`]'s [`Node`]s in depth-first pre-order.
+#[derive(Debug, Clone, Default)]
 pub struct NodeWalker {
     /// next element to be yielded from the iterator, or None if exhausted.
     next: Option<Node>,
@@ -492,10 +496,18 @@ pub struct NodeWalker {
 }
 
 impl NodeWalker {
+    /// Creates a new [`NodeWalker`] starting at the given [`Node`].
+    /// If `end` is specified, it must be a [`Node`] occurring after `start` in the same document,
+    /// or else this function will panic.
     pub fn new(start: Node, end: Option<Node>) -> NodeWalker {
         if let Some(end) = &end {
-            debug_assert_eq!(start.document(), end.document());
+            assert_eq!(start.document(), end.document());
+            assert!(start.span().start() <= end.span().start());
+            if start.span().end() == end.span().start() {
+                assert!(start.span().end() > end.span().end());
+            }
         }
+
         NodeWalker {
             next: Some(start),
             end,
@@ -507,11 +519,13 @@ impl NodeWalker {
         self.next.as_ref()
     }
 
-    /// Returns the exclusive end [`Node`] of this iterator, if any.
+    /// Returns a reference the exclusive end [`Node`] of this iterator, if any.
     pub fn end(&self) -> Option<&Node> {
         self.end.as_ref()
     }
 }
+
+impl FusedIterator for NodeWalker {}
 
 impl IntoIterator for &Document {
     type IntoIter = NodeWalker;
@@ -519,10 +533,7 @@ impl IntoIterator for &Document {
 
     /// Iterates over all [`Node`]s in the [`Document`].
     fn into_iter(self) -> Self::IntoIter {
-        NodeWalker {
-            next: Some(self.root()),
-            end: None,
-        }
+        NodeWalker::new(self.root(), None)
     }
 }
 
@@ -538,10 +549,7 @@ impl IntoIterator for &Node {
     type Item = Node;
 
     fn into_iter(self) -> Self::IntoIter {
-        NodeWalker {
-            end: self.next_sibling(),
-            next: Some(self.clone()),
-        }
+        NodeWalker::new(self.clone(), self.next_sibling())
     }
 }
 

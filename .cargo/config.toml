@@ -1,2 +1,2 @@
 [build]
-rustdocflags = ["--document-private-items"]
+# rustdocflags = ["--document-private-items"]
