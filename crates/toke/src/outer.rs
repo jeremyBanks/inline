@@ -10,6 +10,33 @@ use {
     thiserror::Error,
 };
 
+/// Create a [`Node`] from literal Rust syntax.
+///
+/// This just returns a [`Node`] with the literally provided tokens as-is;
+/// it doesn't perform any kind of interpolation or `quote`-like expansion.
+///
+/// ```
+/// let literal = toke::n!(24.5);
+/// assert_eq!(literal.node_type(), toke::NodeType::Literal);
+/// ```
+///
+/// ```
+/// let literal = toke::n!([1, 2, "three"]);
+/// assert_eq!(literal.node_type(), toke::NodeType::Group);
+/// assert_eq!(literal.opening_delimiter().as_str(), "[");
+/// assert_eq!(literal.closing_delimiter().as_str(), "]");
+/// assert_eq!(literal.inner_span().as_str(), "1, 2, \"three\"");
+/// ```
+#[macro_export]
+macro_rules! n {
+    ($($token:tt)+) => {
+        $crate::Node::parse_named(
+            dbg!(concat!($(stringify!($token), "\n"),+)),
+            dbg!(concat!(env!("CARGO_MANIFEST_DIR"), "/", file!(), "/toke-n-", line!(), "-", column!(), ".rs")),
+        ).unwrap()
+    };
+}
+
 /// Errors that can arise from [`Document::parse()`] or [`Node::parse()`].
 #[derive(Debug, Error, Diagnostic)]
 pub enum ParseError {
@@ -168,6 +195,15 @@ impl Node {
     /// will be returned.
     pub fn parse(source: &str) -> Result<Node, ParseError> {
         let root = Document::parse(source)?.root();
+        Ok(if let [only_child] = &root.children()[..] {
+            only_child.clone()
+        } else {
+            root
+        })
+    }
+
+    pub fn parse_named(source: &str, name: &str) -> Result<Node, ParseError> {
+        let root = Document::parse_named(source, name)?.root();
         Ok(if let [only_child] = &root.children()[..] {
             only_child.clone()
         } else {
@@ -432,16 +468,23 @@ impl Display for Span {
     }
 }
 
-pub struct NodeIterator {
-    /// next element to be yielded from the iterator, or none if exhausted.
+/// An [`Iterator`] traversing through a [`Document`]'s [`Node`]s in depth-first pre-order.
+pub struct NodeWalker {
+    /// next element to be yielded from the iterator, or None if exhausted.
     next: Option<Node>,
-    /// optional exclusive element to end iteration at. none if exhausted.
+    /// optional exclusive element to end iteration at, None if exhausted.
     end: Option<Node>,
 }
 
-impl NodeIterator {
-    pub fn new(start: Node, end: Node) {
-        debug_assert_eq!(start.document(), end.document());
+impl NodeWalker {
+    pub fn new(start: Node, end: Option<Node>) -> NodeWalker {
+        if let Some(end) = &end {
+            debug_assert_eq!(start.document(), end.document());
+        }
+        NodeWalker {
+            next: Some(start),
+            end,
+        }
     }
 
     /// Returns a reference to the next Node in this Iterator without advancing it.
@@ -449,38 +492,52 @@ impl NodeIterator {
         self.next.as_ref()
     }
 
+    /// Returns the exclusive end [`Node`] of this iterator, if any.
     pub fn end(&self) -> Option<&Node> {
         self.end.as_ref()
     }
 }
 
-impl IntoIterator for Document {
-    type IntoIter = NodeIterator;
+impl IntoIterator for &Document {
+    type IntoIter = NodeWalker;
     type Item = Node;
 
     /// Iterates over all [`Node`]s in the [`Document`].
     fn into_iter(self) -> Self::IntoIter {
-        NodeIterator {
+        NodeWalker {
             next: Some(self.root()),
             end: None,
         }
     }
 }
 
-impl IntoIterator for Node {
-    type IntoIter = NodeIterator;
+impl Document {
+    /// Returns an [`Iterator`] every [`Node`] in the document (depth-first in-order).
+    pub fn iter(&self) -> NodeWalker {
+        self.into_iter()
+    }
+}
+
+impl IntoIterator for &Node {
+    type IntoIter = NodeWalker;
     type Item = Node;
 
-    /// Iterates over this [`Node`] and all of its descendants.
     fn into_iter(self) -> Self::IntoIter {
-        NodeIterator {
+        NodeWalker {
             end: self.next_sibling(),
-            next: Some(self),
+            next: Some(self.clone()),
         }
     }
 }
 
-impl Iterator for NodeIterator {
+impl Node {
+    /// Returns an [`Iterator`] this [`Node`] and all of its descendants (depth-first in-order).
+    pub fn iter(&self) -> NodeWalker {
+        self.into_iter()
+    }
+}
+
+impl Iterator for NodeWalker {
     type Item = Node;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -493,4 +550,17 @@ impl Iterator for NodeIterator {
         }
         Some(node)
     }
+}
+
+/// A line/column position in a [`Document`].
+///
+/// This is just a simple data type; it's not concretely associated with a specific
+/// [`Document`], but using it with a document other than the one is was created from
+/// may result in out-of-bounds panics.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LineColumn {
+    /// a 1-indexed line number in a [`Document`]'s [`Document::source`].
+    pub line: usize,
+    /// The 0-indexed column (in UTF-8 characters) in a [`Document::source`].
+    pub column: usize,
 }
