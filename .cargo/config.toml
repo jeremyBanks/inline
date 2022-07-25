@@ -1,2 +1,2 @@
 [build]
-# rustdocflags = ["--document-private-items"]
+rustdocflags = ["-Zunstable-options", "--generate-link-to-definition", "--show-type-layout"]
