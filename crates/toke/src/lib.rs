@@ -21,15 +21,20 @@ fn _lol() {
             "#,
         )
 
-        ident   #hello
-        group   () {} []
-        punct   #. #, #>=
+        r##"
+        mod:root
+        group() {} []
+        ident#hello
+        punct. #, #>=
         literal ="hello" =2.0 =i32 =integer =float
-
-        no modifiers/combiners, but we do have
 
         descendants (default)
         children >
         next sibling +
+        :first-child
+        :last-child
+        :only-child
+        :empty
+        "##
     };
 }
