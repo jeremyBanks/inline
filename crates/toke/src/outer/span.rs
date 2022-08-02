@@ -19,7 +19,7 @@ use {
 #[doc(alias("offset"))]
 pub struct Span {
     document: Document,
-    inner: inner::Span,
+    inner: sync::Span,
 }
 
 impl AsRef<str> for Span {

@@ -18,7 +18,7 @@ use {
 #[derive(Debug, Clone)]
 #[doc(alias("element", "token", "TokenTree"))]
 pub struct Node {
-    inner: Arc<inner::Node>,
+    inner: Arc<sync::Node>,
     document: Document,
 }
 

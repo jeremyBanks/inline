@@ -18,7 +18,7 @@ use {
 #[derive(Debug, Clone)]
 #[doc(alias("file", "tree", "graph", "DOM"))]
 pub struct Document {
-    inner: Arc<inner::Document>,
+    inner: Arc<sync::Document>,
 }
 
 impl Hash for Document {
@@ -51,14 +51,14 @@ impl Document {
     /// Parses Rust source code into an anonymous [`Document`].
     pub fn parse(source: &str) -> Result<Document, ParseError> {
         Ok(Document {
-            inner: inner::Document::parse(source, None)?,
+            inner: sync::Document::parse(source, None)?,
         })
     }
 
     /// Parses Rust source code into a named [`Document`].
     pub fn parse_named(source: &str, name: &str) -> Result<Document, ParseError> {
         Ok(Document {
-            inner: inner::Document::parse(source, Some(name))?,
+            inner: sync::Document::parse(source, Some(name))?,
         })
     }
 
