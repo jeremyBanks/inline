@@ -40,7 +40,7 @@ macro_rules! token {
     };
 }
 
-/// alias for [`Node::parse()`]
+/// is [`Node::parse()`]
 pub fn token(source: impl AsRef<str>) -> Result<Node, ParseError> {
     Node::parse(source.as_ref())
 }

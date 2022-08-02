@@ -11,6 +11,9 @@ pub use self::outer::*;
 #[doc(hidden)]
 mod outer;
 
+#[doc(hidden)]
+pub use proc_macro2;
+use proc_macro2::TokenTree;
 /// is [`proc_macro2::LineColumn`]
 pub type LineColumn = proc_macro2::LineColumn;
 /// is [`proc_macro2::Delimiter`]
@@ -34,8 +37,8 @@ pub enum TokenType {
     Literal,
 }
 
-impl TokenType {
-    pub fn of(token: &proc_macro2::TokenTree) -> TokenType {
+impl From<&TokenTree> for TokenType {
+    fn from(token: &TokenTree) -> Self {
         match token {
             proc_macro2::TokenTree::Group(..) => TokenType::Group,
             proc_macro2::TokenTree::Ident(..) => TokenType::Ident,

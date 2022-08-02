@@ -51,14 +51,14 @@ impl Document {
     /// Parses Rust source code into an anonymous [`Document`].
     pub fn parse(source: &str) -> Result<Document, ParseError> {
         Ok(Document {
-            inner: inner::Document::parse(source, None)?,
+            inner: inner::Document::parse(Arc::new(source.to_string()), None)?,
         })
     }
 
     /// Parses Rust source code into a named [`Document`].
     pub fn parse_named(source: &str, name: &str) -> Result<Document, ParseError> {
         Ok(Document {
-            inner: inner::Document::parse(source, Some(name))?,
+            inner: inner::Document::parse(Arc::new(source.to_string()), Some(name))?,
         })
     }
 
