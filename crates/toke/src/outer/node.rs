@@ -18,7 +18,7 @@ use {
 #[derive(Debug, Clone)]
 #[doc(alias("element", "token", "TokenTree"))]
 pub struct Node {
-    inner: Arc<sync::Node>,
+    inner: Arc<inner::Node>,
     document: Document,
 }
 
@@ -73,7 +73,7 @@ impl Node {
 
     /// What [`NodeType`] variant (corresponding to a [`proc_macro2::TokenTree`]
     /// variant) does this [`Node`] represent?
-    pub fn node_type(&self) -> NodeType {
+    pub fn node_type(&self) -> TokenType {
         todo!()
     }
 
@@ -214,20 +214,4 @@ impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self.as_str(), f)
     }
-}
-
-/// What type of [`proc_macro2::TokenTree`] a [`Node`] corresponds to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum NodeType {
-    /// A group of tokens, typically wrapped with a delimiter (a [`proc_macro2::Group`]).
-    ///
-    /// The only exception is the root node, which has no delimiter (a bare
-    /// [`proc_macro2::TokenStream`]).
-    Group,
-    /// An identifier (a [`proc_macro2::Ident`]).
-    Ident,
-    /// A punctuation character (a [`proc_macro2::Punct`]).
-    Punct,
-    /// A literal (a [`proc_macro2::Literal`]).
-    Literal,
 }

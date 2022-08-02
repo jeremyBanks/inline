@@ -24,8 +24,8 @@ pub enum ParseError {
     },
     #[error("wrong type of token: expected {expected:?} but found {actual:?}")]
     Type {
-        expected: NodeType,
-        actual: NodeType,
+        expected: TokenType,
+        actual: TokenType,
     },
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
