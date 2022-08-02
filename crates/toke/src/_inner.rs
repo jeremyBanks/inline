@@ -74,6 +74,7 @@ impl Document {
 
         let mut line_offsets = vec![];
         for (offset, byte) in source_string.bytes().enumerate() {
+            // XXX: can this occur in other UTF-8 characters?
             if byte == b'\n' {
                 line_offsets.push(offset);
             }
