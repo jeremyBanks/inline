@@ -14,7 +14,7 @@ use {
     },
 };
 
-/// A node (token) in a Rust source [`Document`].
+/// A node (token tree) in a Rust source [`Document`].
 #[derive(Debug, Clone)]
 #[doc(alias("element", "token", "TokenTree"))]
 pub struct Node {

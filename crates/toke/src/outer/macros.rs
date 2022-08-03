@@ -40,7 +40,7 @@ macro_rules! token {
     };
 }
 
-/// <code>= [Node::parse];</code>
+/// = [`toke::Node::parse`][crate::Node::parse];
 pub fn token(source: impl AsRef<str>) -> Result<Node, ParseError> {
     Node::parse(source.as_ref())
 }

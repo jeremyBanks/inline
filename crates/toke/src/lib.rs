@@ -7,24 +7,22 @@ pub(crate) mod internal;
 
 #[doc(inline)]
 pub use self::outer::*;
+pub use crate as toke;
 
 #[doc(hidden)]
 mod outer;
 
-/// <code>= [miette::SourceCode];</code>
-pub use miette::SourceCode;
-/// <code>= [miette::SourceOffset];</code>
-pub use miette::SourceOffset;
-/// <code>= [miette::SourceSpan];</code>
-pub use miette::SourceSpan;
-/// <code>= [proc_macro2::Delimiter];</code>
-pub use proc_macro2::Delimiter as GroupDelimiter;
-/// <code>= [proc_macro2::LineColumn];</code>
-pub use proc_macro2::LineColumn;
-/// <code>= [proc_macro2::Spacing];</code>
-pub use proc_macro2::Spacing as PunctuationSpacing;
-/// <code>= [proc_macro2::TokenStream];</code>
-pub use proc_macro2::TokenStream;
+#[doc(no_inline)]
+pub use {
+    toke::token as n,
+    ::{
+        miette::{SourceCode, SourceOffset, SourceSpan},
+        proc_macro2::{
+            Delimiter as TokenGroupDelimiter, LineColumn, Spacing as TokenPunctSpacing,
+            TokenStream, TokenTree,
+        },
+    },
+};
 
 /// The variants of [`proc_macro2::TokenTree`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -42,19 +40,19 @@ pub enum TokenType {
     Literal,
 }
 
-impl From<&proc_macro2::TokenTree> for TokenType {
-    fn from(token: &proc_macro2::TokenTree) -> Self {
+impl From<&TokenTree> for TokenType {
+    fn from(token: &TokenTree) -> Self {
         match token {
-            proc_macro2::TokenTree::Group(..) => TokenType::Group,
-            proc_macro2::TokenTree::Ident(..) => TokenType::Ident,
-            proc_macro2::TokenTree::Punct(..) => TokenType::Punct,
-            proc_macro2::TokenTree::Literal(..) => TokenType::Literal,
+            TokenTree::Group(..) => TokenType::Group,
+            TokenTree::Ident(..) => TokenType::Ident,
+            TokenTree::Punct(..) => TokenType::Punct,
+            TokenTree::Literal(..) => TokenType::Literal,
         }
     }
 }
 
-impl From<proc_macro2::TokenTree> for TokenType {
-    fn from(token: proc_macro2::TokenTree) -> Self {
+impl From<TokenTree> for TokenType {
+    fn from(token: TokenTree) -> Self {
         Self::from(&token)
     }
 }
