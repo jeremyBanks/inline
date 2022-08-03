@@ -3,6 +3,7 @@
 use {
     crate::{LineColumn, TokenType},
     core::fmt::Debug,
+    once_cell::sync::OnceCell,
     proc_macro2::{self, LexError, TokenStream, TokenTree},
     send_wrapper::SendWrapper,
     std::{
@@ -24,9 +25,9 @@ pub(crate) struct Node {
     parent: Weak<Node>,
     children: Vec<Arc<Node>>,
     previous_sibling: Weak<Node>,
-    next_sibling: Weak<Node>,
+    next_sibling: OnceCell<Weak<Node>>,
     previous_node: Weak<Node>,
-    next_node: Weak<Node>,
+    next_node: OnceCell<Weak<Node>>,
     token_type: TokenType,
     span: Span,
 }
@@ -69,22 +70,42 @@ struct ParseState {
 
 impl ParseState {
     pub fn locate_offset(&self, offset: usize) -> Location {
+        dbg!(&self);
+
+        // special case: one-past-the-end is considered valid
+        if offset == self.source.len() {
+            return Location {
+                offset,
+                line_column: LineColumn {
+                    line: self.line_offsets.len() + 1,
+                    column: &self.source[*self.line_offsets.last().unwrap()..]
+                        .chars()
+                        .count()
+                        + 1,
+                },
+            };
+        }
+
         let (line_index, line_offset) = self
             .line_offsets
             .iter()
             .enumerate()
-            .filter(|(_, line_offset)| **line_offset < offset)
+            .filter(|(_, line_offset)| **line_offset <= offset)
             .last()
             .unwrap();
 
         let rest = &self.source[*line_offset..];
         let target_column_offset = offset - line_offset;
-        let column_index = rest
-            .char_indices()
-            .enumerate()
-            .find(|(_, (offset, _))| *offset == target_column_offset)
-            .unwrap()
-            .0;
+
+        let column_index = if target_column_offset == 0 {
+            0
+        } else {
+            rest.char_indices()
+                .enumerate()
+                .find(|(_, (offset, _))| *offset == target_column_offset)
+                .expect("offset does not align with any character")
+                .0
+        };
 
         let line = line_index + 1;
         let column = column_index + 1;
@@ -102,7 +123,7 @@ impl ParseState {
         debug_assert!(line >= 1);
         debug_assert!(column >= 1);
 
-        if line == self.line_offsets.len() {
+        if line == self.line_offsets.len() + 2 {
             // trailing newline, offset at end of file
             debug_assert_eq!(1, column);
             offset = self.source.len();
@@ -148,9 +169,9 @@ impl Document {
                     document: document.clone(),
                     parent: Weak::default(),
                     previous_sibling: Weak::default(),
-                    next_sibling: Weak::default(),
+                    next_sibling: OnceCell::default(),
                     previous_node: state.previous_node.clone(),
-                    next_node: Weak::default(),
+                    next_node: OnceCell::default(),
                     children: vec![],
                     token_type: TokenType::Group,
                     span: Span {
@@ -181,8 +202,8 @@ impl Document {
                             parent: parent.clone(),
                             previous_sibling: previous_sibling.clone(),
                             previous_node: state.previous_node.clone(),
-                            next_sibling: Weak::default(),
-                            next_node: Weak::default(),
+                            next_sibling: OnceCell::default(),
+                            next_node: OnceCell::default(),
                             children: vec![],
                             token_type: TokenType::from(&token),
                             span: Span {
@@ -201,12 +222,15 @@ impl Document {
                         };
 
                         if let Some(previous_sibling) = previous_sibling.upgrade() {
-                            // previous_sibling.next_sibling = Arc::downgrade(&node);
+                            previous_sibling
+                                .next_sibling
+                                .set(Arc::downgrade(&node))
+                                .unwrap();
                         }
                         previous_sibling = Arc::downgrade(&node);
 
                         if let Some(previous_node) = state.previous_node.upgrade() {
-                            // previous_node.next_node = Arc::downgrade(&node);
+                            previous_node.next_node.set(Arc::downgrade(&node)).unwrap();
                         }
                         state.previous_node = Arc::downgrade(&node);
 
@@ -233,7 +257,7 @@ impl Document {
     }
 
     pub(crate) fn span(&self) -> Span {
-        todo!()
+        self.root.span()
     }
 }
 
