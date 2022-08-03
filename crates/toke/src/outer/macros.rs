@@ -40,10 +40,27 @@ macro_rules! token {
     };
 }
 
-/// = [`toke::Node::parse`][crate::Node::parse];
-pub fn token(source: impl AsRef<str>) -> Result<Node, ParseError> {
-    Node::parse(source.as_ref())
+/// [`parse`][crate::Node::parse] a [`Node`] from a Rust syntax string or other compatible type.
+pub fn token(source: impl Toke) -> Result<Node, ParseError> {
+    Node::parse(source.source().as_ref())
 }
+
+/// Adapter trait used for types that can be converted to a [`Node`] with [`toke::n()`].
+pub trait Toke {
+    fn stream(&self) -> Cow<TokenStream> {
+        Cow::Owned(TokenStream::from_str(self.source().as_ref()).unwrap())
+    }
+
+    fn source(&self) -> Cow<str> {
+        self.stream().clone().to_string().into()
+    }
+}
+
+impl Toke for str {}
+impl Toke for String {}
+impl Toke for TokenTree {}
+
+use std::{borrow::Cow, str::FromStr};
 
 #[doc(hidden)]
 pub use crate::token as n;
