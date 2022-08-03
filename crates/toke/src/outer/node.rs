@@ -18,7 +18,7 @@ use {
 #[derive(Debug, Clone)]
 #[doc(alias("element", "token", "TokenTree"))]
 pub struct Node {
-    inner: Arc<inner::Node>,
+    inner: Arc<internal::Node>,
     document: Document,
 }
 
@@ -131,26 +131,26 @@ impl Node {
     }
 
     /// Returns a [`Span`] covering this node, without any leading or trailing whitespace.
-    pub fn span(&self) -> &Span {
+    pub fn span(&self) -> &DocumentSpan {
         todo!()
     }
 
     /// Returns a [`Span`] excluding outer delimiters if this is a delimited group.
     /// For all other nodes this is the same as [`.span()`](Node::span).
     #[doc(alias("innerHTML"))]
-    pub fn inner_span(&self) -> Span {
+    pub fn inner_span(&self) -> DocumentSpan {
         todo!()
     }
 
     /// Returns a [`Span`] covering the opening delimiter if this is a delimited group.
     /// For all other nodes this is the same as [`.span()`](Node::span)[`.before()`](Span::before).
-    pub fn opening_span(&self) -> Span {
+    pub fn opening_span(&self) -> DocumentSpan {
         todo!()
     }
 
     /// Returns a [`Span`] covering the closing delimiter if this is a delimited group.
     /// For all other nodes this is the same as [`.span()`](Node::span)[`.after()`](Span::after).
-    pub fn closing_span(&self) -> Span {
+    pub fn closing_span(&self) -> DocumentSpan {
         todo!()
     }
 
@@ -160,7 +160,7 @@ impl Node {
     ///
     /// Group delimiters are included because they're they also delimit tokens without being tokens
     /// on their own, i.e. they can determine whether a punctuation is alone or joined.
-    pub fn trailing_spacing(&self) -> Span {
+    pub fn trailing_spacing(&self) -> DocumentSpan {
         if let Some(next) = self.next() {
             self.span().after().join(next.span().before()).unwrap()
         } else {
@@ -174,7 +174,7 @@ impl Node {
     ///
     /// Group delimiters are included because they're they also delimit tokens without being tokens
     /// on their own, i.e. they can determine whether a punctuation is alone or joined.
-    pub fn leading_spacing(&self) -> Span {
+    pub fn leading_spacing(&self) -> DocumentSpan {
         // XXX: this is dumb and bad. .previous() be .parent(), and then where are you?!
         if let Some(previous) = self.previous() {
             self.span().before().join(previous.span().after()).unwrap()
@@ -196,14 +196,14 @@ impl Node {
     }
 }
 
-impl AsRef<Span> for Node {
-    fn as_ref(&self) -> &Span {
+impl AsRef<DocumentSpan> for Node {
+    fn as_ref(&self) -> &DocumentSpan {
         self.span()
     }
 }
 
 impl Deref for Node {
-    type Target = Span;
+    type Target = DocumentSpan;
 
     fn deref(&self) -> &Self::Target {
         self.span()

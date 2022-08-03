@@ -3,7 +3,7 @@
 #![doc(html_logo_url = "https://icon.jeremy.ca/toke.png")]
 #![cfg_attr(debug_assertions, allow(unused))]
 
-pub(crate) mod inner;
+pub(crate) mod internal;
 
 #[doc(inline)]
 pub use self::outer::*;
@@ -11,17 +11,22 @@ pub use self::outer::*;
 #[doc(hidden)]
 mod outer;
 
-#[doc(hidden)]
-pub use proc_macro2;
-use proc_macro2::TokenTree;
-/// is [`proc_macro2::LineColumn`]
-pub type LineColumn = proc_macro2::LineColumn;
-/// is [`proc_macro2::Delimiter`]
-pub type GroupDelimiter = proc_macro2::Delimiter;
-/// is [`proc_macro2::Spacing`]
-pub type PunctuationSpacing = proc_macro2::Spacing;
+/// <code>= [miette::SourceCode];</code>
+pub use miette::SourceCode;
+/// <code>= [miette::SourceOffset];</code>
+pub use miette::SourceOffset;
+/// <code>= [miette::SourceSpan];</code>
+pub use miette::SourceSpan;
+/// <code>= [proc_macro2::Delimiter];</code>
+pub use proc_macro2::Delimiter as GroupDelimiter;
+/// <code>= [proc_macro2::LineColumn];</code>
+pub use proc_macro2::LineColumn;
+/// <code>= [proc_macro2::Spacing];</code>
+pub use proc_macro2::Spacing as PunctuationSpacing;
+/// <code>= [proc_macro2::TokenStream];</code>
+pub use proc_macro2::TokenStream;
 
-/// The different types of [`proc_macro2::TokenTree`], as seen by our [`Node`]s.
+/// The variants of [`proc_macro2::TokenTree`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TokenType {
     /// A group of tokens, typically wrapped with a delimiter (a [`proc_macro2::Group`]).
@@ -37,13 +42,19 @@ pub enum TokenType {
     Literal,
 }
 
-impl From<&TokenTree> for TokenType {
-    fn from(token: &TokenTree) -> Self {
+impl From<&proc_macro2::TokenTree> for TokenType {
+    fn from(token: &proc_macro2::TokenTree) -> Self {
         match token {
             proc_macro2::TokenTree::Group(..) => TokenType::Group,
             proc_macro2::TokenTree::Ident(..) => TokenType::Ident,
             proc_macro2::TokenTree::Punct(..) => TokenType::Punct,
             proc_macro2::TokenTree::Literal(..) => TokenType::Literal,
         }
+    }
+}
+
+impl From<proc_macro2::TokenTree> for TokenType {
+    fn from(token: proc_macro2::TokenTree) -> Self {
+        Self::from(&token)
     }
 }

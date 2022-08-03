@@ -18,7 +18,7 @@ use {
 #[derive(Debug, Clone)]
 #[doc(alias("file", "tree", "graph", "DOM"))]
 pub struct Document {
-    inner: Arc<inner::Document>,
+    inner: Arc<internal::Document>,
 }
 
 impl Hash for Document {
@@ -51,14 +51,14 @@ impl Document {
     /// Parses Rust source code into an anonymous [`Document`].
     pub fn parse(source: &str) -> Result<Document, ParseError> {
         Ok(Document {
-            inner: inner::Document::parse(Arc::new(source.to_string()), None)?,
+            inner: internal::Document::parse(Arc::new(source.to_string()), None)?,
         })
     }
 
     /// Parses Rust source code into a named [`Document`].
     pub fn parse_named(source: &str, name: &str) -> Result<Document, ParseError> {
         Ok(Document {
-            inner: inner::Document::parse(Arc::new(source.to_string()), Some(name))?,
+            inner: internal::Document::parse(Arc::new(source.to_string()), Some(name))?,
         })
     }
 
@@ -69,7 +69,7 @@ impl Document {
 
     /// Returns a span covering the full source code of this file,
     /// including any leading or trailing whitespace.
-    pub fn span(&self) -> &Span {
+    pub fn span(&self) -> &DocumentSpan {
         todo!() // self.inner.span()
     }
 
@@ -96,8 +96,8 @@ impl Document {
     }
 }
 
-impl AsRef<Span> for Document {
-    fn as_ref(&self) -> &Span {
+impl AsRef<DocumentSpan> for Document {
+    fn as_ref(&self) -> &DocumentSpan {
         self.span()
     }
 }
@@ -109,7 +109,7 @@ impl AsRef<str> for Document {
 }
 
 impl Deref for Document {
-    type Target = Span;
+    type Target = DocumentSpan;
 
     fn deref(&self) -> &Self::Target {
         self.span()

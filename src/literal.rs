@@ -20,7 +20,7 @@ pub trait Literal:
 {
     /// For strings and byte strings, this is the inner unsized type, to allow
     /// for operations with similarly-typed values with non-static lifetimes. This
-    /// is simply `Self` for other types.
+    /// → simply `Self` for other types.
     type Inner: 'static + ?Sized + Debug + PartialEq;
 
     /// Formats this literal as we would like it to appear in source code.

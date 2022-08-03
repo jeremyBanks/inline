@@ -17,18 +17,18 @@ use {
 /// A span representing a slice into a Rust source [`Document`].
 #[derive(Clone)]
 #[doc(alias("offset"))]
-pub struct Span {
+pub struct DocumentSpan {
     document: Document,
-    inner: inner::Span,
+    inner: internal::Span,
 }
 
-impl AsRef<str> for Span {
+impl AsRef<str> for DocumentSpan {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl Deref for Span {
+impl Deref for DocumentSpan {
     type Target = str;
 
     fn deref(&self) -> &str {
@@ -36,13 +36,13 @@ impl Deref for Span {
     }
 }
 
-impl Hash for Span {
+impl Hash for DocumentSpan {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         (self.document(), self.start(), self.end()).hash(state)
     }
 }
 
-impl PartialEq for Span {
+impl PartialEq for DocumentSpan {
     fn eq(&self, other: &Self) -> bool {
         (self.document(), self.start(), self.end()).eq(&(
             other.document(),
@@ -52,9 +52,9 @@ impl PartialEq for Span {
     }
 }
 
-impl Eq for Span {}
+impl Eq for DocumentSpan {}
 
-impl Ord for Span {
+impl Ord for DocumentSpan {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         (self.document(), self.start(), self.end()).cmp(&(
             other.document(),
@@ -64,13 +64,13 @@ impl Ord for Span {
     }
 }
 
-impl PartialOrd for Span {
+impl PartialOrd for DocumentSpan {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Span {
+impl DocumentSpan {
     /// The document this span indexes into.
     #[doc(alias("source_file"))]
     pub fn document(&self) -> &Document {
@@ -88,18 +88,18 @@ impl Span {
     }
 
     /// Returns a zero-length [`Span`] at the beginning of this [`Span`].
-    pub fn before(&self) -> Span {
+    pub fn before(&self) -> DocumentSpan {
         todo!()
     }
 
     /// Returns a zero-length [`Span`] at the end of this [`Span`].
-    pub fn after(&self) -> Span {
+    pub fn after(&self) -> DocumentSpan {
         todo!()
     }
 
     /// Returns a new [`Span`] encompassing both `self` and `other`, if they are in the same
     /// [`Document`].
-    pub fn join(&self, other: Span) -> Option<Span> {
+    pub fn join(&self, other: DocumentSpan) -> Option<DocumentSpan> {
         todo!()
     }
 
@@ -114,7 +114,7 @@ impl Span {
     }
 }
 
-impl Display for Span {
+impl Display for DocumentSpan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self.as_str(), f)
     }
