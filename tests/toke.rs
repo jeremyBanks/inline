@@ -8,7 +8,16 @@ fn test_toke() {
             println!("Hello, world!");
         }
         "#,
-    );
+    )
+    .unwrap();
 
-    dbg!(&doc);
+    let root = doc.root();
+
+    let items = root.children();
+
+    let body = &items[3];
+
+    dbg!(body.next().unwrap().to_string());
+
+    panic!()
 }

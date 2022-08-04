@@ -43,6 +43,11 @@ pub(crate) mod litter_handle;
 pub(crate) mod litter_index;
 pub(crate) mod serde;
 
+#[cfg(all(doc, feature = "databake"))]
+#[allow(unused)]
+#[doc(hidden)]
+pub use ::{databake, serde, yoke, zerovec};
+
 pub use self::{
     assertions::assert_eq,
     literal::{AnyLiteral, Literal},

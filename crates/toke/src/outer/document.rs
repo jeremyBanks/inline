@@ -69,8 +69,11 @@ impl Document {
 
     /// Returns a span covering the full source code of this file,
     /// including any leading or trailing whitespace.
-    pub fn span(&self) -> &DocumentSpan {
-        todo!() // self.inner.span()
+    pub fn span(&self) -> DocumentSpan {
+        DocumentSpan {
+            document: self.clone(),
+            inner: self.inner.span(),
+        }
     }
 
     /// The (file) name, if this [`Document`] has one.
@@ -82,7 +85,10 @@ impl Document {
     /// The root [`Node`] of this [`Document`], a non-delimited [`Group`](NodeType::Group).
     #[doc(alias("documentElement"))]
     pub fn root(&self) -> Node {
-        todo!()
+        Node {
+            document: self.clone(),
+            inner: self.inner.root().clone(),
+        }
     }
 
     /// Returns a new [`Document`] based on this one by applying a list of
@@ -96,28 +102,14 @@ impl Document {
     }
 }
 
-impl AsRef<DocumentSpan> for Document {
-    fn as_ref(&self) -> &DocumentSpan {
-        self.span()
-    }
-}
-
 impl AsRef<str> for Document {
     fn as_ref(&self) -> &str {
         &self.source()
     }
 }
 
-impl Deref for Document {
-    type Target = DocumentSpan;
-
-    fn deref(&self) -> &Self::Target {
-        self.span()
-    }
-}
-
 impl Display for Document {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.root().as_str())
+        write!(f, "{}", self.root().span().as_str())
     }
 }

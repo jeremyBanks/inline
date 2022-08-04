@@ -18,8 +18,8 @@ use {
 #[derive(Clone)]
 #[doc(alias("offset"))]
 pub struct DocumentSpan {
-    document: Document,
-    inner: internal::Span,
+    pub(crate) document: Document,
+    pub(crate) inner: internal::Span,
 }
 
 impl AsRef<str> for DocumentSpan {
@@ -79,12 +79,12 @@ impl DocumentSpan {
 
     /// Inclusive lower bound of this [`Span`] as a byte index in the [`Document`]'s `.source()`.
     pub fn start(&self) -> usize {
-        todo!()
+        self.inner.start.offset
     }
 
     /// Exclusive upper bound of this [`Span`] as a byte index in the [`Document`]'s `.source()`.
     pub fn end(&self) -> usize {
-        todo!()
+        self.inner.end.offset
     }
 
     /// Returns a zero-length [`Span`] at the beginning of this [`Span`].

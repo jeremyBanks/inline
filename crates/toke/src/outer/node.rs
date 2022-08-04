@@ -18,8 +18,8 @@ use {
 #[derive(Debug, Clone)]
 #[doc(alias("element", "token", "TokenTree"))]
 pub struct Node {
-    inner: Arc<internal::Node>,
-    document: Document,
+    pub(crate) inner: Arc<internal::Node>,
+    pub(crate) document: Document,
 }
 
 impl Hash for Node {
@@ -30,7 +30,7 @@ impl Hash for Node {
 
 impl PartialEq for Node {
     fn eq(&self, other: &Self) -> bool {
-        self.span().eq(other.span())
+        self.span().eq(&other.span())
     }
 }
 
@@ -38,7 +38,7 @@ impl Eq for Node {}
 
 impl Ord for Node {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.span().cmp(other.span())
+        self.span().cmp(&other.span())
     }
 }
 
@@ -74,7 +74,7 @@ impl Node {
     /// What [`NodeType`] variant (corresponding to a [`proc_macro2::TokenTree`]
     /// variant) does this [`Node`] represent?
     pub fn node_type(&self) -> TokenType {
-        todo!()
+        self.inner.token_type
     }
 
     /// Returns the [`Document`] this [`Node`] is a part of.
@@ -91,37 +91,64 @@ impl Node {
     /// Returns the [`Node`]s parent, if it has one.
     #[doc(alias("parentNode", "parentElement"))]
     pub fn parent(&self) -> Option<Node> {
-        todo!()
+        self.inner.parent.upgrade().map(|p| Node {
+            inner: p.clone(),
+            document: self.document.clone(),
+        })
     }
 
     /// Returns the next sibling of the [`Node`], if it has one.
     #[doc(alias("nextSibling", "nextElementSibling"))]
     pub fn next_sibling(&self) -> Option<Node> {
-        todo!()
+        self.inner
+            .next_sibling
+            .get()
+            .unwrap()
+            .upgrade()
+            .map(|s| Node {
+                inner: s.clone(),
+                document: self.document.clone(),
+            })
     }
 
     /// Returns the previous sibling of the [`Node`], if it has one.
     #[doc(alias("previousSibling", "previousElementSibling"))]
     pub fn previous_sibling(&self) -> Option<Node> {
-        todo!()
+        self.inner.previous_sibling.upgrade().map(|s| Node {
+            inner: s.clone(),
+            document: self.document.clone(),
+        })
     }
 
     /// Returns the [`Node`]'s first child, if it has any.
     #[doc(alias("firstChild", "firstElementChild"))]
     pub fn first_child(&self) -> Option<Node> {
-        todo!()
+        self.inner.children().first().map(|c| Node {
+            inner: c.clone(),
+            document: self.document.clone(),
+        })
     }
 
     /// Returns the [`Node`]'s last child, if it has any.
     #[doc(alias("lastChild", "lastElementChild"))]
     pub fn last_child(&self) -> Option<Node> {
-        todo!()
+        self.inner.children().last().map(|c| Node {
+            inner: c.clone(),
+            document: self.document.clone(),
+        })
     }
 
     /// Returns a [`Vec`] of all of the [`Node`]'s children.
     #[doc(alias("childNodes"))]
     pub fn children(&self) -> Vec<Node> {
-        todo!()
+        self.inner
+            .children()
+            .iter()
+            .map(|c| Node {
+                inner: c.clone(),
+                document: self.document.clone(),
+            })
+            .collect()
     }
 
     /// Returns a copy of this [`Node`] in its own document.
@@ -131,8 +158,11 @@ impl Node {
     }
 
     /// Returns a [`Span`] covering this node, without any leading or trailing whitespace.
-    pub fn span(&self) -> &DocumentSpan {
-        todo!()
+    pub fn span(&self) -> DocumentSpan {
+        DocumentSpan {
+            document: self.document.clone(),
+            inner: self.inner.span(),
+        }
     }
 
     /// Returns a [`Span`] excluding outer delimiters if this is a delimited group.
@@ -161,6 +191,7 @@ impl Node {
     /// Group delimiters are included because they're they also delimit tokens without being tokens
     /// on their own, i.e. they can determine whether a punctuation is alone or joined.
     pub fn trailing_spacing(&self) -> DocumentSpan {
+        // XXX: is this correct?
         if let Some(next) = self.next() {
             self.span().after().join(next.span().before()).unwrap()
         } else {
@@ -175,7 +206,7 @@ impl Node {
     /// Group delimiters are included because they're they also delimit tokens without being tokens
     /// on their own, i.e. they can determine whether a punctuation is alone or joined.
     pub fn leading_spacing(&self) -> DocumentSpan {
-        // XXX: this is dumb and bad. .previous() be .parent(), and then where are you?!
+        // BUG: this is dumb and bad. .previous() be .parent(), and then where are you?!
         if let Some(previous) = self.previous() {
             self.span().before().join(previous.span().after()).unwrap()
         } else {
@@ -185,33 +216,28 @@ impl Node {
 
     /// Returns the next [`Node`] in the [`Document`], if any.
     pub fn next(&self) -> Option<Node> {
-        self.first_child()
-            .or_else(|| self.next_sibling())
-            .or_else(|| self.parent()?.next_sibling())
+        self.inner.next_node.get().unwrap().upgrade().map(|s| Node {
+            inner: s.clone(),
+            document: self.document.clone(),
+        })
     }
 
     /// Returns the previous [`Node`] in the [`Document`], if any.
     pub fn previous(&self) -> Option<Node> {
-        self.previous_sibling().or_else(|| self.parent())
+        self.inner.previous_node.upgrade().map(|s| Node {
+            inner: s.clone(),
+            document: self.document.clone(),
+        })
     }
-}
 
-impl AsRef<DocumentSpan> for Node {
-    fn as_ref(&self) -> &DocumentSpan {
-        self.span()
-    }
-}
-
-impl Deref for Node {
-    type Target = DocumentSpan;
-
-    fn deref(&self) -> &Self::Target {
-        self.span()
+    pub fn as_str(&self) -> &str {
+        let span = self.inner.span();
+        &self.document.source()[span.start.offset..span.end.offset]
     }
 }
 
 impl Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self.as_str(), f)
+        Display::fmt(&self.span(), f)
     }
 }

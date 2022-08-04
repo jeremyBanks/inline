@@ -7,20 +7,16 @@ pub(crate) mod internal;
 
 #[doc(inline)]
 pub use self::outer::*;
-pub use crate as toke;
 
 #[doc(hidden)]
 mod outer;
 
 #[doc(no_inline)]
-pub use {
-    toke::token as n,
-    ::{
-        miette::{SourceCode, SourceOffset, SourceSpan},
-        proc_macro2::{
-            Delimiter as TokenGroupDelimiter, LineColumn, Spacing as TokenPunctSpacing,
-            TokenStream, TokenTree,
-        },
+pub use ::{
+    miette::{SourceCode, SourceOffset, SourceSpan},
+    proc_macro2::{
+        Delimiter as TokenGroupDelimiter, LineColumn, Spacing as TokenPunctSpacing, TokenStream,
+        TokenTree,
     },
 };
 
@@ -30,7 +26,7 @@ pub enum TokenType {
     /// A group of tokens, typically wrapped with a delimiter (a [`proc_macro2::Group`]).
     ///
     /// The only exception is the root node, which has no delimiter (a bare
-    /// [`proc_macro2::TokenStream`]).
+    /// [`TokenStream`]).
     Group,
     /// An identifier (a [`proc_macro2::Ident`]).
     Ident,

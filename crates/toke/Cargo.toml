@@ -3,20 +3,23 @@ description = "🌳 toke provides a read-only graph interface for traversing Rus
 edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "toke"
-version = "0.20220802.0-dev"
+version = "0.20220803.0-dev"
 
 [dependencies]
+databake = "0.1.1"
 miette = "5.1.1"
 once_cell = { version = "1.13.0", features = ["parking_lot"] }
 proc-macro2 = { version = "1.0.40", features = ["span-locations"] }
 send_wrapper = "0.6.0"
 thiserror = "1.0.31"
+yoke = "0.6.0"
 
 [dev-dependencies]
+expect-test = "1.4.0"
 toke = { path = ".", default-features = false, features = ["dev-dependencies"] }
 
 [package.metadata.docs.rs]
-cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all", "--document-private-items"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
 rustdoc-args = ["--html-in-header", "./src/pre-docs.html", "-Zunstable-options", "--generate-link-to-definition", "--show-type-layout"]
 
 [features]

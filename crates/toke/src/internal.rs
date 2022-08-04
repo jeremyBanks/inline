@@ -7,6 +7,7 @@ use {
     proc_macro2::{self, LexError, TokenStream, TokenTree},
     send_wrapper::SendWrapper,
     std::{
+        ops::Deref,
         str::FromStr,
         sync::{Arc, Weak},
     },
@@ -14,37 +15,37 @@ use {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Document {
-    root: Arc<Node>,
-    source: Arc<String>,
-    name: Option<String>,
+    pub(crate) root: Arc<Node>,
+    pub(crate) source: Arc<String>,
+    pub(crate) name: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Node {
-    document: Weak<Document>,
-    parent: Weak<Node>,
-    children: Vec<Arc<Node>>,
-    previous_sibling: Weak<Node>,
-    next_sibling: OnceCell<Weak<Node>>,
-    previous_node: Weak<Node>,
-    next_node: OnceCell<Weak<Node>>,
-    token_type: TokenType,
-    span: Span,
+    pub(crate) document: Weak<Document>,
+    pub(crate) parent: Weak<Node>,
+    pub(crate) children: Vec<Arc<Node>>,
+    pub(crate) previous_sibling: Weak<Node>,
+    pub(crate) next_sibling: OnceCell<Weak<Node>>,
+    pub(crate) previous_node: Weak<Node>,
+    pub(crate) next_node: OnceCell<Weak<Node>>,
+    pub(crate) token_type: TokenType,
+    pub(crate) span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Span {
-    document: Weak<Document>,
-    start: Location,
-    end: Location,
-    source: Arc<String>,
+    pub(crate) document: Weak<Document>,
+    pub(crate) start: Location,
+    pub(crate) end: Location,
+    pub(crate) source: Arc<String>,
     /// If this span corresponds directly to a proc_macro2 input span, we hold a wrapped
     /// copy of it here. (This isn't really used yet, but maybe if we want real proc macro
     /// integration later.)
     /// Note that even though they're `!Send`, proc_macro::Span/proc_macro2::Span both
     /// have "trivial drops" (no destructors), so we don't need to worry about ensuring that
     /// they're returned to the original thread for dropping.
-    pm2: Option<SendWrapper<proc_macro2::Span>>,
+    pub(crate) pm2: Option<SendWrapper<proc_macro2::Span>>,
 }
 
 /// Simple data type with the byte offset and character line/column of a location in a file.
@@ -59,7 +60,8 @@ pub struct Location {
 /// Internal type used to map between byte indices and line/column character indices
 /// and track state during parsing.
 ///
-/// Lots of room for optimizing here, haha.
+/// XXX: It's probably better to ditch our own line-splitting and offsets
+/// and use miette's for compatibility and probably better performance.
 #[derive(Debug)]
 struct ParseState {
     previous_node: Weak<Node>,
@@ -70,8 +72,6 @@ struct ParseState {
 
 impl ParseState {
     pub fn locate_offset(&self, offset: usize) -> Location {
-        dbg!(&self);
-
         // special case: one-past-the-end is considered valid
         if offset == self.source.len() {
             return Location {
@@ -128,7 +128,7 @@ impl ParseState {
             debug_assert_eq!(1, column);
             offset = self.source.len();
         } else {
-            let line_offset = self.line_offsets[line - 1];
+            let line_offset = self.line_offsets[line - 1] + 1;
             let rest = &self.source[line_offset..];
             let column_offset = rest.char_indices().nth(column - 1).unwrap().0;
             offset = line_offset + column_offset;
@@ -229,6 +229,9 @@ impl Document {
                         }
                         previous_sibling = Arc::downgrade(&node);
 
+                        // XXX: this is post-order/parents-after-children, but the documentation
+                        // says the opposite. what we do we actually want?
+                        // maybe we need to nest yet another layer of new_cyclic.
                         if let Some(previous_node) = state.previous_node.upgrade() {
                             previous_node.next_node.set(Arc::downgrade(&node)).unwrap();
                         }
@@ -275,7 +278,7 @@ impl Node {
     }
 
     pub(crate) fn span(&self) -> Span {
-        todo!()
+        self.span.clone()
     }
 }
 
@@ -302,5 +305,13 @@ impl Span {
             }
         }
         return proc_macro2::Span::call_site();
+    }
+}
+
+impl Deref for Span {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.source[self.start.offset..self.end.offset]
     }
 }
