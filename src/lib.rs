@@ -3,8 +3,10 @@
 #![doc = include_str!("../README.md")]
 //!
 #![doc = document_features::document_features!()]
-#![doc(html_favicon_url = "https://icon.jeremy.ca/litter.png")]
-#![doc(html_logo_url = "https://icon.jeremy.ca/litter.png")]
+#![doc(
+    html_favicon_url = r#"data:image/svg+xml,<?xml version="1.0" encoding="UTF-8"?><svg width="24" height="24" xmlns="http://www.w3.org/2000/svg"><text text-anchor="middle" x="12" y="19" font-size="20">🗑️</text></svg>"#,
+    html_logo_url = r#"data:image/svg+xml,<?xml version="1.0" encoding="UTF-8"?><svg width="24" height="24" xmlns="http://www.w3.org/2000/svg"><text text-anchor="middle" x="12" y="19" font-size="20">🗑️</text></svg>"#
+)]
 #![cfg_attr(doc, feature(doc_auto_cfg, doc_cfg))]
 // We warn to warn about these...
 #![warn(

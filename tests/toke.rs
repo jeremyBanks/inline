@@ -17,7 +17,7 @@ fn test_toke() {
 
     let body = &items[3];
 
-    dbg!(body.next().unwrap().to_string());
+    dbg!(body);
 
     panic!()
 }

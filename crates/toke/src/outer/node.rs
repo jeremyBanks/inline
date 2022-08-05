@@ -103,10 +103,9 @@ impl Node {
         self.inner
             .next_sibling
             .get()
-            .unwrap()
-            .upgrade()
-            .map(|s| Node {
-                inner: s.clone(),
+            .and_then(|w| w.upgrade())
+            .map(|inner| Node {
+                inner,
                 document: self.document.clone(),
             })
     }
@@ -216,10 +215,14 @@ impl Node {
 
     /// Returns the next [`Node`] in the [`Document`], if any.
     pub fn next(&self) -> Option<Node> {
-        self.inner.next_node.get().unwrap().upgrade().map(|s| Node {
-            inner: s.clone(),
-            document: self.document.clone(),
-        })
+        self.inner
+            .next_node
+            .get()
+            .and_then(|w| w.upgrade())
+            .map(|inner| Node {
+                inner,
+                document: self.document.clone(),
+            })
     }
 
     /// Returns the previous [`Node`] in the [`Document`], if any.
