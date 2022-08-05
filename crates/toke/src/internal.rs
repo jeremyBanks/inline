@@ -1,7 +1,7 @@
 //! implementation details
 
 use {
-    crate::{LineColumn, TokenType},
+    crate::{fdebug, LineColumn, TokenType},
     core::fmt::Debug,
     once_cell::sync::OnceCell,
     proc_macro2::{self, LexError, TokenStream, TokenTree},
@@ -15,12 +15,12 @@ use {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Document {
-    pub(crate) root: Arc<Node>,
-    pub(crate) source: Arc<String>,
     pub(crate) name: Option<String>,
+    pub(crate) source: Arc<String>,
+    pub(crate) root: Arc<Node>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct Node {
     pub(crate) document: Weak<Document>,
     pub(crate) parent: Weak<Node>,
@@ -31,6 +31,18 @@ pub(crate) struct Node {
     pub(crate) next_node: OnceCell<Weak<Node>>,
     pub(crate) token_type: TokenType,
     pub(crate) span: Span,
+}
+
+impl Debug for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Node")
+            .field(
+                "document",
+                fdebug!("Weak<Document> @ {:?}", self.document.as_ptr()),
+            )
+            .field("span", &self.span)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone)]

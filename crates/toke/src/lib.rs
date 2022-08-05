@@ -54,3 +54,17 @@ impl From<TokenTree> for TokenType {
         Self::from(&token)
     }
 }
+
+struct AsDebug<S: AsRef<str>>(S);
+impl<S: AsRef<str>> core::fmt::Debug for AsDebug<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.0.as_ref())
+    }
+}
+
+#[macro_export(crate)]
+macro_rules! fdebug {
+    ($($tt:tt)*) => {
+        &$crate::AsDebug(format!($($tt)*))
+    };
+}
