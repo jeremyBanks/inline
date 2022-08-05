@@ -227,7 +227,7 @@ checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
 name = "litter"
-version = "0.20220803.0-dev"
+version = "0.20220804.0-dev"
 dependencies = [
  "bcs",
  "databake",
@@ -619,7 +619,7 @@ dependencies = [
 
 [[package]]
 name = "toke"
-version = "0.20220803.0-dev"
+version = "0.20220804.0-dev"
 dependencies = [
  "databake",
  "expect-test",
