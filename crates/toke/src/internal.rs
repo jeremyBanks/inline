@@ -1,7 +1,10 @@
 //! implementation details
 
 use {
-    crate::{fdebug, LineColumn, TokenType},
+    crate::{
+        debug::{debug_once_weak, debug_weak},
+        fdebug, LineColumn, TokenType,
+    },
     core::fmt::Debug,
     once_cell::sync::OnceCell,
     proc_macro2::{self, LexError, TokenStream, TokenTree},
@@ -22,30 +25,54 @@ pub(crate) struct Document {
 
 #[derive(Clone)]
 pub(crate) struct Node {
+    pub(crate) token_type: TokenType,
     pub(crate) document: Weak<Document>,
+    pub(crate) span: Span,
     pub(crate) parent: Weak<Node>,
     pub(crate) children: Vec<Arc<Node>>,
     pub(crate) previous_sibling: Weak<Node>,
     pub(crate) next_sibling: OnceCell<Weak<Node>>,
     pub(crate) previous_node: Weak<Node>,
     pub(crate) next_node: OnceCell<Weak<Node>>,
-    pub(crate) token_type: TokenType,
-    pub(crate) span: Span,
 }
 
 impl Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Node")
-            .field(
-                "document",
-                fdebug!("Weak<Document> @ {:?}", self.document.as_ptr()),
-            )
+        f.debug_struct(&"Node")
+            .field("token_type", &self.token_type)
+            .field("document", &debug_weak(&self.document))
             .field("span", &self.span)
+            .field("parent", &debug_weak(&self.parent))
+            .field("previous_node", &debug_weak(&self.previous_node))
+            .field("next_node", &debug_once_weak(&self.next_node))
+            .field("previous_sibling", &debug_weak(&self.previous_sibling))
+            .field("next_sibling", &debug_once_weak(&self.next_sibling))
+            .field("children", &self.children)
             .finish()
     }
 }
 
-#[derive(Debug, Clone)]
+impl Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s: &str = self.as_ref();
+
+        let s: Vec<char> = s.chars().collect();
+        let s = if s.len() > 16 {
+            format!("{}…", s.iter().take(15).collect::<String>())
+        } else {
+            format!("{}", s.iter().collect::<String>())
+        };
+
+        f.write_str(&format!(
+            "Span {{ {s:?} at {}..{} in {:?} }}",
+            self.start.offset,
+            self.end.offset,
+            debug_weak(&self.document),
+        ))
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct Span {
     pub(crate) document: Weak<Document>,
     pub(crate) start: Location,

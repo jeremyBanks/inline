@@ -5,6 +5,7 @@
 )]
 #![cfg_attr(debug_assertions, allow(unused))]
 
+pub(crate) mod debug;
 pub(crate) mod internal;
 
 #[doc(inline)]
@@ -53,18 +54,4 @@ impl From<TokenTree> for TokenType {
     fn from(token: TokenTree) -> Self {
         Self::from(&token)
     }
-}
-
-struct AsDebug<S: AsRef<str>>(S);
-impl<S: AsRef<str>> core::fmt::Debug for AsDebug<S> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(self.0.as_ref())
-    }
-}
-
-#[macro_export(crate)]
-macro_rules! fdebug {
-    ($($tt:tt)*) => {
-        &$crate::AsDebug(format!($($tt)*))
-    };
 }
