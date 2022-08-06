@@ -14,7 +14,7 @@ use {
     },
 };
 
-/// A span representing a slice into a Rust source [`Document`].
+/// A [`Span`] with its [`Document`] attached.
 #[derive(Clone)]
 #[doc(alias("offset"))]
 pub struct DocumentSpan {

@@ -1,14 +1,12 @@
-use toke::{self, attributes, inner_attributes, rs, Node};
+use toke::{self, rs, Node};
 
 #[test]
 fn test_toke() -> Result<(), miette::Report> {
-    let _attrs = inner_attributes! {
-        #![doc = "hello, world!"]
-    };
-
     let doc = rs! {
-        fn main() {
-            println!("Hello, world!");
+        static message: &str = "Hello, world!";
+
+        pub fn main() {
+            println!("{message}");
         }
     };
 
@@ -27,5 +25,3 @@ fn test_toke() -> Result<(), miette::Report> {
 
     Ok(())
 }
-
-// should we provide a syn-style .fold on top of replace_nodes and walk?

@@ -14,6 +14,7 @@ use {
     },
 };
 
+#[doc(hidden)]
 /// An [`Iterator`] traversing through a [`Document`]'s [`Node`]s in depth-first pre-order.
 #[derive(Debug, Clone, Default)]
 pub struct NodeWalker {
