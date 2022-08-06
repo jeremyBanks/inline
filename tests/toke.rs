@@ -1,5 +1,5 @@
 use {
-    std::iter::Filter,
+    std::{fmt::Debug, iter::Filter, sync::Arc},
     toke::{self, Node, TokenType},
 };
 
@@ -13,51 +13,74 @@ fn test_toke() {
         "#,
     )
     .unwrap();
-
-    let root = doc.walk().find(|n| n.as_str() == "fn").unwrap();
-    // Is NodeWalker where we put our nicer logic?
-    // walker.next_group()
-    // walker.previous_group()
-
-    // We need several iterators, and various filters on Node iterators.
-    // An extension trait is probably a good way to go.
-
-    // but not yet because we're trying to make `litter` work first!
 }
 
-// .ancestors()     <-- backwards iterator through parents up to the root
-// .following()     <-- forward iterator through all following nodes in the document
-// .descendants()   <-- forward iterator through all descendants nodes of this one
-// .preceding()     <-- backwards iterator through all preceeding nodes in the document
-// .children()      <-- double-ended iterator(?) over all children
-// .following_siblings() <-- forward iterator over next siblings
-// .preceding_siblings() <-- backwards iterator over previous siblings
+#[derive(Clone)]
+pub enum Select {
+    /// if `node` == `target`
+    This,
+    Ancestor,
+    Sibling,
+    Descendant,
+    Child,
+    /// if all of the selectors match
+    All(Vec<Select>),
+    /// if any of the selectors match
+    Any(Vec<Select>),
+    /// if exactly one of the selectors match
+    One(Vec<Select>),
+    /// if none of the selectors match
+    Not(Vec<Select>),
+    /// if it matches given the source string exactly
+    Source(String),
+    Dyn(Arc<dyn NodeSelector>),
+    Type(TokenType),
+}
 
-// what about following siblings *and* their descendants, or rather, document-order
-// walking limited to their parent instead of their own subtree?
+impl<'a> NodeSelector for Select {
+    fn matches(&self, target: &Node, origin: &Node) -> bool {
+        use Select::*;
+        match self {
+            This => target == origin,
+            All(s) => s.iter().all(|select| select.matches(target, origin)),
+            Any(s) => s.iter().any(|select| select.matches(target, origin)),
+            Dyn(s) => s.matches(target, origin),
+            One(s) =>
+                s.iter()
+                    .filter(|select| select.matches(target, origin))
+                    .take(2)
+                    .count()
+                    == 1,
+            Not(s) => !s.iter().any(|select| select.matches(target, origin)),
+            Type(t) => target.node_type() == *t,
 
-trait NodeIteratorExt: Iterator<Item = Node> + Sized {
-    fn query(&mut self, selector: impl NodeSelector) -> Option<Node> {
-        loop {
-            let next = self.next()?;
-            if selector.matches(&next) {
-                return Some(next);
-            }
+            #[allow(unreachable_patterns)]
+            _ => todo!(),
         }
     }
+}
 
-    fn query_all(self, selector: impl NodeSelector) -> Filter<Self, Box<dyn Fn(&Node) -> bool>> {
-        self.filter(Box::new(move |n| selector.matches(n)))
+pub trait NodeSelector {
+    /// Whether the `target` node matches this selector, for a query starting from `origin`.
+    /// Most selectors ignore the `origin`.
+    fn matches(&self, target: &Node, origin: &Node) -> bool;
+}
+
+impl NodeSelector for fn(&Node) -> bool {
+    fn matches(&self, target: &Node, _origin: &Node) -> bool {
+        self(target)
     }
 }
 
-trait NodeSelector: 'static {
-    fn matches(&self, node: &Node) -> bool;
+impl NodeSelector for fn(&Node, &Node) -> bool {
+    fn matches(&self, target: &Node, origin: &Node) -> bool {
+        self(target, origin)
+    }
 }
 
 impl NodeSelector for TokenType {
-    fn matches(&self, node: &Node) -> bool {
-        node.node_type() == *self
+    fn matches(&self, target: &Node, _origin: &Node) -> bool {
+        target.node_type() == *self
     }
 }
 
