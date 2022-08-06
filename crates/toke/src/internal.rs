@@ -98,90 +98,10 @@ pub(crate) struct Span {
     pub(crate) pm2: Option<SendWrapper<proc_macro2::Span>>,
 }
 
-/// Internal type used to map between byte indices and line/column character indices
-/// and track state during parsing.
-///
-/// XXX: It's probably better to ditch our own line-splitting and offsets
-/// and use miette's for compatibility and probably better performance.
-#[derive(Debug)]
 struct ParseState {
     previous_node: Weak<Node>,
     document: Weak<Document>,
     source: Arc<String>,
-    line_offsets: Vec<usize>,
-}
-
-impl ParseState {
-    pub fn locate_offset(&self, offset: usize) -> Location {
-        // special case: one-past-the-end is considered valid
-        if offset == self.source.len() {
-            return Location {
-                offset,
-                line_column: LineColumn {
-                    line: self.line_offsets.len(),
-                    column: &self.source[*self.line_offsets.last().unwrap()..]
-                        .chars()
-                        .count()
-                        + 1,
-                },
-            };
-        }
-
-        let (line_index, line_offset) = self
-            .line_offsets
-            .iter()
-            .enumerate()
-            .filter(|(_, line_offset)| **line_offset <= offset)
-            .last()
-            .unwrap();
-
-        let rest = &self.source[*line_offset..];
-        let target_column_offset = offset - line_offset;
-
-        let column_index = if target_column_offset == 0 {
-            0
-        } else {
-            rest.char_indices()
-                .enumerate()
-                .find(|(_, (offset, _))| *offset == target_column_offset)
-                .expect("offset does not align with any character")
-                .0
-        };
-
-        let line = line_index + 1;
-        let column = column_index + 1;
-
-        Location {
-            offset,
-            line_column: LineColumn { line, column },
-        }
-    }
-
-    // XXX: we're throwing this out, along with our inner Location representation,
-    // in favour of using miette's implementation.
-    pub fn locate_line_column(&self, line_column: LineColumn) -> Location {
-        let LineColumn { line, column } = line_column;
-        let offset;
-
-        debug_assert!(line >= 1);
-        debug_assert!(column >= 1);
-
-        if line == self.line_offsets.len() + 1 {
-            // trailing newline, offset at end of file
-            debug_assert_eq!(1, column);
-            offset = self.source.len();
-        } else {
-            let line_offset = self.line_offsets[line - 1] + 1;
-            let rest = &self.source[line_offset..];
-            let column_offset = rest.char_indices().nth(column - 1).unwrap().0;
-            offset = line_offset + column_offset;
-        }
-
-        Location {
-            offset,
-            line_column,
-        }
-    }
 }
 
 impl Document {

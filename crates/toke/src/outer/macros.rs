@@ -51,7 +51,7 @@ macro_rules! document {
     };
 }
 
-/// Create a [`Document`][crate::Document] from any number of [Rust `item`s](https://doc.rust-lang.org/reference/items.html) as you might find at the root of [a module](https://doc.rust-lang.org/reference/items/modules.html).
+/// Create a [`Document`][crate::Document] from any number of [Rust `item`s](https://doc.rust-lang.org/reference/items.html), as you might find at the root of [a module](https://doc.rust-lang.org/reference/items/modules.html).
 ///
 /// Top-level inner attributes are supported due to macro grammar limitations.
 #[macro_export]
