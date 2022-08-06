@@ -1,2 +1,2 @@
 [build]
-rustdocflags = ["-Zunstable-options", "--generate-link-to-definition", "--show-type-layout"]
+rustdocflags = ["-Zunstable-options", "--generate-link-to-definition"]

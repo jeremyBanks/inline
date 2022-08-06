@@ -149,6 +149,8 @@ impl ParseState {
         }
     }
 
+    // XXX: we're throwing this out, along with our inner Location representation,
+    // in favour of using miette's implementation.
     pub fn locate_line_column(&self, line_column: LineColumn) -> Location {
         let LineColumn { line, column } = line_column;
         let offset;
