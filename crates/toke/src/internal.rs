@@ -3,11 +3,11 @@
 use {
     crate::{
         debug::{debug_once_weak, debug_weak, short_string_debug},
-        fdebug, LineColumn, TokenType,
+        TokenType,
     },
     core::fmt::Debug,
     once_cell::sync::OnceCell,
-    proc_macro2::{self, LexError, TokenStream, TokenTree},
+    proc_macro2::{self, LexError, LineColumn, TokenStream, TokenTree},
     send_wrapper::SendWrapper,
     std::{
         ops::Deref,
@@ -66,6 +66,23 @@ impl Debug for Span {
     }
 }
 
+// XXX: We don't need smart internal spans.
+// Smart spans only need to exist in the outer layer.
+// Internally, we can use miette's spans...
+// with a PM2 span attached if we have it, I guess..?
+
+// I guess we want to store the LineColumn for the line column, the derived miette SourceOffset, and
+// the wrapped pm2 Span. wait, no, that's
+
+/// Simple data type with the byte offset and character line/column of a location in a file.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Location {
+    /// zero-based byte index
+    pub offset: usize,
+    /// one-based line and column character indices
+    pub line_column: LineColumn,
+}
+
 #[derive(Clone)]
 pub(crate) struct Span {
     pub(crate) document: Weak<Document>,
@@ -79,15 +96,6 @@ pub(crate) struct Span {
     /// have "trivial drops" (no destructors), so we don't need to worry about ensuring that
     /// they're returned to the original thread for dropping.
     pub(crate) pm2: Option<SendWrapper<proc_macro2::Span>>,
-}
-
-/// Simple data type with the byte offset and character line/column of a location in a file.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Location {
-    /// zero-based byte index
-    pub offset: usize,
-    /// one-based line and column character indices
-    pub line_column: LineColumn,
 }
 
 /// Internal type used to map between byte indices and line/column character indices

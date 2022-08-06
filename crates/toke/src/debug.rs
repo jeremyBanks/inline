@@ -3,14 +3,12 @@ use {
     std::{fmt::Debug, sync::Weak},
 };
 
-#[macro_export(crate)]
 macro_rules! fdebug {
     ($($tt:tt)*) => {
         $crate::debug::AsDebug(format!($($tt)*))
     };
 }
 
-#[macro_export(crate)]
 macro_rules! regex {
     ($re:literal $(,)?) => {{
         static RE: once_cell::sync::OnceCell<regex::Regex> = once_cell::sync::OnceCell::new();
@@ -24,9 +22,9 @@ pub(crate) fn debug_weak<T: Debug>(weak: &Weak<T>) -> crate::debug::AsDebug {
         let pointer = format!("{:?}", weak.as_ptr())[2..].to_ascii_uppercase();
         fdebug!("{t} at 0x{pointer}")
     } else if weak.ptr_eq(&Weak::new()) {
-        fdebug!("empty Weak<{t}>")
+        fdebug!("None (empty Weak<{t}>)")
     } else {
-        fdebug!("dropped Weak<{t}>")
+        fdebug!("None (dropped Weak<{t}>)")
     }
 }
 
@@ -35,7 +33,7 @@ pub(crate) fn debug_once_weak<T: Debug>(weak: &OnceCell<Weak<T>>) -> crate::debu
     if let Some(weak) = weak.get() {
         debug_weak(weak)
     } else {
-        fdebug!("empty OnceCell<Weak<{t}>>")
+        fdebug!("None (empty OnceCell<Weak<{t}>>)")
     }
 }
 

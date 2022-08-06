@@ -622,6 +622,7 @@ name = "toke"
 version = "0.20220804.0-dev"
 dependencies = [
  "databake",
+ "derive_more",
  "expect-test",
  "miette",
  "once_cell",

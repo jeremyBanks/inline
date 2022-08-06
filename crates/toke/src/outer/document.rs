@@ -117,3 +117,15 @@ impl Display for Document {
         write!(f, "{}", self.root().span().as_str())
     }
 }
+
+impl SourceCode for Document {
+    fn read_span<'a>(
+        &'a self,
+        span: &miette::SourceSpan,
+        context_lines_before: usize,
+        context_lines_after: usize,
+    ) -> Result<Box<dyn SpanContents<'a> + 'a>, miette::MietteError> {
+        self.source()
+            .read_span(span, context_lines_before, context_lines_after)
+    }
+}

@@ -1,15 +1,16 @@
-use toke::{self, Node};
+use toke::{self, attributes, inner_attributes, rs, Node};
 
 #[test]
 fn test_toke() -> Result<(), miette::Report> {
-    let doc = toke::Document::parse(
-        r#"
+    let _attrs = inner_attributes! {
+        #![doc = "hello, world!"]
+    };
+
+    let doc = rs! {
         fn main() {
             println!("Hello, world!");
         }
-        "#,
-    )
-    .unwrap();
+    };
 
     let main = doc.root().first_child().unwrap().next().unwrap();
 
@@ -26,3 +27,5 @@ fn test_toke() -> Result<(), miette::Report> {
 
     Ok(())
 }
+
+// should we provide a syn-style .fold on top of replace_nodes and walk?
