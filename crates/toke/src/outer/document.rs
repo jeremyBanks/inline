@@ -104,6 +104,10 @@ impl Document {
     ) -> Document {
         todo!()
     }
+
+    pub fn as_str(&self) -> &str {
+        self.source().as_str()
+    }
 }
 
 impl AsRef<str> for Document {
