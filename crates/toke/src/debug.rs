@@ -10,29 +10,32 @@ macro_rules! fdebug {
     };
 }
 
+#[macro_export(crate)]
+macro_rules! regex {
+    ($re:literal $(,)?) => {{
+        static RE: once_cell::sync::OnceCell<regex::Regex> = once_cell::sync::OnceCell::new();
+        RE.get_or_init(|| regex::Regex::new($re).unwrap())
+    }};
+}
+
 pub(crate) fn debug_weak<T: Debug>(weak: &Weak<T>) -> crate::debug::AsDebug {
     let t = std::any::type_name::<T>().rsplit("::").next().unwrap();
     if weak.strong_count() > 0 {
-        fdebug!("{t} {{ at {:?} }}", weak.as_ptr())
+        let pointer = format!("{:?}", weak.as_ptr())[2..].to_ascii_uppercase();
+        fdebug!("{t} at 0x{pointer}")
     } else if weak.ptr_eq(&Weak::new()) {
-        fdebug!("{t} {{ empty (null weak) }}")
+        fdebug!("empty Weak<{t}>")
     } else {
-        fdebug!("{t} {{ empty (dropped weak) }}")
+        fdebug!("dropped Weak<{t}>")
     }
 }
 
 pub(crate) fn debug_once_weak<T: Debug>(weak: &OnceCell<Weak<T>>) -> crate::debug::AsDebug {
     let t = std::any::type_name::<T>().rsplit("::").next().unwrap();
     if let Some(weak) = weak.get() {
-        if weak.strong_count() > 0 {
-            fdebug!("{t} {{ at {:?} }}", weak.as_ptr())
-        } else if weak.ptr_eq(&Weak::new()) {
-            fdebug!("{t} {{ empty (null weak) }}")
-        } else {
-            fdebug!("{t} {{ empty (dropped weak) }}")
-        }
+        debug_weak(weak)
     } else {
-        fdebug!("{t} {{ empty (not once) }}")
+        fdebug!("empty OnceCell<Weak<{t}>>")
     }
 }
 
@@ -41,4 +44,48 @@ impl<S: AsRef<str>> core::fmt::Debug for AsDebug<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.0.as_ref())
     }
+}
+
+pub(crate) fn short_string_debug(string: impl AsRef<str>) -> AsDebug<String> {
+    let max_len = 16 + 2;
+
+    let mut debug = format!("{:?}", string.as_ref());
+
+    if debug.chars().count() <= max_len {
+        return AsDebug(debug);
+    }
+
+    debug = debug.replace("\\n", " ");
+
+    let folded = regex!(r"\s{2,}").replace_all(&debug, " ").to_string();
+
+    if folded.len() <= max_len {
+        return AsDebug(folded);
+    } else if folded.len() < debug.len() {
+        debug = folded;
+    }
+
+    let start_trimmed = "\"…".to_string() + debug[1..].trim_start();
+
+    if start_trimmed.len() <= max_len {
+        return AsDebug(start_trimmed);
+    } else if start_trimmed.len() < debug.len() {
+        debug = start_trimmed;
+    }
+
+    let end_trimmed = debug[..debug.len() - 1].trim_end().to_string() + "…\"";
+
+    if end_trimmed.len() <= max_len {
+        return AsDebug(end_trimmed);
+    } else if end_trimmed.len() < debug.len() {
+        debug = end_trimmed;
+    }
+
+    AsDebug(
+        debug
+            .chars()
+            .take(max_len - 2)
+            .chain(['…', '"'].into_iter())
+            .collect(),
+    )
 }

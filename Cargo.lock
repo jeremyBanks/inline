@@ -626,6 +626,7 @@ dependencies = [
  "miette",
  "once_cell",
  "proc-macro2",
+ "regex",
  "send_wrapper",
  "thiserror",
  "toke",

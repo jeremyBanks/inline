@@ -10,6 +10,7 @@ databake = "0.1.1"
 miette = "5.1.1"
 once_cell = { version = "1.13.0", features = ["parking_lot"] }
 proc-macro2 = { version = "1.0.40", features = ["span-locations"] }
+regex = "1.6.0"
 send_wrapper = "0.6.0"
 thiserror = "1.0.31"
 yoke = "0.6.0"

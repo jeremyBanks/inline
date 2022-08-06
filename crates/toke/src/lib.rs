@@ -26,16 +26,13 @@ pub use ::{
 /// The variants of [`proc_macro2::TokenTree`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TokenType {
-    /// A group of tokens, typically wrapped with a delimiter (a [`proc_macro2::Group`]).
-    ///
-    /// The only exception is the root node, which has no delimiter (a bare
-    /// [`TokenStream`]).
+    /// [`proc_macro2::Group`]
     Group,
-    /// An identifier (a [`proc_macro2::Ident`]).
+    /// [`proc_macro2::Ident`].
     Ident,
-    /// A punctuation character (a [`proc_macro2::Punct`]).
+    /// [`proc_macro2::Punct`]
     Punct,
-    /// A literal (a [`proc_macro2::Literal`]).
+    /// [`proc_macro2::Literal`]
     Literal,
 }
 

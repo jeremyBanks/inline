@@ -56,14 +56,15 @@ impl NodeWalker {
 impl FusedIterator for NodeWalker {}
 
 impl Document {
-    /// Returns an [`Iterator`] every [`Node`] in the document (depth-first in-order).
+    /// Returns an [`Iterator`] walking every [`Node`] in the document (depth-first in-order).
     pub fn walk(&self) -> NodeWalker {
         NodeWalker::new(self.root(), None)
     }
 }
 
 impl Node {
-    /// Returns an [`Iterator`] this [`Node`] and all of its descendants (depth-first in-order).
+    /// Returns an [`Iterator`] walking this [`Node`] and all of its descendants (depth-first
+    /// in-order).
     pub fn walk(&self) -> NodeWalker {
         NodeWalker::new(self.clone(), self.next_sibling())
     }

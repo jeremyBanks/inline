@@ -2,7 +2,7 @@
 
 use {
     crate::{
-        debug::{debug_once_weak, debug_weak},
+        debug::{debug_once_weak, debug_weak, short_string_debug},
         fdebug, LineColumn, TokenType,
     },
     core::fmt::Debug,
@@ -39,9 +39,9 @@ pub(crate) struct Node {
 impl Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(&"Node")
+            .field("span", &self.span)
             .field("token_type", &self.token_type)
             .field("document", &debug_weak(&self.document))
-            .field("span", &self.span)
             .field("parent", &debug_weak(&self.parent))
             .field("previous_node", &debug_weak(&self.previous_node))
             .field("next_node", &debug_once_weak(&self.next_node))
@@ -56,15 +56,9 @@ impl Debug for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s: &str = self.as_ref();
 
-        let s: Vec<char> = s.chars().collect();
-        let s = if s.len() > 16 {
-            format!("{}…", s.iter().take(15).collect::<String>())
-        } else {
-            format!("{}", s.iter().collect::<String>())
-        };
-
         f.write_str(&format!(
-            "Span {{ {s:?} at {}..{} in {:?} }}",
+            "{:?} at {}..{} in {:?}",
+            &short_string_debug(s),
             self.start.offset,
             self.end.offset,
             debug_weak(&self.document),

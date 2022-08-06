@@ -91,6 +91,10 @@ impl Document {
         }
     }
 
+    // pub fn iter(&self) {
+    //     self.root().iter()
+    // }
+
     /// Returns a new [`Document`] based on this one by applying a list of
     /// `(original, replacement)` pairs to the source code. Each `original`
     /// must be a distinct non-overlapping [`Node`] in this [`Document`].
