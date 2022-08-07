@@ -3,7 +3,7 @@ description = "🗑️ litter makes your literals mutable with smart pointers in
 edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "litter"
-version = "0.20220804.0-dev"
+version = "0.1.0-d0807"
 
 [workspace]
 members = ["crates/toke"]
@@ -24,7 +24,7 @@ proc-macro2 = { version = "1.0.43", optional = true }
 serde = { version = "1.0.142", optional = true, default-features = false }
 serde_json = { version = "1.0.83", optional = true }
 serde_yaml = { version = "0.9.4", optional = true }
-toke = { path =  "crates/toke", version = "0.20220804.0-dev", optional = true }
+toke = { path =  "crates/toke", version = "0.1.0-d0807", optional = true }
 toml = { version = "0.5.9", optional = true }
 
 [profile.dev.package.backtrace]
