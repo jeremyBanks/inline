@@ -16,7 +16,7 @@ use {
 
 /// A [`Span`] with its [`Document`] attached.
 #[derive(Clone)]
-#[doc(alias("offset"))]
+#[doc(alias("offset", "range", "index", "region"))]
 pub struct DocumentSpan {
     pub(crate) document: Document,
     pub(crate) inner: Span,
@@ -77,16 +77,6 @@ impl DocumentSpan {
         &self.document
     }
 
-    /// Inclusive lower bound of this [`Span`] as a byte index in the [`Document`]'s `.source()`.
-    pub fn start(&self) -> usize {
-        self.inner.start.offset
-    }
-
-    /// Exclusive upper bound of this [`Span`] as a byte index in the [`Document`]'s `.source()`.
-    pub fn end(&self) -> usize {
-        self.inner.end.offset
-    }
-
     /// Returns a zero-length [`Span`] at the beginning of this [`Span`].
     pub fn before(&self) -> DocumentSpan {
         todo!()
@@ -105,17 +95,39 @@ impl DocumentSpan {
 
     /// The span's source code contents as a string.
     pub fn as_str(&self) -> &str {
-        &self.document.source()[self.start()..self.end()]
+        todo!()
     }
 
     /// The span's source code contents as a string.
     pub fn as_bytes(&self) -> &[u8] {
-        &self.document.source().as_bytes()[self.start()..self.end()]
+        todo!()
     }
 }
 
 impl Display for DocumentSpan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self.as_str(), f)
+    }
+}
+
+impl<'this> SpanContents<'this> for &'this DocumentSpan {
+    fn data(&self) -> &'this [u8] {
+        self.document.source()[core::ops::Range::from(self.inner)].as_bytes()
+    }
+
+    fn span(&self) -> &miette::SourceSpan {
+        &self.inner.miette()
+    }
+
+    fn line(&self) -> usize {
+        self.line() - 1
+    }
+
+    fn column(&self) -> usize {
+        self.column() - 1
+    }
+
+    fn line_count(&self) -> usize {
+        self.inner.start().line() - self.inner.end().line() + 1
     }
 }

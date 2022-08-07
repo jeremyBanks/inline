@@ -33,10 +33,10 @@ use {
 /// assert_eq!(literal.inner_span().as_str(), "1, 2, \"three\"");
 /// ```
 #[macro_export]
-macro_rules! token {
+macro_rules! node {
     ($($token:tt)+) => {
         $crate::Node::parse(
-            dbg!(concat!($(stringify!($token), "\n"),+)),
+            (concat!($(stringify!($token), "\n"),+)),
         ).unwrap()
     };
 }
@@ -46,47 +46,7 @@ macro_rules! token {
 macro_rules! document {
     ($($token:tt)+) => {
         $crate::Document::parse(
-            dbg!(concat!($(stringify!($token), "\n"),+)),
-        ).unwrap()
-    };
-}
-
-/// Create a [`Document`][crate::Document] from any number of [Rust `item`s](https://doc.rust-lang.org/reference/items.html), as you might find at the root of [a module](https://doc.rust-lang.org/reference/items/modules.html).
-///
-/// Top-level inner attributes are supported due to macro grammar limitations.
-#[macro_export]
-macro_rules! rs {
-    (
-        $($item:item)*
-    ) => {
-        $crate::Document::parse(
-            dbg!(concat!($(stringify!($item), "\n"),+)),
-        ).unwrap()
-    };
-}
-
-/// Create a [`Node`][crate::Node] from Rust [inner attributes syntax](https://doc.rust-lang.org/reference/attributes.html).
-#[doc(alias("meta", "attr"))]
-#[macro_export]
-macro_rules! inners {
-    (
-        $(#![$meta:meta])+
-    ) => {
-        $crate::Node::parse(
-            dbg!(concat!($(stringify!(#![$meta]), "\n"),+)),
-        ).unwrap()
-    };
-}
-
-/// Create a [`Node`][crate::Node] from Rust [outer attributes syntax](https://doc.rust-lang.org/reference/attributes.html).
-#[doc(alias("meta", "attr"))]
-#[macro_export]
-macro_rules! attributes {
-    (
-        $(#[$meta:meta])+
-    ) => {
-        $crate::Node::parse(
-            dbg!(concat!($(stringify!(#[$meta]), "\n"),+)),
+            (concat!($(stringify!($token), "\n"),+)),
         ).unwrap()
     };
 }
@@ -99,62 +59,10 @@ macro_rules! item {
     };
 }
 
-/// Create a [`Node`][crate::Node`] from [Rust `stmt` syntax](https://doc.rust-lang.org/reference/statements.html).
-#[macro_export]
-#[doc(alias("stmt"))]
-macro_rules! statement {
-    ($token:stmt) => {
-        $crate::Node::parse(concat!(stringify!($token), "\n")).unwrap()
-    };
-}
-
-/// Create a [`Node`][crate::Node`] from [Rust `block` syntax](https://doc.rust-lang.org/reference/block-expr.html).
-#[macro_export]
-macro_rules! block {
-    ($token:block) => {
-        $crate::Node::parse(concat!(stringify!($token), "\n")).unwrap()
-    };
-}
-
-/// Create a [`Node`][crate::Node`] from [Rust `ty` syntax](https://doc.rust-lang.org/reference/types.html).
-#[doc(alias("type", "ty"))]
-#[macro_export]
-macro_rules! tipe {
-    ($token:ty) => {
-        $crate::Node::parse(concat!(stringify!($token), "\n")).unwrap()
-    };
-}
-
-/// Create a [`Node`][crate::Node`] from [Rust `path` syntax](https://doc.rust-lang.org/reference/paths.html).
-#[macro_export]
-macro_rules! path {
-    ($token:path) => {
-        $crate::Node::parse(concat!(stringify!($token), "\n")).unwrap()
-    };
-}
-
 /// Create a [`Node`][crate::Node`] from [Rust `expr` syntax](https://doc.rust-lang.org/reference/expressions.html).
 #[macro_export]
-#[doc(alias("expr"))]
-macro_rules! expression {
+macro_rules! expr {
     ($token:expr) => {
-        $crate::Node::parse(concat!(stringify!($token), "\n")).unwrap()
-    };
-}
-
-/// Create a [`Node`][crate::Node`] from [Rust `ident` syntax](https://doc.rust-lang.org/reference/identifiers.html).
-#[macro_export]
-#[doc(alias("ident"))]
-macro_rules! identifier {
-    ($token:ident) => {
-        $crate::Node::parse(concat!(stringify!($token), "\n")).unwrap()
-    };
-}
-
-/// Create a [`Node`][crate::Node`] from [Rust `literal` syntax](https://doc.rust-lang.org/reference/expressions/literal-expr.html).
-#[macro_export]
-macro_rules! literal {
-    ($token:literal) => {
         $crate::Node::parse(concat!(stringify!($token), "\n")).unwrap()
     };
 }

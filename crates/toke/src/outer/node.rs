@@ -235,7 +235,7 @@ impl Node {
 
     pub fn as_str(&self) -> &str {
         let span = self.inner.span();
-        &self.document.source()[span.start.offset..span.end.offset]
+        todo!("&self.document.source()[span.start.offset..span.end.offset]")
     }
 }
 
