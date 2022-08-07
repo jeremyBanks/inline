@@ -1,15 +1,17 @@
+use ::{
+    derive_more::{From, Into},
+    miette::{SourceOffset, SourceSpan},
+    proc_macro2::{
+        Delimiter as TokenGroupDelimiter, LineColumn, Spacing as TokenPunctSpacing, TokenStream,
+    },
+    send_wrapper::SendWrapper,
+    std::ops::Range,
+};
 #[doc(no_inline)]
 pub use {miette, proc_macro2};
-use {
-    miette::{SourceOffset, SourceSpan},
-    proc_macro2::{Delimiter as TokenGroupDelimiter, Spacing as TokenPunctSpacing, TokenStream},
-    ::{
-        derive_more::{From, Into},
-        proc_macro2::LineColumn,
-        send_wrapper::SendWrapper,
-        std::ops::Range,
-    },
-};
+
+// We can't actually instantiate anything from `proc_macro`, but we'd like to link it in docs.
+extern crate proc_macro;
 
 /// A location/offset/index into [`SourceCode`][miette::SourceCode], as represented by
 /// [`miette::SourceOffset`] or [`proc_macro2::LineColumn`].
@@ -23,9 +25,9 @@ pub struct Location {
     proc_macro2: LineColumn,
 }
 
-/// A span/range/slice into [`SourceCode`][miette::SourceCode], as represented by
+/// A span/range into [`SourceCode`][miette::SourceCode], as represented by
 /// [`miette::SourceSpan`], [`proc_macro2::Span`], or a pair of [`Location`]s.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Span {
     start: Location,
     end: Location,
@@ -86,7 +88,7 @@ mod impls {
             }
         }
 
-        pub fn into_miette(&self) -> SourceOffset {
+        pub fn miette(&self) -> SourceOffset {
             self.into()
         }
 
@@ -94,7 +96,9 @@ mod impls {
         ///
         /// ## Compatibility
         ///
-        /// - 👍 [`core::line!()`] and [`proc_macro2::LineColumn::line`] are also 1-based.
+        /// - 👍 [`core::line!()`], [`core::panic::Location::line()`],
+        ///   [`proc_macro::LineColumn::line`], and [`proc_macro2::LineColumn::line`] are also
+        ///   1-based.
         /// - ⚠️ [`miette::SpanContents::line()`] is 0-based.
         pub fn line(&self) -> usize {
             self.proc_macro2.line
@@ -104,7 +108,8 @@ mod impls {
         ///
         /// ## Compatibility
         ///
-        /// - 👍 [`core::column!()`] is also 1-based.
+        /// - 👍 [`core::column!()`], [`core::panic::Location::column()`], and
+        ///   [`proc_macro::LineColumn::column`] are also 1-based.
         /// - ⚠️ [`miette::SpanContents::column()`] and [`proc_macro2::LineColumn::column`] are
         /// 0-based.
         pub fn column(&self) -> usize {
@@ -150,7 +155,7 @@ mod impls {
             }
         }
 
-        pub fn into_proc_macro2(&self) -> LineColumn {
+        pub fn proc_macro2(&self) -> LineColumn {
             self.into()
         }
     }
@@ -174,7 +179,7 @@ mod impls {
             todo!()
         }
 
-        pub fn into_miette(&self) -> SourceSpan {
+        pub fn miette(&self) -> SourceSpan {
             self.into()
         }
 
@@ -182,7 +187,7 @@ mod impls {
             todo!()
         }
 
-        pub fn try_into_proc_macro2(&self) -> Option<proc_macro2::Span> {
+        pub fn try_proc_macro2(&self) -> Option<proc_macro2::Span> {
             self.try_into().ok()
         }
     }

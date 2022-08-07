@@ -48,17 +48,36 @@ impl PartialOrd for Document {
 }
 
 impl Document {
+    pub fn from_token_stream(
+        stream: impl Into<proc_macro2::TokenStream>,
+    ) -> Result<Self, ParseError> {
+        todo!()
+    }
+
+    pub fn from_token_tree(
+        token_tree: impl Into<proc_macro2::TokenTree>,
+    ) -> Result<Self, ParseError> {
+        todo!()
+    }
+
     /// Parses Rust source code into an anonymous [`Document`].
-    pub fn parse(source: &str) -> Result<Document, ParseError> {
+    #[doc(alias("from_str"))]
+    pub fn parse(source: impl AsRef<str>) -> Result<Document, ParseError> {
         Ok(Document {
-            inner: internal::Document::parse(Arc::new(source.to_string()), None)?,
+            inner: internal::Document::parse(Arc::new(source.as_ref().to_string()), None)?,
         })
     }
 
     /// Parses Rust source code into a named [`Document`].
-    pub fn parse_named(source: &str, name: &str) -> Result<Document, ParseError> {
+    pub fn parse_named(
+        source: impl AsRef<str>,
+        name: impl AsRef<str>,
+    ) -> Result<Document, ParseError> {
         Ok(Document {
-            inner: internal::Document::parse(Arc::new(source.to_string()), Some(name))?,
+            inner: internal::Document::parse(
+                Arc::new(source.as_ref().to_string()),
+                Some(name.as_ref()),
+            )?,
         })
     }
 

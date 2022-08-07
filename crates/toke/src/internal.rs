@@ -3,7 +3,7 @@
 use {
     crate::{
         debug::{debug_once_weak, debug_weak, short_string_debug},
-        TokenType,
+        Location, Span, TokenType,
     },
     core::fmt::Debug,
     once_cell::sync::OnceCell,
@@ -64,38 +64,6 @@ impl Debug for Span {
             debug_weak(&self.document),
         ))
     }
-}
-
-// XXX: We don't need smart internal spans.
-// Smart spans only need to exist in the outer layer.
-// Internally, we can use miette's spans...
-// with a PM2 span attached if we have it, I guess..?
-
-// I guess we want to store the LineColumn for the line column, the derived miette SourceOffset, and
-// the wrapped pm2 Span. wait, no, that's
-
-/// Simple data type with the byte offset and character line/column of a location in a file.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Location {
-    /// zero-based byte index
-    pub offset: usize,
-    /// one-based line and column character indices
-    pub line_column: LineColumn,
-}
-
-#[derive(Clone)]
-pub(crate) struct Span {
-    pub(crate) document: Weak<Document>,
-    pub(crate) start: Location,
-    pub(crate) end: Location,
-    pub(crate) source: Arc<String>,
-    /// If this span corresponds directly to a proc_macro2 input span, we hold a wrapped
-    /// copy of it here. (This isn't really used yet, but maybe if we want real proc macro
-    /// integration later.)
-    /// Note that even though they're `!Send`, proc_macro::Span/proc_macro2::Span both
-    /// have "trivial drops" (no destructors), so we don't need to worry about ensuring that
-    /// they're returned to the original thread for dropping.
-    pub(crate) pm2: Option<SendWrapper<proc_macro2::Span>>,
 }
 
 struct ParseState {
@@ -242,39 +210,5 @@ impl Node {
 
     pub(crate) fn span(&self) -> Span {
         self.span.clone()
-    }
-}
-
-impl Span {
-    pub(crate) fn document(&self) -> Arc<Document> {
-        self.document.upgrade().unwrap()
-    }
-
-    pub(crate) fn start(&self) -> Location {
-        self.start
-    }
-
-    pub(crate) fn end(&self) -> Location {
-        self.end
-    }
-
-    /// Returns the proc_macro2::Span associated with this span, if
-    /// one was provided and we're running on the original thread.
-    /// Otherwise returns the (default) `call_site()` span.
-    pub(crate) fn pm2(&self) -> proc_macro2::Span {
-        if let Some(pm2) = &self.pm2 {
-            if pm2.valid() {
-                return **pm2;
-            }
-        }
-        return proc_macro2::Span::call_site();
-    }
-}
-
-impl Deref for Span {
-    type Target = str;
-
-    fn deref(&self) -> &str {
-        &self.source[self.start.offset..self.end.offset]
     }
 }

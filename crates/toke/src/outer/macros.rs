@@ -68,7 +68,7 @@ macro_rules! rs {
 /// Create a [`Node`][crate::Node] from Rust [inner attributes syntax](https://doc.rust-lang.org/reference/attributes.html).
 #[doc(alias("meta", "attr"))]
 #[macro_export]
-macro_rules! inner_attributes {
+macro_rules! inners {
     (
         $(#![$meta:meta])+
     ) => {
