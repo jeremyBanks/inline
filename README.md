@@ -1,4 +1,4 @@
-🗑️ `litter` makes your literals mutable with smart pointers into your source code.
+📝 `inline` makes your literals mutable with smart pointers into your source code.
 
 These can be used for snapshot testing, or as a basic way of inlining state into
 scripts. This is only intended for use in code that's being run through Cargo,
@@ -23,13 +23,13 @@ attribute (no macros).
 
 ## Basic Use
 
-The [`litter::Litter`] type wraps a literal value with information about its
+The [`inline::Litter`] type wraps a literal value with information about its
 location in your source code, allowing it to be mutated with changes reflected
 in the original script file. Literal types supported are integers (`1`, `2`,
 `2_usize`, `-1i16`), floats (`1.5`, `2e6f64`), booleans (`true`, `false`),
 static strings (`"hello"`, `r##"world##"`), static byte strings
 (`b"one two \x12"`, `br"hell\x00"`). These are described by the
-[`litter::Literal`] trait.
+[`inline::Literal`] trait.
 
 `.edit()`ing a `Literal` or a `Litter` produces a `LitterHandle`. It implements
 `Deref` and `DerefMut`, exposing the inner value, as well as various other
@@ -39,7 +39,7 @@ the `Litter` is dropped.
 Here's a basic example, of a string that's modified each time the script runs:
 
 ```rust
-use litter::LiteralExt;
+use inline::LiteralExt;
 
 fn main() {
     let mut p = "and I say hello!".edit();
@@ -77,7 +77,7 @@ fn test_the_ultimate_question() {
 
 #[track_caller] // <- in order to look for literal at this function's call site instead
 fn assert_eq_u64(expected: u64, actual: u64) {
-    let expected = litter::new(expected);
+    let expected = inline::new(expected);
 
     if expected != actual {
         if std::env::get("UPDATE_EXPECT").unwrap_or("0") != "0" {
@@ -105,7 +105,7 @@ fn test_the_ultimate_question() {
 ```
 
 Although you don't need to write this particular function yourself: a generic
-version is included at `litter::assert_eq(literal, actual)`.
+version is included at `inline::assert_eq(literal, actual)`.
 
 ## Serialization
 
@@ -175,10 +175,10 @@ concurrently and both try to modify the same file.
 
 ## License
 
-`litter` is Copyright Jeremy Banks, released under the familiar choice of
+`inline` is Copyright Jeremy Banks, released under the familiar choice of
 `MIT OR Apache-2.0`.
 
-`litter` copies heavily from the
+`inline` copies heavily from the
 [the `expect-test` library](https://docs.rs/expect-test), which is also under
 `MIT OR Apache-2.0` and is Copyright the rust-analyzer developers, including
 Aleksey Kladov and Dylan MacKenzie.
@@ -193,5 +193,5 @@ corresponding change to `src/pre-readme.md`, which will take precedence and
 allow us to use rustdoc's resolution.
 -->
 
-[`litter::Litter`]: https://docs.rs/litter/latest/litter/struct.Litter.html
-[`litter::Literal`]: https://docs.rs/litter/latest/litter/struct.Literal.html
+[`inline::Litter`]: https://docs.rs/inline/latest/inline/struct.Litter.html
+[`inline::Literal`]: https://docs.rs/inline/latest/inline/struct.Literal.html

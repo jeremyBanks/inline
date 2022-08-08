@@ -1,12 +1,15 @@
 [package]
-description = "🗑️ litter makes your literals mutable with smart pointers into your source code"
+description = "📝 inline makes your literals mutable with smart pointers into your source code"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-name = "litter"
+name = "inline"
 version = "0.1.0-d0807"
 
+[lib]
+path = "src/inline.rs"
+
 [workspace]
-members = ["crates/toke"]
+members = ["crates/token-tree"]
 
 [dependencies]
 derive_more = "0.99.17"
@@ -24,14 +27,14 @@ proc-macro2 = { version = "1.0.43", optional = true }
 serde = { version = "1.0.142", optional = true, default-features = false }
 serde_json = { version = "1.0.83", optional = true }
 serde_yaml = { version = "0.9.4", optional = true }
-toke = { path =  "crates/toke", version = "0.1.0-d0807", optional = true }
+token-tree = { path =  "crates/token-tree", version = "0.1.0-d0807", optional = true }
 toml = { version = "0.5.9", optional = true }
 
 [profile.dev.package.backtrace]
 opt-level = 3
 
 [dev-dependencies]
-litter = { path = ".", default-features = false, features = ["dev-dependencies"] }
+inline = { path = ".", default-features = false, features = ["dev-dependencies"] }
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
@@ -73,7 +76,7 @@ bake = ["databake"]
 #! ### Core Capabilities
 
 ## Support for writing literal mutations back to their source file.
-write = ["mut", "toke"]
+write = ["mut", "token-tree"]
 
 ## Support for "mutating" literals.
 mut = ["std", "parking_lot", "once_cell/parking_lot"]
@@ -111,7 +114,7 @@ forbid-serde = []
 
 #- ### Internal Features
 
-toke = ["dep:toke", "std"]
+token-tree = ["dep:token-tree", "std"]
 
 #- Include features that require `serde`.
 serde = ["dep:serde"]

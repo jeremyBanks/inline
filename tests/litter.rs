@@ -1,7 +1,7 @@
-use litter::{LiteralExt, Litter};
+use inline::{LiteralExt, Litter};
 
 #[test]
-fn read_litter() {
+fn read_inline() {
     let lit = Litter::new("hello!");
 
     assert_eq!("hello!", lit.read());
@@ -9,14 +9,14 @@ fn read_litter() {
 
 #[test]
 fn read_literal() {
-    let lit = "hello!".litter();
+    let lit = "hello!".inline();
 
     assert_eq!("hello!", lit.read());
 }
 
 #[test]
 #[ignore = "TODO"]
-fn write_litter() {
+fn write_inline() {
     let lit = Litter::new("hello!");
 
     assert_eq!("hello!", lit.read());
@@ -29,7 +29,7 @@ fn write_litter() {
 #[test]
 #[ignore = "TODO"]
 fn write_literal() {
-    let lit = "hello!".litter();
+    let lit = "hello!".inline();
 
     assert_eq!("hello!", lit.read());
     lit.write("goodbye!");

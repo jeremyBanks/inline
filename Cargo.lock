@@ -208,6 +208,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "inline"
+version = "0.1.0-d0807"
+dependencies = [
+ "bcs",
+ "databake",
+ "derive_more",
+ "document-features",
+ "env_logger",
+ "inline",
+ "log",
+ "miette",
+ "once_cell",
+ "parking_lot",
+ "postcard",
+ "proc-macro2",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror",
+ "token-tree",
+ "toml",
+]
+
+[[package]]
 name = "is_ci"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -224,30 +248,6 @@ name = "libc"
 version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
-
-[[package]]
-name = "litter"
-version = "0.1.0-d0807"
-dependencies = [
- "bcs",
- "databake",
- "derive_more",
- "document-features",
- "env_logger",
- "litter",
- "log",
- "miette",
- "once_cell",
- "parking_lot",
- "postcard",
- "proc-macro2",
- "serde",
- "serde_json",
- "serde_yaml",
- "thiserror",
- "toke",
- "toml",
-]
 
 [[package]]
 name = "lock_api"
@@ -618,7 +618,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "toke"
+name = "token-tree"
 version = "0.1.0-d0807"
 dependencies = [
  "databake",
@@ -631,7 +631,7 @@ dependencies = [
  "send_wrapper",
  "static_assertions",
  "thiserror",
- "toke",
+ "token-tree",
 ]
 
 [[package]]

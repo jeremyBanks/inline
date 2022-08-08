@@ -5,7 +5,7 @@ use {
 };
 
 /// A type representing a literal value in the source code that can be edited
-/// by `litter`. Using this type with a value that is not actually a literal in
+/// by `inline`. Using this type with a value that is not actually a literal in
 /// your source code may result in logic errors or panics.
 ///
 /// XXX: This should probably be mostly replaced with databake::Bake.

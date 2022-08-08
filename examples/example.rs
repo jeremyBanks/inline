@@ -1,9 +1,9 @@
-use toke;
+use token_tree;
 
 pub fn main() {
-    let literal = toke::n!(def fn hello world (you say "goodbye"))
+    let literal = token_tree::node!(def fn hello world (you say "goodbye"))
         .walk()
-        .find(|x| x.node_type() == toke::TokenType::Literal)
+        .find(|x| x.node_type() == token_tree::TokenType::Literal)
         .unwrap();
     assert_eq!("\"goodbye\"", literal.as_str());
 }

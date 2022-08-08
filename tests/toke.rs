@@ -1,8 +1,8 @@
-use toke::{self, rs, Node};
+use token_tree::{self, document, Node};
 
 #[test]
 fn test_toke() -> Result<(), miette::Report> {
-    let doc = rs! {
+    let doc = document! {
         static message: &str = "Hello, world!";
 
         pub fn main() {

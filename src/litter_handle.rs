@@ -11,10 +11,10 @@ pub struct LitterHandle<Literal: crate::Literal> {
 }
 
 impl<Literal: crate::Literal> LitterHandle<Literal> {
-    pub(crate) fn new(litter: Litter<Literal>) -> Arc<Self> {
+    pub(crate) fn new(inline: Litter<Literal>) -> Arc<Self> {
         Arc::new(Self {
-            original: litter,
-            current: litter.literal,
+            original: inline,
+            current: inline.literal,
         })
     }
 }

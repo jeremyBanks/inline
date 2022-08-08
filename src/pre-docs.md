@@ -1,14 +1,14 @@
-[`litter::Litter`]: crate::Litter
-[`litter::Literal`]: crate::Literal
-[`litter::Litter::inline()`]: crate::Litter::inline
-[`litter::Litter::external()`]: crate::Litter::external
-[`litter::LiteralExt::edit()`]: crate::LiteralExt::edit
+[`inline::Litter`]: crate::Litter
+[`inline::Literal`]: crate::Literal
+[`inline::Litter::inline()`]: crate::Litter::inline
+[`inline::Litter::external()`]: crate::Litter::external
+[`inline::LiteralExt::edit()`]: crate::LiteralExt::edit
 
-[`litter::inline`]: crate::inline
-[`litter::external`]: crate::external
+[`inline::inline`]: crate::inline
+[`inline::external`]: crate::external
 
 
-[`litter::Literal`]: crate::Literal
-[`litter::Literal`]: crate::Literal
-[`litter::Literal`]: crate::Literal
-[`litter::LiteralExt`]: crate::LiteralExt
+[`inline::Literal`]: crate::Literal
+[`inline::Literal`]: crate::Literal
+[`inline::Literal`]: crate::Literal
+[`inline::LiteralExt`]: crate::LiteralExt

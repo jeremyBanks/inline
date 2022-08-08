@@ -5,7 +5,7 @@ use {
 
 pub trait LiteralExt: Literal {
     #[track_caller]
-    fn litter(&'static self) -> Litter<Self> {
+    fn inline(&'static self) -> Litter<Self> {
         Litter::new(*self)
     }
 
