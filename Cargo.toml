@@ -35,6 +35,7 @@ opt-level = 3
 
 [dev-dependencies]
 inline = { path = ".", default-features = false, features = ["dev-dependencies"] }
+quote = "1.0.21"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]

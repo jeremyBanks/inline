@@ -18,8 +18,21 @@ mod outer;
 #[doc(hidden)]
 mod span;
 
+mod arcane;
+
+#[doc(hidden)]
 pub extern crate proc_macro;
-pub use {miette, proc_macro2, quote};
+
+mod deps {
+    #[doc(no_inline)]
+    pub use {
+        miette,
+        proc_macro::{self /* load-bearing braces (for rustdoc) */},
+        proc_macro2, quote,
+    };
+}
+#[doc(inline)]
+pub use self::deps::*;
 
 /// The variants of [`proc_macro::TokenTree`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

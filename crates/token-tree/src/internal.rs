@@ -2,6 +2,7 @@
 
 use {
     crate::{
+        arcane::Arcane,
         debug::{debug_once_weak, debug_weak, short_string_debug},
         Location, Span, TokenType,
     },
@@ -16,6 +17,10 @@ use {
     },
 };
 
+// inner/outer distinction should not exist
+// any Node that's being returned by a public method should hold a strong reference to Document,
+// while Nodes being stored for internal use should not.
+
 #[derive(Debug, Clone)]
 pub(crate) struct Document {
     pub(crate) name: Option<String>,
@@ -26,7 +31,7 @@ pub(crate) struct Document {
 #[derive(Clone)]
 pub(crate) struct Node {
     pub(crate) token_type: TokenType,
-    pub(crate) document: Weak<Document>,
+    pub(crate) document: Arcane<Document>,
     pub(crate) span: Span,
     pub(crate) parent: Weak<Node>,
     pub(crate) children: Vec<Arc<Node>>,
