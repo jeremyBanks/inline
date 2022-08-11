@@ -1,4 +1,4 @@
-📝 `inline` makes your literals mutable with smart pointers into your source code.
+`inline` makes your literals mutable with smart pointers into your source code.
 
 These can be used for snapshot testing, or as a basic way of inlining state into
 scripts. This is only intended for use in code that's being run through Cargo,
@@ -178,10 +178,10 @@ concurrently and both try to modify the same file.
 `inline` is Copyright Jeremy Banks, released under the familiar choice of
 `MIT OR Apache-2.0`.
 
-`inline` copies heavily from the
+`inline` copies some code and ideas from
 [the `expect-test` library](https://docs.rs/expect-test), which is also under
 `MIT OR Apache-2.0` and is Copyright the rust-analyzer developers, including
-Aleksey Kladov and Dylan MacKenzie.
+Aleksey Kladov and Dylan MacKenzie, and from [the `miette` library](https://docs.rs/miette).
 
 <!--
 NB: We need to specify these manually (as links to docs.rs) so that they'll be
