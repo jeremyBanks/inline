@@ -18,7 +18,7 @@ mod outer;
 #[doc(hidden)]
 mod span;
 
-mod arcane;
+mod weakling;
 
 #[doc(hidden)]
 pub extern crate proc_macro;

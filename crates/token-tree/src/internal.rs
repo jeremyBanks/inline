@@ -2,8 +2,8 @@
 
 use {
     crate::{
-        arcane::Arcane,
         debug::{debug_once_weak, debug_weak, short_string_debug},
+        weakling::Weakling,
         Location, Span, TokenType,
     },
     core::fmt::Debug,
@@ -31,7 +31,7 @@ pub(crate) struct Document {
 #[derive(Clone)]
 pub(crate) struct Node {
     pub(crate) token_type: TokenType,
-    pub(crate) document: Arcane<Document>,
+    pub(crate) document: Weakling<Document>,
     pub(crate) span: Span,
     pub(crate) parent: Weak<Node>,
     pub(crate) children: Vec<Arc<Node>>,
