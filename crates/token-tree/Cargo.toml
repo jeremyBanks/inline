@@ -5,9 +5,6 @@ license = "MIT OR Apache-2.0"
 name = "token-tree"
 version = "0.1.0-d0807"
 
-[lib]
-path = "src/token_tree.rs"
-
 [dependencies]
 derive_more = "0.99.17"
 miette = "5.1.1"
@@ -26,7 +23,7 @@ databake = "0.1.1"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
-rustdoc-args = ["--html-in-header", "./src/pre-docs.html", "-Zunstable-options", "--generate-link-to-definition"]
+rustdoc-args = ["--html-in-header", "./src/pre-docs.html", "-Zunstable-options", "--generate-link-to-definition", "--show-type-layout"]
 
 [features]
 dev-dependencies = [

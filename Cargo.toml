@@ -5,9 +5,6 @@ license = "MIT OR Apache-2.0"
 name = "inline"
 version = "0.1.0-d0807"
 
-[lib]
-path = "src/inline.rs"
-
 [workspace]
 members = ["crates/token-tree"]
 
@@ -39,7 +36,7 @@ quote = "1.0.21"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
-rustdoc-args = ["--html-in-header", "./src/pre-docs.html", "-Zunstable-options", "--generate-link-to-definition"]
+rustdoc-args = ["--html-in-header", "./src/pre-docs.html", "-Zunstable-options", "--generate-link-to-definition", "--show-type-layout"]
 
 [features]
 #- We omit the serialization features by default.
