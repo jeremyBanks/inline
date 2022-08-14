@@ -1,0 +1,33 @@
+[package]
+description = " "
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "arcane"
+version = "0.1.0-d0807"
+
+[dependencies]
+derive_more = "0.99.17"
+miette = "5.1.1"
+once_cell = { version = "1.13.0", features = ["parking_lot"] }
+proc-macro2 = { version = "1.0.40", features = ["span-locations"] }
+quote = "1.0.21"
+regex = "1.6.0"
+send_wrapper = "0.6.0"
+static_assertions = "1.1.0"
+strum = { version = "0.24.1", features = ["derive"] }
+thiserror = "1.0.31"
+
+[dev-dependencies]
+expect-test = "1.4.0"
+arcane = { path = ".", default-features = false, features = ["dev-dependencies"] }
+databake = "0.1.1"
+
+[package.metadata.docs.rs]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
+rustdoc-args = ["--html-in-header", "./src/pre-docs.html", "-Zunstable-options", "--generate-link-to-definition", "--show-type-layout"]
+
+[features]
+dev-dependencies = [
+    "miette/fancy",
+]
+__all__ = []
