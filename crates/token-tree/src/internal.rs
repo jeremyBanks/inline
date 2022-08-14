@@ -2,10 +2,10 @@
 
 use {
     crate::{
-        arcane::Arcane,
         debug::{debug_once_weak, debug_weak, short_string_debug},
         Location, Span, TokenType,
     },
+    arcane::Arcane as Arcane,
     core::fmt::Debug,
     once_cell::sync::OnceCell,
     proc_macro2::{self, LexError, LineColumn, TokenStream, TokenTree},
@@ -88,7 +88,7 @@ impl Document {
 
             let root = with_token_children(
                 Node {
-                    document: document.clone(),
+                    document: todo!(),
                     parent: Weak::default(),
                     previous_sibling: Weak::default(),
                     next_sibling: OnceCell::default(),
@@ -121,7 +121,7 @@ impl Document {
                     let mut previous_sibling = Weak::default();
                     for token in token_stream {
                         let node = Node {
-                            document: state.document.clone(),
+                            document: todo!(),
                             parent: parent.clone(),
                             previous_sibling: previous_sibling.clone(),
                             previous_node: state.previous_node.clone(),

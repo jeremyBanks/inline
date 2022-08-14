@@ -6,7 +6,7 @@ name = "inline"
 version = "0.1.0-d0807"
 
 [workspace]
-members = ["crates/token-tree"]
+members = ["crates/*"]
 
 [dependencies]
 derive_more = "0.99.17"
