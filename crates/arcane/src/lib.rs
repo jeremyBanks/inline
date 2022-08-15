@@ -16,21 +16,19 @@ use {
     strum::{AsRefStr, FromRepr},
 };
 
-const SENTINEL_WEAK_EMPTY: usize = !0;
 const TAG_BITS: usize = 0b_11;
-const POINTER_BITS: usize = !TAG_BITS;
-const TAG_STRONG: usize = 0b_00;
-const TAG_WEAK: usize = 0b_11;
-const TAG_RESERVED_1: usize = 0b_01;
-const TAG_RESERVED_2: usize = 0b_10;
+const PTR_BITS: usize = !TAG_BITS;
 
-#[derive(Debug, Clone, Copy, FromRepr, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum ArcType {
-    Strong = 0b_00,
-    Weak = 0b_11,
-    _Reserved1 = 0b01,
-    _Reserved2 = 0b10,
-}
+/// Weak reference with a normal ArcInner backing allocation.
+const TAG_WEAK: usize = 0b_00;
+/// Strong reference with a normal ArcInner backing allocation.
+const TAG_STRONG: usize = 0b_01;
+
+/// Inline values with no backing allocation.
+const TAG_INLINE: usize = 0b_11;
+/// The unbacked permanently-weak reference created by `Weak::new()`.
+const INLINE_EMPTY: usize = !(0 << 2);
+const INLINE_DEFAULT: usize = !(1 << 2);
 
 #[repr(transparent)]
 pub struct Arcane<Inner> {
@@ -54,7 +52,7 @@ impl<Inner> Arcane<Inner> {
     }
 
     fn ptr(&self) -> NonZeroUsize {
-        (self.tagged_pointer.get() & POINTER_BITS)
+        (self.tagged_pointer.get() & PTR_BITS)
             .try_into()
             .unwrap()
     }
