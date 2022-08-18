@@ -6,6 +6,7 @@ name = "arcane"
 version = "0.1.0-d0807"
 
 [dependencies]
+const-random = "0.1.13"
 derive_more = "0.99.17"
 miette = "5.1.1"
 once_cell = { version = "1.13.0", features = ["parking_lot"] }

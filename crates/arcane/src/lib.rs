@@ -5,147 +5,296 @@
 )]
 #![cfg_attr(debug_assertions, allow(unused))]
 
+mod anchor;
+mod arc;
+mod rc;
+
 use {
     core::{marker::PhantomData, mem::transmute, num::NonZeroUsize, ptr::NonNull},
+    derive_more::{From, TryInto},
     std::{
         borrow::Cow,
-        fmt::Debug,
+        fmt::{self, Debug},
         ops::Deref,
-        sync::{Arc, Weak},
+        rc, sync,
     },
     strum::{AsRefStr, FromRepr},
 };
 
-const TAG_BITS: usize = 0b_11;
-const PTR_BITS: usize = !TAG_BITS;
+#[derive(Debug, Clone)]
+pub struct Arcane<Inner>(EitherArc<Inner>);
 
-/// Weak reference with a normal ArcInner backing allocation.
-const TAG_WEAK: usize = 0b_00;
-/// Strong reference with a normal ArcInner backing allocation.
-const TAG_STRONG: usize = 0b_01;
+#[doc(no_inline)]
+pub use Arcane as Arc;
 
-/// Inline values with no backing allocation.
-const TAG_INLINE: usize = 0b_11;
-/// The unbacked permanently-weak reference created by `Weak::new()`.
-const INLINE_EMPTY: usize = !(0 << 2);
-const INLINE_DEFAULT: usize = !(1 << 2);
-
-#[repr(transparent)]
-pub struct Arcane<Inner> {
-    tagged_pointer: NonZeroUsize,
-    phantom_borrow: PhantomData<std::sync::Arc<Inner>>,
+#[derive(Clone)]
+pub(crate) enum EitherArc<Inner> {
+    Arc(sync::Arc<Inner>),
+    Weak(sync::Weak<Inner>),
 }
 
-impl<Inner> Drop for Arcane<Inner> {
-    fn drop(&mut self) {
-        todo!()
+impl<Inner> Debug for EitherArc<Inner>
+where
+    Inner: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EitherArc::Arc(arc) => arc.fmt(f),
+            EitherArc::Weak(weak) => weak.fmt(f),
+        }
     }
 }
 
 impl<Inner> Arcane<Inner> {
     pub fn new(inner: Inner) -> Self {
-        Arc::new(inner).into()
+        sync::Arc::new(inner).into()
+    }
+
+    pub fn from_strong(arc: sync::Arc<Inner>) -> Self {
+        arc.into()
+    }
+
+    pub fn from_weak(weak: sync::Weak<Inner>) -> Self {
+        weak.into()
     }
 
     pub fn empty() -> Self {
-        Weak::new().into()
+        sync::Weak::new().into()
     }
 
-    fn ptr(&self) -> NonZeroUsize {
-        (self.tagged_pointer.get() & PTR_BITS)
-            .try_into()
-            .unwrap()
+    pub fn with_default() -> Self
+    where
+        Inner: Default,
+    {
+        Arcane::new(Inner::default())
     }
 
-    fn tag(&self) -> ArcType {
-        ArcType::from_repr(self.tagged_pointer.get() & TAG_BITS).unwrap()
+    pub fn make_strong(&mut self) -> &mut Self
+    where
+        Inner: Default,
+    {
+        if let EitherArc::Weak(weak) = self.0 {
+            if let Some(strong) = weak.upgrade() {
+                *self = strong.into();
+            } else {
+                *self = Inner::default().into();
+            }
+        }
+        self
     }
 
-    pub fn is_weak(&self) -> bool {
-        self.tag() == ArcType::Weak
+    pub fn try_make_strong(&mut self) -> Option<&mut Self> {
+        if let EitherArc::Weak(weak) = self.0 {
+            if let Some(strong) = weak.upgrade() {
+                *self = strong.into();
+                Some(self)
+            } else {
+                None
+            }
+        } else {
+            Some(self)
+        }
+    }
+
+    pub fn make_weak(&mut self) -> &mut Self {
+        if let EitherArc::Arc(arc) = self.0 {
+            *self = self.to_weak().to_owned();
+        }
+        self
+    }
+
+    pub fn make_mut(&mut self) -> &mut Inner
+    where
+        Inner: Default + Clone,
+    {
+        match self.0 {
+            EitherArc::Arc(ref mut arc) => sync::Arc::make_mut(arc),
+            EitherArc::Weak(ref mut weak) => weak.make_mut(),
+        }
+    }
+
+    pub fn try_make_mut(&mut self) -> Option<&mut Inner>
+    where
+        Inner: Clone,
+    {
+        match self.0 {
+            EitherArc::Arc(ref mut arc) => Some(sync::Arc::make_mut(arc)),
+            EitherArc::Weak(ref mut weak) => None,
+        }
+    }
+
+    pub fn strong(&self) -> Option<&sync::Arc<Inner>> {
+        if let EitherArc::Arc(arc) = &self.0 {
+            Some(arc)
+        } else {
+            None
+        }
+    }
+
+    pub fn weak(&self) -> Option<&sync::Weak<Inner>> {
+        if let EitherArc::Weak(weak) = &self.0 {
+            Some(weak)
+        } else {
+            None
+        }
     }
 
     pub fn is_strong(&self) -> bool {
-        self.tag() == ArcType::Strong
+        matches!(&self.0, EitherArc::Arc(_))
     }
 
-    pub fn weak(&self) -> BorrowedWeak<Inner> {
-        BorrowedWeak {
-            pointer: self.ptr(),
-            phantom_borrow: PhantomData,
-        }
+    pub fn is_weak(&self) -> bool {
+        matches!(&self.0, EitherArc::Weak(_))
     }
 
-    pub fn upgraded(&mut self) -> Option<BorrowedStrong<Inner>> {
-        match self.strong() {
-            Ok(strong) => Some(strong),
-            Err(weak) => todo!(),
-        }
-    }
-
-    pub fn downgraded(&mut self) -> BorrowedWeak<Inner> {
-        match self.strong() {
-            Ok(strong) => {},
-            Err(weak) => weak,
-        }
-    }
-
-    pub fn strong(&self) -> Result<BorrowedStrong<Inner>, BorrowedWeak<Inner>> {
-        if self.tag() == ArcType::Strong {
-            Ok(BorrowedStrong {
-                pointer: self.ptr(),
-                phantom_borrow: PhantomData,
-            })
+    pub fn to_inner(&self) -> Option<Inner> {
+        if let EitherArc::Arc(arc) = &self.0 {
+            Some(arc.as_ref())
         } else {
-            Err(self.weak())
+            None
+        }
+    }
+
+    pub fn unwrap_or_default(&self) -> Inner
+    where
+        Inner: Default,
+    {
+        self.to_inner().unwrap_or_else(Inner::default)
+    }
+
+    /// Returns a `&Weak` reference to the value.
+    pub fn to_weak(&self) -> Cow<sync::Weak<Inner>> {
+        match &self.0 {
+            EitherArc::Arc(strong) => Cow::Owned(sync::Arc::downgrade(strong)),
+            EitherArc::Weak(weak) => Cow::Borrowed(weak),
+        }
+    }
+
+    /// Returns a `&Strong` reference to the value, unless this reference is dangling.
+    pub fn try_to_strong(&self) -> Option<Cow<sync::Arc<Inner>>> {
+        match &self.0 {
+            EitherArc::Arc(arc) => Some(Cow::Borrowed(arc)),
+            EitherArc::Weak(weak) => Some(Cow::Owned(weak.upgrade()?)),
+        }
+    }
+
+    /// Converts this to a strong reference. If this reference is dangling, initializes a new
+    /// backing store containing [`Inner::default()`][Default::default].
+    pub fn to_strong(&self) -> Cow<sync::Arc<Inner>>
+    where
+        Inner: Default,
+    {
+        match &self.0 {
+            EitherArc::Arc(arc) => Cow::Borrowed(arc),
+            EitherArc::Weak(weak) => Cow::Owned(weak.upgrade().or_else(|| Inner::default().into())),
+        }
+    }
+
+    /// ### Safety
+    ///
+    /// This is not sound under any conditions. It can not be used safely.
+    ///
+    /// See https://github.com/rust-lang/rust/pull/100472 for the potential safe alternative.
+    unsafe fn unsound_as_weak(&self) -> &sync::Weak<Inner> {
+        match &self.0 {
+            EitherArc::Arc(strong) => {
+                let weak = strong as *const sync::Arc<Inner> as *const sync::Weak<Inner>;
+                unsafe { &*weak }
+            },
+            EitherArc::Weak(weak) => weak,
+        }
+    }
+
+    pub fn into_inner(self) -> Option<Inner> {
+        sync::Arc::into_inner(match self.0 {
+            EitherArc::Arc(arc) => arc,
+            EitherArc::Weak(weak) => weak.upgrade()?,
+        })
+    }
+
+    pub fn into_weak(self) -> sync::Weak<Inner> {
+        match self.0 {
+            EitherArc::Arc(arc) => sync::Arc::downgrade(&arc),
+            EitherArc::Weak(weak) => weak,
+        }
+    }
+
+    pub fn try_into_strong(self) -> Option<sync::Arc<Inner>> {
+        match self.0 {
+            EitherArc::Arc(arc) => Some(arc),
+            EitherArc::Weak(weak) => weak.upgrade(),
         }
     }
 }
 
-#[derive(Copy)]
-#[repr(transparent)]
-pub struct BorrowedStrong<'borrow, Inner> {
-    pointer: NonZeroUsize,
-    phantom_borrow: PhantomData<&'borrow Arcane<Inner>>,
+impl<Inner> Default for Arcane<Inner> {
+    fn default() -> Self {
+        Arcane::empty()
+    }
 }
 
-impl<'borrow, Inner> Clone for BorrowedStrong<'borrow, Inner> {
-    fn clone(&self) -> Self {
-        Self {
-            pointer: self.pointer,
-            phantom_borrow: PhantomData,
+impl<Inner> Deref for Arcane<Inner> {
+    type Target = sync::Weak<Inner>;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.unsound_as_weak() }
+    }
+}
+
+impl<Inner> AsRef<sync::Weak<Inner>> for Arcane<Inner> {
+    fn as_ref(&self) -> &sync::Weak<Inner> {
+        self.deref()
+    }
+}
+
+impl<Inner> From<Inner> for Arcane<Inner> {
+    fn from(inner: Inner) -> Self {
+        Arcane::new(inner)
+    }
+}
+
+impl<Inner> From<Option<Inner>> for Arcane<Inner> {
+    fn from(inner: Option<Inner>) -> Self {
+        match inner {
+            Some(inner) => Arcane::new(inner),
+            None => Arcane::empty(),
         }
     }
 }
 
-impl<Inner> Deref for BorrowedStrong<'_, Inner> {
-    type Target = Arc<Inner>;
-
-    fn deref(&self) -> &std::sync::Arc<Inner> {
-        unsafe { transmute::<&BorrowedStrong<'_, Inner>, &std::sync::Arc<Inner>>(self) }
+impl<Inner> From<sync::Arc<Inner>> for Arcane<Inner> {
+    fn from(arc: sync::Arc<Inner>) -> Self {
+        Arcane(EitherArc::Arc(arc))
     }
 }
 
-#[derive(Copy)]
-#[repr(transparent)]
-pub struct BorrowedWeak<'borrow, Inner> {
-    pointer: NonZeroUsize,
-    phantom_borrow: PhantomData<&'borrow Arcane<Inner>>,
+impl<Inner> From<sync::Weak<Inner>> for Arcane<Inner> {
+    fn from(arc: sync::Weak<Inner>) -> Self {
+        Arcane(EitherArc::Weak(arc))
+    }
 }
 
-impl<'borrow, Inner> Clone for BorrowedWeak<'borrow, Inner> {
-    fn clone(&self) -> Self {
-        Self {
-            pointer: self.pointer,
-            phantom_borrow: PhantomData,
+impl<Inner> From<Arcane<Inner>> for sync::Weak<Inner> {
+    fn from(arc: Arcane<Inner>) -> Self {
+        match arc.0 {
+            EitherArc::Arc(arc) => sync::Arc::downgrade(&arc),
+            EitherArc::Weak(weak) => weak,
         }
     }
 }
 
-impl<Inner> Deref for BorrowedWeak<'_, Inner> {
-    type Target = std::sync::Weak<Inner>;
+impl<Inner> TryFrom<Arcane<Inner>> for sync::Arc<Inner> {
+    type Error = ();
 
-    fn deref(&self) -> &std::sync::Weak<Inner> {
-        unsafe { transmute::<&BorrowedWeak<'_, Inner>, &std::sync::Weak<Inner>>(self) }
+    fn try_from(arcane: Arcane<Inner>) -> Result<Self, Self::Error> {
+        match arcane.0 {
+            EitherArc::Arc(arc) => Ok(arc),
+            EitherArc::Weak(weak) =>
+                if let Some(arc) = weak.upgrade() {
+                    Ok(arc)
+                } else {
+                    Err(())
+                },
+        }
     }
 }
