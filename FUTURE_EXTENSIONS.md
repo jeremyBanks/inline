@@ -141,28 +141,40 @@ fn litter<T>(value: T) -> Litter<T> {
 
 ---
 
-## 6. Thread-Local Storage Removal
+## 6. Thread-Local Storage ~~Removal~~ (Investigated - Not Possible)
 
-**Current issue**: Using `thread_local!` because we thought `syn::File` contains non-Send types.
+**Current status**: Using `thread_local!` for file state storage.
 
-**User's question**: Would using `proc_macro2` (which we already are) solve this?
+**Question investigated**: Can we remove `thread_local!` and use `static Arc<RwLock<...>>` instead?
 
-**Investigation needed**:
-- Test if `proc_macro2::Span` is Send+Sync with "span-locations" feature
-- If yes, replace `thread_local!` with `static Arc<RwLock<...>>`
-- Benefits: proper cross-thread coordination, no per-thread duplication
+**Finding**: ❌ **Not possible with current dependencies**
 
-**Quick test**:
+**Test results**:
 ```rust
-fn test_send_sync() {
-    fn assert_send<T: Send>() {}
-    fn assert_sync<T: Sync>() {}
-    assert_send::<proc_macro2::Span>();
-    assert_sync::<proc_macro2::Span>();
-}
+// These fail to compile:
+assert_send::<proc_macro2::Span>();      // ✗ not Send
+assert_sync::<proc_macro2::Span>();      // ✗ not Sync
+assert_send::<syn::File>();              // ✗ not Send
+assert_sync::<syn::File>();              // ✗ not Sync
+assert_send::<proc_macro2::TokenStream>(); // ✗ not Send
+assert_sync::<proc_macro2::TokenStream>(); // ✗ not Sync
 ```
 
-**Status**: TO BE INVESTIGATED NEXT (high priority)
+**Root cause**: `proc_macro2::TokenStream` can wrap `proc_macro::TokenTree`, which is not Send/Sync (tied to compiler thread context).
+
+**Implications**:
+- ✅ `thread_local!` is the correct choice
+- ⚠️ Each thread has its own FileState cache
+- ⚠️ No cross-thread coordination possible
+- ⚠️ Two threads writing same file = race condition
+- ✅ For single-threaded scripts (main use case), this is fine
+
+**Alternative explored**: Could we use a different AST library?
+- Would need to parse/format Rust code without using syn/proc-macro2
+- No viable alternatives with similar functionality
+- Not worth the effort for this use case
+
+**Status**: RESOLVED - `thread_local!` is necessary and correct
 
 ---
 
