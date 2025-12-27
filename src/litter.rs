@@ -7,26 +7,41 @@ use std::path::PathBuf;
 pub struct Litter<T: Literal> {
     value: T,
     file: PathBuf,
-    /// Stable index into the file's litter macros
+    line: u32,
+    column: u32,
+    /// Stable index into the file's litter macros (resolved lazily)
     /// This never changes even if line numbers shift!
-    macro_index: usize,
+    macro_index: Option<usize>,
 }
 
 impl<T: Literal> Litter<T> {
     /// Create a new Litter instance (called by the macro)
+    /// Does NOT fail if the source file doesn't exist - that's only an error if you call set()
     #[doc(hidden)]
     pub fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
-        let file_path = PathBuf::from(file);
-
-        // Get the stable index for this macro position
-        let macro_index = crate::runtime::get_macro_index(&file_path, line, column)
-            .expect(&format!("No litter! macro found at {}:{}:{}", file, line, column));
-
         Litter {
             value,
-            file: file_path,
-            macro_index,
+            file: PathBuf::from(file),
+            line,
+            column,
+            macro_index: None, // Resolve lazily when needed
         }
+    }
+
+    /// Lazily resolve the macro index from the source file
+    fn resolve_index(&mut self) -> Result<usize, Box<dyn std::error::Error>> {
+        if let Some(index) = self.macro_index {
+            return Ok(index);
+        }
+
+        let index = crate::runtime::get_macro_index(&self.file, self.line, self.column)
+            .map_err(|e| format!(
+                "Failed to find litter! macro at {}:{}:{}\n{}",
+                self.file.display(), self.line, self.column, e
+            ))?;
+
+        self.macro_index = Some(index);
+        Ok(index)
     }
 
     /// Get a reference to the current value
@@ -45,11 +60,23 @@ impl<T: Literal> Litter<T> {
 
         let mode = crate::runtime::get_mode();
 
+        // In Inactive mode, just change the value in memory
+        if mode.inactive() {
+            return;
+        }
+
+        // Resolve the index (lazily loads the file)
+        // This is where we'll fail if the file doesn't exist or position is invalid
+        if let Err(e) = self.resolve_index() {
+            self.value = old_value; // Rollback
+            panic!("Failed to access source file: {}", e);
+        }
+
         // In Verify mode: check that the new value matches the source file
         if matches!(mode, crate::runtime::Mode::Verify) {
             if let Err(e) = self.verify_source(&new_value) {
-                panic!("Litter verification failed at {}:{}\n{}",
-                    self.file.display(), self.macro_index, e);
+                panic!("Litter verification failed at {}:{}:{}\n{}",
+                    self.file.display(), self.line, self.column, e);
             }
             return;
         }
@@ -69,8 +96,11 @@ impl<T: Literal> Litter<T> {
 
     /// Internal: verify that the new value matches what's in the source file
     fn verify_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
+        // Index must be resolved by now
+        let index = self.macro_index.expect("Index should be resolved before calling verify_source");
+
         // Get the current tokens from the source file
-        let current_tokens = crate::runtime::get_macro_tokens_by_index(&self.file, self.macro_index)?;
+        let current_tokens = crate::runtime::get_macro_tokens_by_index(&self.file, index)?;
 
         // Bake the new value to Rust code
         let env = databake::CrateEnv::default();
@@ -92,12 +122,15 @@ impl<T: Literal> Litter<T> {
 
     /// Internal: update the source file with the new value
     fn update_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
+        // Index must be resolved by now
+        let index = self.macro_index.expect("Index should be resolved before calling update_source");
+
         // Bake the value to Rust code
         let env = databake::CrateEnv::default();
         let baked_tokens = new_value.bake(&env);
 
         // Update using our stable index
-        crate::runtime::update_macro_by_index(&self.file, self.macro_index, baked_tokens)?;
+        crate::runtime::update_macro_by_index(&self.file, index, baked_tokens)?;
 
         Ok(())
     }
@@ -122,6 +155,8 @@ impl<T: Literal> Clone for Litter<T> {
         Litter {
             value: self.value.clone(),
             file: self.file.clone(),
+            line: self.line,
+            column: self.column,
             macro_index: self.macro_index,
         }
     }
@@ -132,6 +167,8 @@ impl<T: Literal + std::fmt::Debug> std::fmt::Debug for Litter<T> {
         f.debug_struct("Litter")
             .field("value", &self.value)
             .field("file", &self.file)
+            .field("line", &self.line)
+            .field("column", &self.column)
             .field("macro_index", &self.macro_index)
             .finish()
     }

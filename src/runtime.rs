@@ -35,13 +35,23 @@ impl Mode {
 }
 
 /// Get the current mode by checking environment variables
+/// In cfg(test), defaults to Verify mode (like snapshot testing)
+/// Outside tests, defaults to Inactive mode
 pub fn get_mode() -> Mode {
     if env::var("LITTER_UPDATE").is_ok() {
         Mode::Update
     } else if env::var("LITTER_VERIFY").is_ok() {
         Mode::Verify
+    } else if env::var("LITTER_INACTIVE").is_ok() {
+        Mode::Inactive
     } else {
-        Mode::default()
+        // In tests, default to Verify mode (like snapshot testing)
+        // Outside tests, default to Inactive
+        #[cfg(test)]
+        return Mode::Verify;
+
+        #[cfg(not(test))]
+        return Mode::Inactive;
     }
 }
 
