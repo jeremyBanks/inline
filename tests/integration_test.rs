@@ -1,0 +1,327 @@
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+use tempfile::TempDir;
+
+/// Helper to create a test file with Rust source code
+struct TestFile {
+    _dir: TempDir,
+    pub path: PathBuf,
+}
+
+impl TestFile {
+    fn new(content: &str) -> Self {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("test.rs");
+        fs::write(&path, content).unwrap();
+        TestFile { _dir: dir, path }
+    }
+
+    fn read(&self) -> String {
+        fs::read_to_string(&self.path).unwrap()
+    }
+
+    fn contains(&self, s: &str) -> bool {
+        self.read().contains(s)
+    }
+
+    fn assert_contains(&self, s: &str) {
+        assert!(
+            self.contains(s),
+            "Expected file to contain: {}\n\nActual content:\n{}",
+            s,
+            self.read()
+        );
+    }
+
+    fn assert_does_not_contain(&self, s: &str) {
+        assert!(
+            !self.contains(s),
+            "Expected file to NOT contain: {}\n\nActual content:\n{}",
+            s,
+            self.read()
+        );
+    }
+}
+
+/// Helper to find all litter! macro positions in a file
+fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
+    let source = fs::read_to_string(file_path).unwrap();
+    let ast = syn::parse_file(&source).unwrap();
+
+    use syn::visit::Visit;
+    struct MacroCollector {
+        positions: Vec<(u32, u32)>,
+    }
+
+    impl<'ast> Visit<'ast> for MacroCollector {
+        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
+            // Check if this is a litter macro (might be just "litter" or "litter::litter")
+            let is_litter = if let Some(segments) = node.mac.path.segments.iter().last() {
+                segments.ident == "litter"
+            } else {
+                false
+            };
+
+            if is_litter {
+                let span = node.mac.path.segments.last().unwrap().ident.span();
+                let start = span.start();
+                self.positions.push((start.line as u32, start.column as u32));
+            }
+            syn::visit::visit_expr_macro(self, node);
+        }
+    }
+
+    let mut collector = MacroCollector {
+        positions: Vec::new(),
+    };
+    collector.visit_file(&ast);
+    collector.positions
+}
+
+#[test]
+fn test_span_preservation() {
+    // Test that syn preserves line/column information when parsing
+    let source = r#"fn main() {
+    let x = litter!(42);
+}"#;
+
+    let ast = syn::parse_file(source).unwrap();
+
+    // Find the macro using syn::visit
+    use syn::visit::Visit;
+
+    struct MacroFinder {
+        found_at: Option<(usize, usize)>,
+    }
+
+    impl<'ast> Visit<'ast> for MacroFinder {
+        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
+            if let Some(ident) = node.mac.path.get_ident() {
+                if ident == "litter" {
+                    let span = ident.span();
+                    let start = span.start();
+                    self.found_at = Some((start.line, start.column));
+                }
+            }
+        }
+    }
+
+    let mut finder = MacroFinder { found_at: None };
+    finder.visit_file(&ast);
+
+    // The macro should be at line 2 (1-indexed), some column
+    assert!(
+        finder.found_at.is_some(),
+        "Should find the litter macro"
+    );
+    let (line, _col) = finder.found_at.unwrap();
+    assert_eq!(line, 2, "Macro should be on line 2");
+}
+
+#[test]
+fn test_update_source_file() {
+    // Test the low-level update_source_file function
+    let test_file = TestFile::new(
+        r#"fn main() {
+    let x = litter!(42u32);
+}
+"#,
+    );
+
+    // Enable update mode
+    env::set_var("LITTER_UPDATE", "1");
+
+    // Find the actual position of the macro
+    let positions = find_litter_positions(&test_file.path);
+    assert_eq!(positions.len(), 1, "Should find exactly one litter macro");
+    let (line, column) = positions[0];
+
+    // Update the value
+    let new_tokens: proc_macro2::TokenStream = "100u32".parse().unwrap();
+    litter::update_source_file(&test_file.path, line, column, new_tokens).unwrap();
+
+    // Verify the file was updated
+    test_file.assert_contains("litter!(100u32)");
+    test_file.assert_does_not_contain("litter!(42u32)");
+
+    env::remove_var("LITTER_UPDATE");
+}
+
+#[test]
+fn test_litter_basic_update() {
+    // Test using the actual Litter API
+    let test_file = TestFile::new(
+        r#"#[allow(unused)]
+fn test() {
+    let x = litter::litter!(42u32);
+}
+"#,
+    );
+
+    env::set_var("LITTER_UPDATE", "1");
+
+    // Find the actual position
+    let positions = find_litter_positions(&test_file.path);
+    assert_eq!(positions.len(), 1, "Should find exactly one litter macro");
+    let (line, column) = positions[0];
+
+    // Create a Litter instance manually (simulating what the macro does)
+    let mut value = litter::Litter::__new(
+        42u32,
+        test_file.path.to_str().unwrap(),
+        line,
+        column,
+    );
+
+    // Update the value
+    value.set(100u32);
+
+    // Check that the value changed in memory
+    assert_eq!(*value.get(), 100u32);
+
+    // Check that the file was updated
+    test_file.assert_contains("litter!(100u32)");
+
+    env::remove_var("LITTER_UPDATE");
+}
+
+#[test]
+fn test_litter_no_update_in_inactive_mode() {
+    let test_file = TestFile::new(
+        r#"fn test() {
+    let x = litter::litter!(42u32);
+}
+"#,
+    );
+
+    // Make sure we're in inactive mode
+    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_VERIFY");
+
+    let positions = find_litter_positions(&test_file.path);
+    assert_eq!(positions.len(), 1);
+    let (line, column) = positions[0];
+
+    let mut value = litter::Litter::__new(
+        42u32,
+        test_file.path.to_str().unwrap(),
+        line,
+        column,
+    );
+
+    // Update the value
+    value.set(100u32);
+
+    // Value should change in memory
+    assert_eq!(*value.get(), 100u32);
+
+    // But file should NOT be updated (still contains original)
+    test_file.assert_contains("litter!(42u32)");
+}
+
+#[test]
+fn test_databake_integration() {
+    // Test that databake types work - just check that bake() produces something
+    use databake::Bake;
+
+    let value = vec![1u32, 2, 3];
+    let env = databake::CrateEnv::default();
+    let baked = value.bake(&env);
+
+    // Should produce valid Rust code
+    let baked_str = baked.to_string();
+    // Just check it's not empty and contains numbers
+    assert!(!baked_str.is_empty(), "Baked value should not be empty");
+    assert!(
+        baked_str.contains('1') && baked_str.contains('2') && baked_str.contains('3'),
+        "Baked value should contain the numbers: {}",
+        baked_str
+    );
+}
+
+#[test]
+fn test_multiple_litters_in_same_file() {
+    let test_file = TestFile::new(
+        r#"fn test() {
+    let a = litter::litter!(1u32);
+    let b = litter::litter!(2u32);
+    let c = litter::litter!(3u32);
+}
+"#,
+    );
+
+    env::set_var("LITTER_UPDATE", "1");
+
+    // Find all positions
+    let positions = find_litter_positions(&test_file.path);
+    assert_eq!(positions.len(), 3, "Should find 3 macros");
+
+    // Create litter instances for each
+    let mut litter_a = litter::Litter::__new(
+        1u32,
+        test_file.path.to_str().unwrap(),
+        positions[0].0,
+        positions[0].1,
+    );
+
+    let mut litter_b = litter::Litter::__new(
+        2u32,
+        test_file.path.to_str().unwrap(),
+        positions[1].0,
+        positions[1].1,
+    );
+
+    let mut litter_c = litter::Litter::__new(
+        3u32,
+        test_file.path.to_str().unwrap(),
+        positions[2].0,
+        positions[2].1,
+    );
+
+    // Update them in different orders
+    litter_b.set(20u32);
+    litter_a.set(10u32);
+    litter_c.set(30u32);
+
+    // All updates should have persisted
+    let content = test_file.read();
+    assert!(content.contains("litter!(10u32)"), "Should contain updated a");
+    assert!(content.contains("litter!(20u32)"), "Should contain updated b");
+    assert!(content.contains("litter!(30u32)"), "Should contain updated c");
+
+    env::remove_var("LITTER_UPDATE");
+}
+
+#[test]
+fn test_litter_no_change_optimization() {
+    let test_file = TestFile::new(
+        r#"fn test() {
+    let x = litter::litter!(42u32);
+}
+"#,
+    );
+
+    env::set_var("LITTER_UPDATE", "1");
+
+    let positions = find_litter_positions(&test_file.path);
+    let (line, column) = positions[0];
+
+    let mut value = litter::Litter::__new(
+        42u32,
+        test_file.path.to_str().unwrap(),
+        line,
+        column,
+    );
+
+    // Set to the same value
+    value.set(42u32);
+
+    // Value should still be 42
+    assert_eq!(*value.get(), 42u32);
+
+    // File should still contain original value
+    test_file.assert_contains("litter!(42u32)");
+
+    env::remove_var("LITTER_UPDATE");
+}

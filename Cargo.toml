@@ -6,3 +6,12 @@ edition = "2021"
 
 [dependencies]
 once_cell = "1.13.0"
+databake = "0.1"
+syn = { version = "2", features = ["full", "visit-mut", "visit", "extra-traits"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+quote = "1"
+prettyplease = "0.2"
+parking_lot = "0.12"
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,20 +1,10 @@
-pub trait Literal: ::core::fmt::Debug + Clone + Copy + PartialEq + Default {}
+// Re-export databake's Bake trait as our "Literal" concept
+// This allows any type implementing Bake to be used with litter
 
-impl Literal for &str {}
-impl Literal for &[u8] {}
-impl Literal for bool {}
-impl Literal for char {}
-impl Literal for u8 {}
-impl Literal for u16 {}
-impl Literal for u32 {}
-impl Literal for u64 {}
-impl Literal for u128 {}
-impl Literal for usize {}
-impl Literal for i8 {}
-impl Literal for i16 {}
-impl Literal for i32 {}
-impl Literal for i64 {}
-impl Literal for i128 {}
-impl Literal for isize {}
-impl Literal for f32 {}
-impl Literal for f64 {}
+pub use databake::Bake;
+
+// For compatibility, we define a Literal trait that requires Bake + other useful traits
+pub trait Literal: Bake + PartialEq + Clone {}
+
+// Blanket implementation: any type that is Bake + PartialEq + Clone is a Literal
+impl<T> Literal for T where T: Bake + PartialEq + Clone {}

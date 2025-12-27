@@ -1,84 +1,108 @@
-use once_cell::sync::OnceCell;
-use std::{
-    ops::{Deref, DerefMut},
-    path::PathBuf,
-};
+use crate::literal::Literal;
+use std::ops::Deref;
+use std::path::PathBuf;
 
-#[derive(Clone, Debug)]
-pub enum Litter<Literal: crate::Literal> {
-    Inline(crate::Inline<Literal>),
-    External(crate::External<Literal>),
+/// A self-modifying value that can update itself in source code
+pub struct Litter<T: Literal> {
+    value: T,
+    file: PathBuf,
+    line: u32,
+    column: u32,
 }
 
-#[derive(Clone, Debug)]
-pub struct External<Literal: crate::Literal> {
-    loaded: OnceCell<Literal>,
-    source: PathBuf,
-    target: PathBuf,
-}
-
-#[derive(Clone, Debug)]
-pub struct Inline<Literal: crate::Literal> {
-    value: Literal,
-    loaded: OnceCell<Literal>,
-    source: PathBuf,
-    line: usize,
-    column: usize,
-}
-
-impl<Literal: crate::Literal> Litter<Literal> {
-    #[track_caller]
-    pub fn inline(value: Literal) -> Litter<Literal> {
-        Litter::Inline(crate::Inline {
+impl<T: Literal> Litter<T> {
+    /// Create a new Litter instance (called by the macro)
+    #[doc(hidden)]
+    pub fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
+        Litter {
             value,
-            loaded: OnceCell::new(),
-            source: PathBuf::new(),
-            line: 0,
-            column: 0,
-        })
-    }
-
-    #[track_caller]
-    pub fn external(target: PathBuf) -> Litter<Literal> {
-        Litter::External(crate::External {
-            loaded: OnceCell::new(),
-            source: PathBuf::new(),
-            target,
-        })
-    }
-
-    /// the internal literal value
-    pub fn literal(&self) -> &Literal {
-        match self {
-            Litter::Inline(inline) => &inline.value,
-            Litter::External(external) => self.loaded(),
+            file: PathBuf::from(file),
+            line,
+            column,
         }
     }
 
-    /// the internal value as loaded from the source file
-    pub fn loaded(&self) -> &Literal {
-        match self {
-            Litter::Inline(inline) => &inline.loaded.get().unwrap(),
-            Litter::External(external) => &external.loaded.get().unwrap(),
+    /// Get a reference to the current value
+    pub fn get(&self) -> &T {
+        &self.value
+    }
+
+    /// Update the value and write it back to the source file
+    pub fn set(&mut self, new_value: T) {
+        if self.value == new_value {
+            return; // No change needed
+        }
+
+        let old_value = self.value.clone();
+        self.value = new_value.clone();
+
+        // Only write if we're in Update mode
+        let mode = crate::runtime::get_mode();
+        if !mode.write() {
+            return;
+        }
+
+        // Try to update the source file
+        if let Err(e) = self.update_source(&new_value) {
+            // Rollback on failure
+            self.value = old_value;
+            eprintln!("Warning: Failed to update source file: {}", e);
+        }
+    }
+
+    /// Internal: update the source file with the new value
+    fn update_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
+        // Bake the value to Rust code
+        let env = databake::CrateEnv::default();
+        let baked_tokens = new_value.bake(&env);
+
+        // Update the source file
+        crate::runtime::update_source_file(&self.file, self.line, self.column, baked_tokens)?;
+
+        Ok(())
+    }
+}
+
+impl<T: Literal> Deref for Litter<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.value
+    }
+}
+
+impl<T: Literal> PartialEq<T> for Litter<T> {
+    fn eq(&self, other: &T) -> bool {
+        self.value == *other
+    }
+}
+
+impl<T: Literal> Clone for Litter<T> {
+    fn clone(&self) -> Self {
+        Litter {
+            value: self.value.clone(),
+            file: self.file.clone(),
+            line: self.line,
+            column: self.column,
         }
     }
 }
 
-impl<Literal: crate::Literal> Deref for Litter<Literal> {
-    type Target = Literal;
-
-    fn deref(&self) -> &Literal {
-        self.literal()
+impl<T: Literal + std::fmt::Debug> std::fmt::Debug for Litter<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Litter")
+            .field("value", &self.value)
+            .field("file", &self.file)
+            .field("line", &self.line)
+            .field("column", &self.column)
+            .finish()
     }
 }
 
-impl<Literal: crate::Literal> PartialEq<Literal> for Litter<Literal> {
-    fn eq(&self, other: &Literal) -> bool {
-        if self.literal() == other {
-            true
-        } else {
-            // inequality! record this if we're in replacement mode
-            false
-        }
-    }
+/// Macro to create a Litter instance
+#[macro_export]
+macro_rules! litter {
+    ($value:expr) => {{
+        $crate::Litter::__new($value, file!(), line!(), column!())
+    }};
 }
