@@ -54,32 +54,48 @@ fn test_long_vec_causes_line_wrapping() {
     println!("  b: line {}, col {}", positions_after[1].0, positions_after[1].1);
 
     if positions_after[1].0 != b_line {
-        println!("\n❌ BOOM! B moved from line {} to line {}", b_line, positions_after[1].0);
-        println!("This means the next update to B will FAIL because we're looking at the wrong line!");
+        println!("\n✓ As expected, B moved from line {} to line {}", b_line, positions_after[1].0);
+        println!("This would break a position-based approach, but index-based should handle it!");
 
-        // Try to update B using the OLD position
+        // Try to update B using the OLD position - this tests the index-based approach
         let mut litter_b = litter::Litter::__new(
             100u32,
             path.to_str().unwrap(),
-            b_line,  // OLD position
+            b_line,  // OLD position from initial parse
             b_col,
         );
 
-        println!("\n=== ATTEMPTING TO UPDATE B USING OLD POSITION ===");
+        println!("\n=== UPDATING B USING ORIGINAL POSITION (index-based lookup) ===");
         litter_b.set(999u32);
 
         // Check if it worked
         let final_content = fs::read_to_string(&path).unwrap();
-        if final_content.contains("litter!(999u32)") {
-            println!("Somehow it worked?");
-        } else {
-            println!("Failed to update B! The file still has:");
-            println!("{}", final_content);
-        }
+        println!("\n=== FINAL FILE CONTENT ===");
+        println!("{}", final_content);
 
-        panic!("Line numbers shifted - approach is broken!");
+        if final_content.contains("litter!(999u32)") {
+            println!("\n✅ SUCCESS! Index-based approach works even when line numbers shift!");
+            println!("The original position (line {}) was mapped to a stable index,", b_line);
+            println!("which correctly found B even though it's now at line {}", positions_after[1].0);
+        } else {
+            println!("❌ Failed to update B! Expected to find litter!(999u32)");
+            panic!("Index-based approach failed!");
+        }
     } else {
-        println!("\n✓ Surprisingly, B stayed at line {}", b_line);
+        println!("\n✓ B stayed at line {} (formatter didn't wrap)", b_line);
+        println!("Let's still verify the index-based approach works by updating B");
+
+        let mut litter_b = litter::Litter::__new(
+            100u32,
+            path.to_str().unwrap(),
+            b_line,
+            b_col,
+        );
+
+        litter_b.set(999u32);
+        let final_content = fs::read_to_string(&path).unwrap();
+        assert!(final_content.contains("litter!(999u32)"), "Should update B successfully");
+        println!("✅ B updated successfully");
     }
 
     env::remove_var("LITTER_UPDATE");

@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
+use parking_lot::RwLock;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -47,81 +48,154 @@ pub fn get_mode() -> Mode {
 /// Convenience constant for accessing mode
 pub static MODE: Lazy<Mode> = Lazy::new(get_mode);
 
-/// Per-file locks to prevent concurrent writes to the same file
-static FILE_LOCKS: Lazy<Mutex<HashMap<PathBuf, ()>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-
-/// Acquire a lock for a specific file path
-fn lock_file(path: &Path) {
-    let mut locks = FILE_LOCKS.lock();
-    // Insert if not present, this ensures we have an entry to lock on
-    locks.entry(path.to_path_buf()).or_insert(());
-    // Note: we're using the global mutex as the lock mechanism
-    // This is simple but means only one file can be updated at a time
-    // For a more sophisticated approach, we'd use per-file locks
+// Thread-local state: one FileState per source file
+// The AST is kept in memory and mutated in place - never re-parsed!
+// We use thread_local! because syn::File contains non-Send types (proc_macro::Span)
+thread_local! {
+    static FILE_STATES: RefCell<HashMap<PathBuf, FileState>> = RefCell::new(HashMap::new());
 }
 
-/// Update a source file by replacing a litter! macro invocation
-pub fn update_source_file(
-    path: &Path,
-    line: u32,
-    column: u32,
-    new_tokens: proc_macro2::TokenStream,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Lock the file
-    lock_file(path);
-    let _file_lock = FILE_LOCKS.lock();
+/// Represents the parsed AST and index mapping for a single source file
+/// The key insight: we parse once, keep the AST in memory, and use stable indices
+pub struct FileState {
+    /// The AST is kept in memory and mutated in place
+    ast: RwLock<syn::File>,
+    /// Maps (line, column) positions to stable indices
+    /// Built on first load, never changes
+    position_to_index: HashMap<(u32, u32), usize>,
+}
 
-    // Read the source file
-    let source = fs::read_to_string(path)?;
+impl FileState {
+    /// Load and parse a source file, building the position->index mapping
+    pub fn load(path: &Path) -> Result<Self, io::Error> {
+        let source = fs::read_to_string(path)?;
+        let ast = syn::parse_file(&source).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Failed to parse Rust file: {}", e),
+            )
+        })?;
 
-    // Parse it
-    let mut ast = syn::parse_file(&source).map_err(|e| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("Failed to parse Rust file: {}", e),
-        )
-    })?;
+        // Build the initial position->index mapping
+        let position_to_index = Self::build_index_map(&ast);
 
-    // Find and replace the macro
-    let mut replacer = MacroReplacer {
-        target_line: line as usize,
-        target_column: column as usize,
-        new_tokens,
-        found: false,
-    };
-
-    replacer.visit_file_mut(&mut ast);
-
-    if !replacer.found {
-        return Err(format!(
-            "Could not find litter! macro at line {}, column {}",
-            line, column
-        )
-        .into());
+        Ok(FileState {
+            ast: RwLock::new(ast),
+            position_to_index,
+        })
     }
 
-    // Format and write back
-    let formatted = prettyplease::unparse(&ast);
-    fs::write(path, formatted)?;
+    /// Build a map from (line, column) to macro index by traversing the AST
+    /// Indices are assigned in AST traversal order and never change
+    fn build_index_map(ast: &syn::File) -> HashMap<(u32, u32), usize> {
+        use syn::visit::Visit;
 
-    Ok(())
+        struct IndexBuilder {
+            map: HashMap<(u32, u32), usize>,
+            current_index: usize,
+        }
+
+        impl<'ast> Visit<'ast> for IndexBuilder {
+            fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
+                let is_litter = if let Some(segment) = node.mac.path.segments.last() {
+                    segment.ident == "litter"
+                } else {
+                    false
+                };
+
+                if is_litter {
+                    let span = node.mac.path.segments.last().unwrap().ident.span();
+                    let start = span.start();
+                    let pos = (start.line as u32, start.column as u32);
+                    self.map.insert(pos, self.current_index);
+                    self.current_index += 1;
+                }
+
+                syn::visit::visit_expr_macro(self, node);
+            }
+
+            fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
+                let is_litter = if let Some(segment) = node.mac.path.segments.last() {
+                    segment.ident == "litter"
+                } else {
+                    false
+                };
+
+                if is_litter {
+                    let span = node.mac.path.segments.last().unwrap().ident.span();
+                    let start = span.start();
+                    let pos = (start.line as u32, start.column as u32);
+                    self.map.insert(pos, self.current_index);
+                    self.current_index += 1;
+                }
+
+                syn::visit::visit_stmt_macro(self, node);
+            }
+        }
+
+        let mut builder = IndexBuilder {
+            map: HashMap::new(),
+            current_index: 0,
+        };
+        builder.visit_file(ast);
+        builder.map
+    }
+
+    /// Get the stable index for a macro at the given position
+    pub fn get_index(&self, line: u32, column: u32) -> Option<usize> {
+        self.position_to_index.get(&(line, column)).copied()
+    }
+
+    /// Update the macro at the given index with new tokens
+    /// This is the core operation - we find the Nth litter! macro and update it
+    pub fn update_macro_by_index(
+        &self,
+        index: usize,
+        new_tokens: proc_macro2::TokenStream,
+    ) -> Result<(), String> {
+        let mut ast = self.ast.write();
+
+        let mut updater = IndexedMacroUpdater {
+            target_index: index,
+            current_index: 0,
+            new_tokens,
+            found: false,
+        };
+
+        updater.visit_file_mut(&mut *ast);
+
+        if !updater.found {
+            return Err(format!("Could not find litter! macro at index {}", index));
+        }
+
+        Ok(())
+    }
+
+    /// Write the current AST back to disk
+    pub fn write_to_disk(&self, path: &Path) -> Result<(), io::Error> {
+        let ast = self.ast.read();
+        let formatted = prettyplease::unparse(&*ast);
+        fs::write(path, formatted)?;
+
+        Ok(())
+    }
 }
 
-/// Visitor that finds and replaces a specific litter! macro invocation
-struct MacroReplacer {
-    target_line: usize,
-    target_column: usize,
+/// Visitor that updates the Nth litter! macro (by index)
+/// Key insight: we count macros in traversal order, which is stable
+struct IndexedMacroUpdater {
+    target_index: usize,
+    current_index: usize,
     new_tokens: proc_macro2::TokenStream,
     found: bool,
 }
 
-impl MacroReplacer {
-    fn try_replace_macro(&mut self, mac: &mut syn::Macro) {
+impl IndexedMacroUpdater {
+    fn try_update_macro(&mut self, mac: &mut syn::Macro) {
         if self.found {
             return;
         }
 
-        // Check if this is a litter macro (might be just "litter" or "litter::litter")
         let is_litter = if let Some(segment) = mac.path.segments.last() {
             segment.ident == "litter"
         } else {
@@ -129,28 +203,76 @@ impl MacroReplacer {
         };
 
         if is_litter {
-            // Get the span of the last segment (the actual "litter" identifier)
-            let ident = &mac.path.segments.last().unwrap().ident;
-            let span = ident.span();
-            let start = span.start();
-
-            if start.line == self.target_line && start.column == self.target_column {
-                // Found it! Replace the tokens
+            if self.current_index == self.target_index {
+                // Found our target!
                 mac.tokens = self.new_tokens.clone();
                 self.found = true;
             }
+            self.current_index += 1;
         }
     }
 }
 
-impl VisitMut for MacroReplacer {
+impl VisitMut for IndexedMacroUpdater {
     fn visit_expr_macro_mut(&mut self, node: &mut syn::ExprMacro) {
-        self.try_replace_macro(&mut node.mac);
+        self.try_update_macro(&mut node.mac);
         visit_mut::visit_expr_macro_mut(self, node);
     }
 
     fn visit_stmt_macro_mut(&mut self, node: &mut syn::StmtMacro) {
-        self.try_replace_macro(&mut node.mac);
+        self.try_update_macro(&mut node.mac);
         visit_mut::visit_stmt_macro_mut(self, node);
     }
+}
+
+/// Get the stable index for a litter macro at the given position
+pub fn get_macro_index(path: &Path, line: u32, column: u32) -> Result<usize, io::Error> {
+    FILE_STATES.with(|states| {
+        let mut states = states.borrow_mut();
+
+        // Load the file if not already loaded
+        if !states.contains_key(path) {
+            let state = FileState::load(path)?;
+            states.insert(path.to_path_buf(), state);
+        }
+
+        let state = states.get(path).unwrap();
+        state.get_index(line, column)
+            .ok_or_else(|| io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("No litter! macro found at {}:{}:{}", path.display(), line, column)
+            ))
+    })
+}
+
+/// Update a litter macro by its stable index
+pub fn update_macro_by_index(
+    path: &Path,
+    index: usize,
+    new_tokens: proc_macro2::TokenStream,
+) -> Result<(), Box<dyn std::error::Error>> {
+    FILE_STATES.with(|states| {
+        let states = states.borrow();
+
+        let state = states.get(path)
+            .ok_or("File state not found - was get_macro_index called first?")?;
+
+        state.update_macro_by_index(index, new_tokens)?;
+        state.write_to_disk(path)?;
+
+        Ok(())
+    })
+}
+
+/// Convenience function: update a litter macro at the given position
+/// This combines get_macro_index and update_macro_by_index
+pub fn update_source_file(
+    path: &Path,
+    line: u32,
+    column: u32,
+    new_tokens: proc_macro2::TokenStream,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let index = get_macro_index(path, line, column)?;
+    update_macro_by_index(path, index, new_tokens)?;
+    Ok(())
 }

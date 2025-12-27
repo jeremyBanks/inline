@@ -3,22 +3,29 @@ use std::ops::Deref;
 use std::path::PathBuf;
 
 /// A self-modifying value that can update itself in source code
+/// Uses a stable index to track its position in the AST
 pub struct Litter<T: Literal> {
     value: T,
     file: PathBuf,
-    line: u32,
-    column: u32,
+    /// Stable index into the file's litter macros
+    /// This never changes even if line numbers shift!
+    macro_index: usize,
 }
 
 impl<T: Literal> Litter<T> {
     /// Create a new Litter instance (called by the macro)
     #[doc(hidden)]
     pub fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
+        let file_path = PathBuf::from(file);
+
+        // Get the stable index for this macro position
+        let macro_index = crate::runtime::get_macro_index(&file_path, line, column)
+            .expect(&format!("No litter! macro found at {}:{}:{}", file, line, column));
+
         Litter {
             value,
-            file: PathBuf::from(file),
-            line,
-            column,
+            file: file_path,
+            macro_index,
         }
     }
 
@@ -56,8 +63,8 @@ impl<T: Literal> Litter<T> {
         let env = databake::CrateEnv::default();
         let baked_tokens = new_value.bake(&env);
 
-        // Update the source file
-        crate::runtime::update_source_file(&self.file, self.line, self.column, baked_tokens)?;
+        // Update using our stable index
+        crate::runtime::update_macro_by_index(&self.file, self.macro_index, baked_tokens)?;
 
         Ok(())
     }
@@ -82,8 +89,7 @@ impl<T: Literal> Clone for Litter<T> {
         Litter {
             value: self.value.clone(),
             file: self.file.clone(),
-            line: self.line,
-            column: self.column,
+            macro_index: self.macro_index,
         }
     }
 }
@@ -93,8 +99,7 @@ impl<T: Literal + std::fmt::Debug> std::fmt::Debug for Litter<T> {
         f.debug_struct("Litter")
             .field("value", &self.value)
             .field("file", &self.file)
-            .field("line", &self.line)
-            .field("column", &self.column)
+            .field("macro_index", &self.macro_index)
             .finish()
     }
 }

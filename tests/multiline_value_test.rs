@@ -23,7 +23,7 @@ fn test_very_long_value_formatting() {
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
-    let (b_line, b_col) = positions[1];
+    let (b_line, _b_col) = positions[1];
 
     println!("Initial: a at line {}, b at line {}", a_line, b_line);
 
@@ -72,7 +72,7 @@ fn test_tuple_value_formatting() {
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
-    let (b_line, b_col) = positions[1];
+    let (b_line, _b_col) = positions[1];
 
     println!("Initial: a at line {}, b at line {}", a_line, b_line);
 
