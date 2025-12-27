@@ -72,19 +72,16 @@ impl<T: Literal> Litter<T> {
             return; // No change needed - baked representation is identical
         }
 
-        let old_value = self.value.clone();
-        self.value = new_value.clone();
-
         let mode = crate::runtime::get_mode();
 
         // In Memory mode, just change the value in memory (no file I/O)
         if mode == crate::runtime::Mode::Memory {
+            self.value = new_value; // Move directly, no clone needed
             return;
         }
 
         // In Reject mode, fail immediately
         if mode.should_reject_write() {
-            self.value = old_value; // Rollback
             panic!(
                 "Attempted to write in Reject mode at {}:{}:{}",
                 self.file.display(),
@@ -97,7 +94,6 @@ impl<T: Literal> Litter<T> {
         // Resolve the index (lazily loads the file)
         // This is where we'll fail if the file doesn't exist or position is invalid
         if let Err(e) = self.resolve_index() {
-            self.value = old_value; // Rollback
             panic!("Failed to access source file: {}", e);
         }
 
@@ -112,6 +108,7 @@ impl<T: Literal> Litter<T> {
                     e
                 );
             }
+            self.value = new_value; // Move after verification succeeds
             return;
         }
 
@@ -119,7 +116,6 @@ impl<T: Literal> Litter<T> {
         if mode.can_write() {
             // Check if we're running under cargo
             if !is_running_under_cargo() {
-                self.value = old_value; // Rollback
                 panic!(
                     "Cannot write to source files outside of cargo environment!\n\
                      File: {}:{}:{}\n\
@@ -131,10 +127,11 @@ impl<T: Literal> Litter<T> {
             }
 
             if let Err(e) = self.update_source(&new_value) {
-                // Rollback on failure
-                self.value = old_value;
                 panic!("Failed to write to source file: {}", e);
             }
+
+            // Only update in-memory value after successful write
+            self.value = new_value;
         }
     }
 
