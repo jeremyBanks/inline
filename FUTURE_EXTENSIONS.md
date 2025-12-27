@@ -160,7 +160,7 @@ assert_send::<proc_macro2::TokenStream>(); // ✗ not Send
 assert_sync::<proc_macro2::TokenStream>(); // ✗ not Sync
 ```
 
-**Root cause**: `proc_macro2::TokenStream` can wrap `proc_macro::TokenTree`, which is not Send/Sync (tied to compiler thread context).
+**Root cause**: `proc_macro2` intentionally uses `PhantomData<Rc<()>>` to make its types NOT Send/Sync, even outside proc macro context. This is deliberate design to match the thread-safety characteristics of real `proc_macro` types and catch bugs early.
 
 **Implications**:
 - ✅ `thread_local!` is the correct choice
