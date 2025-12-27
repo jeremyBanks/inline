@@ -130,7 +130,7 @@ fn test_update_source_file() {
     );
 
     // Enable update mode
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     // Find the actual position of the macro
     let positions = find_litter_positions(&test_file.path);
@@ -145,7 +145,7 @@ fn test_update_source_file() {
     test_file.assert_contains("litter!(100u32)");
     test_file.assert_does_not_contain("litter!(42u32)");
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn test() {
 "#,
     );
 
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     // Find the actual position
     let positions = find_litter_positions(&test_file.path);
@@ -183,11 +183,11 @@ fn test() {
     // Check that the file was updated
     test_file.assert_contains("litter!(100u32)");
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }
 
 #[test]
-fn test_litter_no_update_in_inactive_mode() {
+fn test_litter_no_update_in_memory_mode() {
     let test_file = TestFile::new(
         r#"fn test() {
     let x = litter::litter!(42u32);
@@ -195,9 +195,8 @@ fn test_litter_no_update_in_inactive_mode() {
 "#,
     );
 
-    // Make sure we're in inactive mode
-    env::remove_var("LITTER_UPDATE");
-    env::remove_var("LITTER_VERIFY");
+    // Explicitly set memory mode (changes in memory only, no disk writes)
+    env::set_var("LITTER_MODE", "memory");
 
     let positions = find_litter_positions(&test_file.path);
     assert_eq!(positions.len(), 1);
@@ -218,6 +217,8 @@ fn test_litter_no_update_in_inactive_mode() {
 
     // But file should NOT be updated (still contains original)
     test_file.assert_contains("litter!(42u32)");
+
+    env::remove_var("LITTER_MODE");
 }
 
 #[test]
@@ -251,7 +252,7 @@ fn test_multiple_litters_in_same_file() {
 "#,
     );
 
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     // Find all positions
     let positions = find_litter_positions(&test_file.path);
@@ -290,7 +291,7 @@ fn test_multiple_litters_in_same_file() {
     assert!(content.contains("litter!(20u32)"), "Should contain updated b");
     assert!(content.contains("litter!(30u32)"), "Should contain updated c");
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }
 
 #[test]
@@ -302,7 +303,7 @@ fn test_litter_no_change_optimization() {
 "#,
     );
 
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     let positions = find_litter_positions(&test_file.path);
     let (line, column) = positions[0];
@@ -323,5 +324,5 @@ fn test_litter_no_change_optimization() {
     // File should still contain original value
     test_file.assert_contains("litter!(42u32)");
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }

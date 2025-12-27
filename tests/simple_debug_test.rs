@@ -49,7 +49,7 @@ fn debug_litter_update() {
     let column = finder.column.unwrap();
 
     // Now try to update it
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     let new_tokens: proc_macro2::TokenStream = "100u32".parse().unwrap();
     match litter::update_source_file(&path, line, column, new_tokens) {
@@ -60,5 +60,5 @@ fn debug_litter_update() {
     println!("\nFile content after update:");
     println!("{}", fs::read_to_string(&path).unwrap());
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }

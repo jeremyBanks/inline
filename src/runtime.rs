@@ -8,51 +8,76 @@ use std::io;
 use std::path::{Path, PathBuf};
 use syn::visit_mut::{self, VisitMut};
 
-#[derive(Clone, Debug, Copy, Default)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum Mode {
-    #[default]
-    /// don't read the source files at all.
-    Inactive,
-    /// reads values from source files to verify that the current values
-    /// round-trip successfully, but don't write anything.
+    /// Reads source files and verifies set() values match what's written
+    /// Panics if there's a mismatch (snapshot testing behavior)
+    /// DEFAULT IN TESTS
     Verify,
-    /// writes values back if they aren't equal to the expected value.
-    Update,
+    /// Actually writes changes to source files
+    /// Fails if files can't be found or litter macros missing at expected positions
+    /// DEFAULT OUTSIDE TESTS (self-modifying code!)
+    Write,
+    /// Changes in memory only, never writes to disk
+    /// Must be explicitly enabled via LITTER_MODE=memory
+    Memory,
+    /// Rejects any attempt to write, always fails
+    /// Must be explicitly enabled via LITTER_MODE=reject
+    Reject,
 }
 
 impl Mode {
-    pub fn read(self) -> bool {
-        matches!(self, Mode::Verify | Mode::Update)
+    pub fn needs_file_access(self) -> bool {
+        matches!(self, Mode::Verify | Mode::Write)
     }
 
-    pub fn write(self) -> bool {
-        matches!(self, Mode::Update)
+    pub fn can_write(self) -> bool {
+        matches!(self, Mode::Write)
     }
 
-    pub fn inactive(self) -> bool {
-        matches!(self, Mode::Inactive)
+    pub fn should_reject_write(self) -> bool {
+        matches!(self, Mode::Reject)
     }
-}
 
-/// Get the current mode by checking environment variables
-/// In cfg(test), defaults to Verify mode (like snapshot testing)
-/// Outside tests, defaults to Inactive mode
-pub fn get_mode() -> Mode {
-    if env::var("LITTER_UPDATE").is_ok() {
-        Mode::Update
-    } else if env::var("LITTER_VERIFY").is_ok() {
-        Mode::Verify
-    } else if env::var("LITTER_INACTIVE").is_ok() {
-        Mode::Inactive
-    } else {
-        // In tests, default to Verify mode (like snapshot testing)
-        // Outside tests, default to Inactive
+    fn default_for_context() -> Self {
+        // In tests: default to Verify (snapshot testing)
+        // Outside tests: default to Write (self-modifying code)
         #[cfg(test)]
         return Mode::Verify;
 
         #[cfg(not(test))]
-        return Mode::Inactive;
+        return Mode::Write;
     }
+}
+
+/// Get the current mode by checking environment variable
+///
+/// Modes (set via LITTER_MODE environment variable):
+/// - "verify": Verify values match source (DEFAULT IN TESTS)
+/// - "write": Write changes to source files (DEFAULT OUTSIDE TESTS)
+/// - "memory": Changes in memory only (opt-in only)
+/// - "reject": Reject any write attempts (opt-in only)
+///
+/// Examples:
+///   LITTER_MODE=write cargo test     # Update all snapshots
+///   cargo test                        # Verify snapshots (default in tests)
+///   cargo run                         # Self-modifying mode (default outside tests)
+///   LITTER_MODE=memory cargo run     # Run without file writes
+pub fn get_mode() -> Mode {
+    if let Ok(mode_str) = env::var("LITTER_MODE") {
+        return match mode_str.to_lowercase().as_str() {
+            "write" | "update" => Mode::Write,
+            "verify" => Mode::Verify,
+            "memory" => Mode::Memory,
+            "reject" => Mode::Reject,
+            _ => {
+                eprintln!("Warning: Unknown LITTER_MODE='{}', using default. Valid: write, verify, memory, reject", mode_str);
+                Mode::default_for_context()
+            }
+        };
+    }
+
+    Mode::default_for_context()
 }
 
 /// Convenience constant for accessing mode

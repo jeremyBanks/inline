@@ -49,8 +49,7 @@ fn test_verify_mode_matching_value() {
     fs::write(&path, content).unwrap();
 
     // Enable verify mode
-    env::set_var("LITTER_VERIFY", "1");
-    env::remove_var("LITTER_UPDATE");
+    env::set_var("LITTER_MODE", "verify");
 
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
@@ -60,7 +59,7 @@ fn test_verify_mode_matching_value() {
     // Setting to the same value should succeed in verify mode
     value.set(42u32);
 
-    env::remove_var("LITTER_VERIFY");
+    env::remove_var("LITTER_MODE");
 }
 
 #[test]
@@ -77,8 +76,7 @@ fn test_verify_mode_mismatched_value() {
     fs::write(&path, content).unwrap();
 
     // Enable verify mode
-    env::set_var("LITTER_VERIFY", "1");
-    env::remove_var("LITTER_UPDATE");
+    env::set_var("LITTER_MODE", "verify");
 
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
@@ -88,7 +86,7 @@ fn test_verify_mode_mismatched_value() {
     // Setting to a different value should panic in verify mode
     value.set(100u32);
 
-    env::remove_var("LITTER_VERIFY");
+    env::remove_var("LITTER_MODE");
 }
 
 #[test]
@@ -104,8 +102,7 @@ fn test_verify_mode_complex_value() {
     fs::write(&path, content).unwrap();
 
     // Enable verify mode
-    env::set_var("LITTER_VERIFY", "1");
-    env::remove_var("LITTER_UPDATE");
+    env::set_var("LITTER_MODE", "verify");
 
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
@@ -120,7 +117,7 @@ fn test_verify_mode_complex_value() {
     // Setting to the same value should succeed
     value.set(vec![1u32, 2u32, 3u32]);
 
-    env::remove_var("LITTER_VERIFY");
+    env::remove_var("LITTER_MODE");
 }
 
 #[test]
@@ -137,8 +134,7 @@ fn test_verify_mode_complex_value_mismatch() {
     fs::write(&path, content).unwrap();
 
     // Enable verify mode
-    env::set_var("LITTER_VERIFY", "1");
-    env::remove_var("LITTER_UPDATE");
+    env::set_var("LITTER_MODE", "verify");
 
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
@@ -153,5 +149,5 @@ fn test_verify_mode_complex_value_mismatch() {
     // Setting to a different value should panic
     value.set(vec![1u32, 2u32, 3u32, 4u32]);
 
-    env::remove_var("LITTER_VERIFY");
+    env::remove_var("LITTER_MODE");
 }

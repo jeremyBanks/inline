@@ -17,7 +17,7 @@ fn test_long_vec_causes_line_wrapping() {
     println!("=== ORIGINAL ===");
     println!("{}", original);
 
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
@@ -98,7 +98,7 @@ fn test_long_vec_causes_line_wrapping() {
         println!("✅ B updated successfully");
     }
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {

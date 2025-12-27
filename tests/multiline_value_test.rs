@@ -19,7 +19,7 @@ fn test_very_long_value_formatting() {
     println!("=== ORIGINAL ===");
     println!("{}", original);
 
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
@@ -49,7 +49,7 @@ fn test_very_long_value_formatting() {
         println!("\n✓ Line numbers stable even with large value");
     }
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn test_tuple_value_formatting() {
     println!("=== ORIGINAL ===");
     println!("{}", original);
 
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
@@ -101,7 +101,7 @@ fn test_tuple_value_formatting() {
 
     println!("\n✓ Line numbers stable with tuple values");
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {

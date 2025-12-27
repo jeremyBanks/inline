@@ -49,7 +49,13 @@ impl<T: Literal> Litter<T> {
         &self.value
     }
 
-    /// Update the value and write it back to the source file
+    /// Update the value and possibly persist to source file (depending on mode)
+    ///
+    /// Behavior depends on current mode:
+    /// - Memory: Just updates the in-memory value (no file I/O)
+    /// - Verify: Checks that new value matches what's in the source file, panics if not
+    /// - Write: Writes the new value back to the source file
+    /// - Reject: Always panics when trying to write
     pub fn set(&mut self, new_value: T) {
         if self.value == new_value {
             return; // No change needed
@@ -60,11 +66,19 @@ impl<T: Literal> Litter<T> {
 
         let mode = crate::runtime::get_mode();
 
-        // In Inactive mode, just change the value in memory
-        if mode.inactive() {
+        // In Memory mode, just change the value in memory (no file I/O)
+        if mode == crate::runtime::Mode::Memory {
             return;
         }
 
+        // In Reject mode, fail immediately
+        if mode.should_reject_write() {
+            self.value = old_value; // Rollback
+            panic!("Attempted to write in Reject mode at {}:{}:{}",
+                self.file.display(), self.line, self.column);
+        }
+
+        // For Verify or Write modes, we need file access
         // Resolve the index (lazily loads the file)
         // This is where we'll fail if the file doesn't exist or position is invalid
         if let Err(e) = self.resolve_index() {
@@ -73,7 +87,7 @@ impl<T: Literal> Litter<T> {
         }
 
         // In Verify mode: check that the new value matches the source file
-        if matches!(mode, crate::runtime::Mode::Verify) {
+        if mode == crate::runtime::Mode::Verify {
             if let Err(e) = self.verify_source(&new_value) {
                 panic!("Litter verification failed at {}:{}:{}\n{}",
                     self.file.display(), self.line, self.column, e);
@@ -81,16 +95,24 @@ impl<T: Literal> Litter<T> {
             return;
         }
 
-        // In Update mode: write changes to disk
-        if !mode.write() {
-            return;
-        }
+        // In Write mode: write changes to disk
+        if mode.can_write() {
+            // Check if we're running under cargo
+            if !is_running_under_cargo() {
+                self.value = old_value; // Rollback
+                panic!(
+                    "Cannot write to source files outside of cargo environment!\n\
+                     File: {}:{}:{}\n\
+                     Hint: Run with 'cargo run' or 'cargo test', or use LITTER_MODE=memory",
+                    self.file.display(), self.line, self.column
+                );
+            }
 
-        // Try to update the source file
-        if let Err(e) = self.update_source(&new_value) {
-            // Rollback on failure
-            self.value = old_value;
-            eprintln!("Warning: Failed to update source file: {}", e);
+            if let Err(e) = self.update_source(&new_value) {
+                // Rollback on failure
+                self.value = old_value;
+                panic!("Failed to write to source file: {}", e);
+            }
         }
     }
 
@@ -172,6 +194,13 @@ impl<T: Literal + std::fmt::Debug> std::fmt::Debug for Litter<T> {
             .field("macro_index", &self.macro_index)
             .finish()
     }
+}
+
+/// Check if we're running under cargo by looking for cargo-specific env vars
+fn is_running_under_cargo() -> bool {
+    std::env::var("CARGO").is_ok() ||
+    std::env::var("CARGO_MANIFEST_DIR").is_ok() ||
+    std::env::var("CARGO_PKG_NAME").is_ok()
 }
 
 /// Macro to create a Litter instance

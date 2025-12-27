@@ -16,7 +16,7 @@ fn test_multiple_updates_same_litter() {
 "#;
     fs::write(&path, original).unwrap();
 
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     // Find initial position
     let source = fs::read_to_string(&path).unwrap();
@@ -104,5 +104,5 @@ fn test_multiple_updates_same_litter() {
     println!("  Original: line {}, column {}", original_line, original_column);
     println!("  Final:    line {}, column {}", line_after_3, col_after_3);
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }

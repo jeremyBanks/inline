@@ -20,7 +20,7 @@ fn test_line_number_stability_with_multiple_litters() {
     println!("=== ORIGINAL FILE ===");
     println!("{}", original);
 
-    env::set_var("LITTER_UPDATE", "1");
+    env::set_var("LITTER_MODE", "write");
 
     // Find all positions initially
     let positions = find_all_positions(&path);
@@ -96,7 +96,7 @@ fn test_line_number_stability_with_multiple_litters() {
 
     println!("\n✓ ALL LINE NUMBERS REMAINED STABLE!");
 
-    env::remove_var("LITTER_UPDATE");
+    env::remove_var("LITTER_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
