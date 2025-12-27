@@ -41,11 +41,17 @@ fn test_multiple_updates_same_litter() {
         }
     }
 
-    let mut finder = MacroFinder { line: None, column: None };
+    let mut finder = MacroFinder {
+        line: None,
+        column: None,
+    };
     finder.visit_file(&ast);
     let (original_line, original_column) = (finder.line.unwrap(), finder.column.unwrap());
 
-    println!("Original position: line {}, column {}", original_line, original_column);
+    println!(
+        "Original position: line {}, column {}",
+        original_line, original_column
+    );
 
     // Create a Litter instance with the captured position
     let mut value = litter::Litter::__new(
@@ -63,12 +69,21 @@ fn test_multiple_updates_same_litter() {
     // Parse again and check if position is still the same
     let source = fs::read_to_string(&path).unwrap();
     let ast = syn::parse_file(&source).unwrap();
-    let mut finder = MacroFinder { line: None, column: None };
+    let mut finder = MacroFinder {
+        line: None,
+        column: None,
+    };
     finder.visit_file(&ast);
     let (line_after_1, col_after_1) = (finder.line.unwrap(), finder.column.unwrap());
 
-    assert_eq!(line_after_1, original_line, "Line should not change after update 1");
-    assert_eq!(col_after_1, original_column, "Column should not change after update 1");
+    assert_eq!(
+        line_after_1, original_line,
+        "Line should not change after update 1"
+    );
+    assert_eq!(
+        col_after_1, original_column,
+        "Column should not change after update 1"
+    );
 
     // Update 2: 100 -> 999
     value.set(999u32);
@@ -78,12 +93,21 @@ fn test_multiple_updates_same_litter() {
     // Check position again
     let source = fs::read_to_string(&path).unwrap();
     let ast = syn::parse_file(&source).unwrap();
-    let mut finder = MacroFinder { line: None, column: None };
+    let mut finder = MacroFinder {
+        line: None,
+        column: None,
+    };
     finder.visit_file(&ast);
     let (line_after_2, col_after_2) = (finder.line.unwrap(), finder.column.unwrap());
 
-    assert_eq!(line_after_2, original_line, "Line should not change after update 2");
-    assert_eq!(col_after_2, original_column, "Column should not change after update 2");
+    assert_eq!(
+        line_after_2, original_line,
+        "Line should not change after update 2"
+    );
+    assert_eq!(
+        col_after_2, original_column,
+        "Column should not change after update 2"
+    );
 
     // Update 3: 999 -> 1
     value.set(1u32);
@@ -93,15 +117,27 @@ fn test_multiple_updates_same_litter() {
     // Final position check
     let source = fs::read_to_string(&path).unwrap();
     let ast = syn::parse_file(&source).unwrap();
-    let mut finder = MacroFinder { line: None, column: None };
+    let mut finder = MacroFinder {
+        line: None,
+        column: None,
+    };
     finder.visit_file(&ast);
     let (line_after_3, col_after_3) = (finder.line.unwrap(), finder.column.unwrap());
 
-    assert_eq!(line_after_3, original_line, "Line should not change after update 3");
-    assert_eq!(col_after_3, original_column, "Column should not change after update 3");
+    assert_eq!(
+        line_after_3, original_line,
+        "Line should not change after update 3"
+    );
+    assert_eq!(
+        col_after_3, original_column,
+        "Column should not change after update 3"
+    );
 
     println!("\n✓ Position remained stable through 3 updates!");
-    println!("  Original: line {}, column {}", original_line, original_column);
+    println!(
+        "  Original: line {}, column {}",
+        original_line, original_column
+    );
     println!("  Final:    line {}, column {}", line_after_3, col_after_3);
 
     env::remove_var("LITTER_MODE");

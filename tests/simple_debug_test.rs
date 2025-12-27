@@ -37,12 +37,18 @@ fn debug_litter_update() {
                 let start = span.start();
                 self.line = Some(start.line as u32);
                 self.column = Some(start.column as u32);
-                println!("Found litter macro at line {}, column {}", start.line, start.column);
+                println!(
+                    "Found litter macro at line {}, column {}",
+                    start.line, start.column
+                );
             }
         }
     }
 
-    let mut finder = MacroFinder { line: None, column: None };
+    let mut finder = MacroFinder {
+        line: None,
+        column: None,
+    };
     finder.visit_file(&ast);
 
     let line = finder.line.unwrap();

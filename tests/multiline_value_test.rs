@@ -39,11 +39,17 @@ fn test_very_long_value_formatting() {
 
     let positions_after = find_all_positions(&path);
     println!("\nPositions after:");
-    println!("a at line {}, b at line {}", positions_after[0].0, positions_after[1].0);
+    println!(
+        "a at line {}, b at line {}",
+        positions_after[0].0, positions_after[1].0
+    );
 
     // Does b's line change?
     if positions_after[1].0 != b_line {
-        println!("\n❌ B's LINE NUMBER CHANGED FROM {} TO {}", b_line, positions_after[1].0);
+        println!(
+            "\n❌ B's LINE NUMBER CHANGED FROM {} TO {}",
+            b_line, positions_after[1].0
+        );
         panic!("Line numbers shifted!");
     } else {
         println!("\n✓ Line numbers stable even with large value");
@@ -76,12 +82,8 @@ fn test_tuple_value_formatting() {
 
     println!("Initial: a at line {}, b at line {}", a_line, b_line);
 
-    let mut litter_a = litter::Litter::__new(
-        (1u32, 2u32, 3u32),
-        path.to_str().unwrap(),
-        a_line,
-        a_col
-    );
+    let mut litter_a =
+        litter::Litter::__new((1u32, 2u32, 3u32), path.to_str().unwrap(), a_line, a_col);
 
     // Update to different tuple
     litter_a.set((999u32, 888u32, 777u32));
@@ -92,7 +94,10 @@ fn test_tuple_value_formatting() {
 
     let positions_after = find_all_positions(&path);
     println!("\nPositions after:");
-    println!("a at line {}, b at line {}", positions_after[0].0, positions_after[1].0);
+    println!(
+        "a at line {}, b at line {}",
+        positions_after[0].0, positions_after[1].0
+    );
 
     assert_eq!(
         positions_after[1].0, b_line,
@@ -124,13 +129,16 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
             if is_litter {
                 let span = node.mac.path.segments.last().unwrap().ident.span();
                 let start = span.start();
-                self.positions.push((start.line as u32, start.column as u32));
+                self.positions
+                    .push((start.line as u32, start.column as u32));
             }
             syn::visit::visit_expr_macro(self, node);
         }
     }
 
-    let mut collector = MacroCollector { positions: Vec::new() };
+    let mut collector = MacroCollector {
+        positions: Vec::new(),
+    };
     collector.visit_file(&ast);
     collector.positions
 }

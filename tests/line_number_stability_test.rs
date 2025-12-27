@@ -90,9 +90,18 @@ fn test_line_number_stability_with_multiple_litters() {
     }
 
     // All positions should remain unchanged
-    assert_eq!(positions_final[0].0, a_line, "A's line should not have changed");
-    assert_eq!(positions_final[1].0, b_line, "B's line should not have changed");
-    assert_eq!(positions_final[2].0, c_line, "C's line should not have changed");
+    assert_eq!(
+        positions_final[0].0, a_line,
+        "A's line should not have changed"
+    );
+    assert_eq!(
+        positions_final[1].0, b_line,
+        "B's line should not have changed"
+    );
+    assert_eq!(
+        positions_final[2].0, c_line,
+        "C's line should not have changed"
+    );
 
     println!("\n✓ ALL LINE NUMBERS REMAINED STABLE!");
 
@@ -119,13 +128,16 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
             if is_litter {
                 let span = node.mac.path.segments.last().unwrap().ident.span();
                 let start = span.start();
-                self.positions.push((start.line as u32, start.column as u32));
+                self.positions
+                    .push((start.line as u32, start.column as u32));
             }
             syn::visit::visit_expr_macro(self, node);
         }
     }
 
-    let mut collector = MacroCollector { positions: Vec::new() };
+    let mut collector = MacroCollector {
+        positions: Vec::new(),
+    };
     collector.visit_file(&ast);
     collector.positions
 }

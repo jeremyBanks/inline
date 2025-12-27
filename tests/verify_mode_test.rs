@@ -23,7 +23,8 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
             if is_litter {
                 let span = node.mac.path.segments.last().unwrap().ident.span();
                 let start = span.start();
-                self.positions.push((start.line as u32, start.column as u32));
+                self.positions
+                    .push((start.line as u32, start.column as u32));
             }
             syn::visit::visit_expr_macro(self, node);
         }
@@ -107,12 +108,8 @@ fn test_verify_mode_complex_value() {
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
 
-    let mut value = litter::Litter::__new(
-        vec![1u32, 2u32, 3u32],
-        path.to_str().unwrap(),
-        line,
-        column,
-    );
+    let mut value =
+        litter::Litter::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
 
     // Setting to the same value should succeed
     value.set(vec![1u32, 2u32, 3u32]);
@@ -139,12 +136,8 @@ fn test_verify_mode_complex_value_mismatch() {
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
 
-    let mut value = litter::Litter::__new(
-        vec![1u32, 2u32, 3u32],
-        path.to_str().unwrap(),
-        line,
-        column,
-    );
+    let mut value =
+        litter::Litter::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
 
     // Setting to a different value should panic
     value.set(vec![1u32, 2u32, 3u32, 4u32]);

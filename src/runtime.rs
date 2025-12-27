@@ -219,14 +219,42 @@ impl FileState {
         use syn::visit::Visit;
         reader.visit_file(&*ast);
 
-        reader.tokens.ok_or_else(|| format!("Could not find litter! macro at index {}", index))
+        reader
+            .tokens
+            .ok_or_else(|| format!("Could not find litter! macro at index {}", index))
     }
 
     /// Write the current AST back to disk
+    /// Then runs cargo fmt on the file to match project's rustfmt.toml
     pub fn write_to_disk(&self, path: &Path) -> Result<(), io::Error> {
         let ast = self.ast.read();
         let formatted = prettyplease::unparse(&*ast);
         fs::write(path, formatted)?;
+
+        // Run cargo fmt on this specific file to match project's formatting rules
+        // This ensures stability with user running `cargo fmt` later
+        if let Some(path_str) = path.to_str() {
+            match std::process::Command::new("cargo")
+                .args(["fmt", "--", path_str])
+                .output()
+            {
+                Ok(output) if !output.status.success() => {
+                    eprintln!(
+                        "Warning: cargo fmt failed for {}: {}",
+                        path.display(),
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Warning: could not run cargo fmt for {}: {}",
+                        path.display(),
+                        e
+                    );
+                }
+                _ => {} // Success, no output needed
+            }
+        }
 
         Ok(())
     }
@@ -329,11 +357,17 @@ pub fn get_macro_index(path: &Path, line: u32, column: u32) -> Result<usize, io:
         }
 
         let state = states.get(path).unwrap();
-        state.get_index(line, column)
-            .ok_or_else(|| io::Error::new(
+        state.get_index(line, column).ok_or_else(|| {
+            io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("No litter! macro found at {}:{}:{}", path.display(), line, column)
-            ))
+                format!(
+                    "No litter! macro found at {}:{}:{}",
+                    path.display(),
+                    line,
+                    column
+                ),
+            )
+        })
     })
 }
 
@@ -346,7 +380,8 @@ pub fn update_macro_by_index(
     FILE_STATES.with(|states| {
         let states = states.borrow();
 
-        let state = states.get(path)
+        let state = states
+            .get(path)
             .ok_or("File state not found - was get_macro_index called first?")?;
 
         state.update_macro_by_index(index, new_tokens)?;
@@ -377,10 +412,10 @@ pub fn get_macro_tokens_by_index(
     FILE_STATES.with(|states| {
         let states = states.borrow();
 
-        let state = states.get(path)
+        let state = states
+            .get(path)
             .ok_or("File state not found - was get_macro_index called first?")?;
 
-        state.get_macro_tokens(index)
-            .map_err(|e| e.into())
+        state.get_macro_tokens(index).map_err(|e| e.into())
     })
 }

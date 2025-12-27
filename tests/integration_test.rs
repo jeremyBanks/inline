@@ -66,7 +66,8 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
             if is_litter {
                 let span = node.mac.path.segments.last().unwrap().ident.span();
                 let start = span.start();
-                self.positions.push((start.line as u32, start.column as u32));
+                self.positions
+                    .push((start.line as u32, start.column as u32));
             }
             syn::visit::visit_expr_macro(self, node);
         }
@@ -111,10 +112,7 @@ fn test_span_preservation() {
     finder.visit_file(&ast);
 
     // The macro should be at line 2 (1-indexed), some column
-    assert!(
-        finder.found_at.is_some(),
-        "Should find the litter macro"
-    );
+    assert!(finder.found_at.is_some(), "Should find the litter macro");
     let (line, _col) = finder.found_at.unwrap();
     assert_eq!(line, 2, "Macro should be on line 2");
 }
@@ -167,12 +165,7 @@ fn test() {
     let (line, column) = positions[0];
 
     // Create a Litter instance manually (simulating what the macro does)
-    let mut value = litter::Litter::__new(
-        42u32,
-        test_file.path.to_str().unwrap(),
-        line,
-        column,
-    );
+    let mut value = litter::Litter::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Update the value
     value.set(100u32);
@@ -202,12 +195,7 @@ fn test_litter_no_update_in_memory_mode() {
     assert_eq!(positions.len(), 1);
     let (line, column) = positions[0];
 
-    let mut value = litter::Litter::__new(
-        42u32,
-        test_file.path.to_str().unwrap(),
-        line,
-        column,
-    );
+    let mut value = litter::Litter::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Update the value
     value.set(100u32);
@@ -287,9 +275,18 @@ fn test_multiple_litters_in_same_file() {
 
     // All updates should have persisted
     let content = test_file.read();
-    assert!(content.contains("litter!(10u32)"), "Should contain updated a");
-    assert!(content.contains("litter!(20u32)"), "Should contain updated b");
-    assert!(content.contains("litter!(30u32)"), "Should contain updated c");
+    assert!(
+        content.contains("litter!(10u32)"),
+        "Should contain updated a"
+    );
+    assert!(
+        content.contains("litter!(20u32)"),
+        "Should contain updated b"
+    );
+    assert!(
+        content.contains("litter!(30u32)"),
+        "Should contain updated c"
+    );
 
     env::remove_var("LITTER_MODE");
 }
@@ -308,12 +305,7 @@ fn test_litter_no_change_optimization() {
     let positions = find_litter_positions(&test_file.path);
     let (line, column) = positions[0];
 
-    let mut value = litter::Litter::__new(
-        42u32,
-        test_file.path.to_str().unwrap(),
-        line,
-        column,
-    );
+    let mut value = litter::Litter::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Set to the same value
     value.set(42u32);

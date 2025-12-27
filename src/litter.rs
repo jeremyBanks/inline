@@ -34,11 +34,16 @@ impl<T: Literal> Litter<T> {
             return Ok(index);
         }
 
-        let index = crate::runtime::get_macro_index(&self.file, self.line, self.column)
-            .map_err(|e| format!(
-                "Failed to find litter! macro at {}:{}:{}\n{}",
-                self.file.display(), self.line, self.column, e
-            ))?;
+        let index =
+            crate::runtime::get_macro_index(&self.file, self.line, self.column).map_err(|e| {
+                format!(
+                    "Failed to find litter! macro at {}:{}:{}\n{}",
+                    self.file.display(),
+                    self.line,
+                    self.column,
+                    e
+                )
+            })?;
 
         self.macro_index = Some(index);
         Ok(index)
@@ -57,8 +62,14 @@ impl<T: Literal> Litter<T> {
     /// - Write: Writes the new value back to the source file
     /// - Reject: Always panics when trying to write
     pub fn set(&mut self, new_value: T) {
-        if self.value == new_value {
-            return; // No change needed
+        // Compare by baked tokens, not by PartialEq
+        // This way we only depend on Bake trait and detect actual semantic changes
+        let env = databake::CrateEnv::default();
+        let old_tokens = self.value.bake(&env).to_string();
+        let new_tokens = new_value.bake(&env).to_string();
+
+        if old_tokens == new_tokens {
+            return; // No change needed - baked representation is identical
         }
 
         let old_value = self.value.clone();
@@ -74,8 +85,12 @@ impl<T: Literal> Litter<T> {
         // In Reject mode, fail immediately
         if mode.should_reject_write() {
             self.value = old_value; // Rollback
-            panic!("Attempted to write in Reject mode at {}:{}:{}",
-                self.file.display(), self.line, self.column);
+            panic!(
+                "Attempted to write in Reject mode at {}:{}:{}",
+                self.file.display(),
+                self.line,
+                self.column
+            );
         }
 
         // For Verify or Write modes, we need file access
@@ -89,8 +104,13 @@ impl<T: Literal> Litter<T> {
         // In Verify mode: check that the new value matches the source file
         if mode == crate::runtime::Mode::Verify {
             if let Err(e) = self.verify_source(&new_value) {
-                panic!("Litter verification failed at {}:{}:{}\n{}",
-                    self.file.display(), self.line, self.column, e);
+                panic!(
+                    "Litter verification failed at {}:{}:{}\n{}",
+                    self.file.display(),
+                    self.line,
+                    self.column,
+                    e
+                );
             }
             return;
         }
@@ -104,7 +124,9 @@ impl<T: Literal> Litter<T> {
                     "Cannot write to source files outside of cargo environment!\n\
                      File: {}:{}:{}\n\
                      Hint: Run with 'cargo run' or 'cargo test', or use LITTER_MODE=memory",
-                    self.file.display(), self.line, self.column
+                    self.file.display(),
+                    self.line,
+                    self.column
                 );
             }
 
@@ -119,7 +141,9 @@ impl<T: Literal> Litter<T> {
     /// Internal: verify that the new value matches what's in the source file
     fn verify_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
         // Index must be resolved by now
-        let index = self.macro_index.expect("Index should be resolved before calling verify_source");
+        let index = self
+            .macro_index
+            .expect("Index should be resolved before calling verify_source");
 
         // Get the current tokens from the source file
         let current_tokens = crate::runtime::get_macro_tokens_by_index(&self.file, index)?;
@@ -136,7 +160,8 @@ impl<T: Literal> Litter<T> {
             return Err(format!(
                 "Value mismatch!\n  Expected: {}\n  Found in source: {}",
                 expected_str, current_str
-            ).into());
+            )
+            .into());
         }
 
         Ok(())
@@ -145,7 +170,9 @@ impl<T: Literal> Litter<T> {
     /// Internal: update the source file with the new value
     fn update_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
         // Index must be resolved by now
-        let index = self.macro_index.expect("Index should be resolved before calling update_source");
+        let index = self
+            .macro_index
+            .expect("Index should be resolved before calling update_source");
 
         // Bake the value to Rust code
         let env = databake::CrateEnv::default();
@@ -166,24 +193,6 @@ impl<T: Literal> Deref for Litter<T> {
     }
 }
 
-impl<T: Literal> PartialEq<T> for Litter<T> {
-    fn eq(&self, other: &T) -> bool {
-        self.value == *other
-    }
-}
-
-impl<T: Literal> Clone for Litter<T> {
-    fn clone(&self) -> Self {
-        Litter {
-            value: self.value.clone(),
-            file: self.file.clone(),
-            line: self.line,
-            column: self.column,
-            macro_index: self.macro_index,
-        }
-    }
-}
-
 impl<T: Literal + std::fmt::Debug> std::fmt::Debug for Litter<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Litter")
@@ -198,9 +207,9 @@ impl<T: Literal + std::fmt::Debug> std::fmt::Debug for Litter<T> {
 
 /// Check if we're running under cargo by looking for cargo-specific env vars
 fn is_running_under_cargo() -> bool {
-    std::env::var("CARGO").is_ok() ||
-    std::env::var("CARGO_MANIFEST_DIR").is_ok() ||
-    std::env::var("CARGO_PKG_NAME").is_ok()
+    std::env::var("CARGO").is_ok()
+        || std::env::var("CARGO_MANIFEST_DIR").is_ok()
+        || std::env::var("CARGO_PKG_NAME").is_ok()
 }
 
 /// Macro to create a Litter instance
