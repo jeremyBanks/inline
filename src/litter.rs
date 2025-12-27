@@ -43,8 +43,18 @@ impl<T: Literal> Litter<T> {
         let old_value = self.value.clone();
         self.value = new_value.clone();
 
-        // Only write if we're in Update mode
         let mode = crate::runtime::get_mode();
+
+        // In Verify mode: check that the new value matches the source file
+        if matches!(mode, crate::runtime::Mode::Verify) {
+            if let Err(e) = self.verify_source(&new_value) {
+                panic!("Litter verification failed at {}:{}\n{}",
+                    self.file.display(), self.macro_index, e);
+            }
+            return;
+        }
+
+        // In Update mode: write changes to disk
         if !mode.write() {
             return;
         }
@@ -55,6 +65,29 @@ impl<T: Literal> Litter<T> {
             self.value = old_value;
             eprintln!("Warning: Failed to update source file: {}", e);
         }
+    }
+
+    /// Internal: verify that the new value matches what's in the source file
+    fn verify_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
+        // Get the current tokens from the source file
+        let current_tokens = crate::runtime::get_macro_tokens_by_index(&self.file, self.macro_index)?;
+
+        // Bake the new value to Rust code
+        let env = databake::CrateEnv::default();
+        let expected_tokens = new_value.bake(&env);
+
+        // Normalize both token streams to strings for comparison
+        let current_str = current_tokens.to_string();
+        let expected_str = expected_tokens.to_string();
+
+        if current_str != expected_str {
+            return Err(format!(
+                "Value mismatch!\n  Expected: {}\n  Found in source: {}",
+                expected_str, current_str
+            ).into());
+        }
+
+        Ok(())
     }
 
     /// Internal: update the source file with the new value

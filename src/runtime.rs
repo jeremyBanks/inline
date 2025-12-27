@@ -171,6 +171,22 @@ impl FileState {
         Ok(())
     }
 
+    /// Get the current tokens of a litter macro at the given index
+    pub fn get_macro_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
+        let ast = self.ast.read();
+
+        let mut reader = IndexedMacroReader {
+            target_index: index,
+            current_index: 0,
+            tokens: None,
+        };
+
+        use syn::visit::Visit;
+        reader.visit_file(&*ast);
+
+        reader.tokens.ok_or_else(|| format!("Could not find litter! macro at index {}", index))
+    }
+
     /// Write the current AST back to disk
     pub fn write_to_disk(&self, path: &Path) -> Result<(), io::Error> {
         let ast = self.ast.read();
@@ -225,6 +241,47 @@ impl VisitMut for IndexedMacroUpdater {
     }
 }
 
+/// Visitor that reads the Nth litter! macro (by index)
+struct IndexedMacroReader {
+    target_index: usize,
+    current_index: usize,
+    tokens: Option<proc_macro2::TokenStream>,
+}
+
+impl IndexedMacroReader {
+    fn try_read_macro(&mut self, mac: &syn::Macro) {
+        if self.tokens.is_some() {
+            return;
+        }
+
+        let is_litter = if let Some(segment) = mac.path.segments.last() {
+            segment.ident == "litter"
+        } else {
+            false
+        };
+
+        if is_litter {
+            if self.current_index == self.target_index {
+                // Found our target!
+                self.tokens = Some(mac.tokens.clone());
+            }
+            self.current_index += 1;
+        }
+    }
+}
+
+impl<'ast> syn::visit::Visit<'ast> for IndexedMacroReader {
+    fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
+        self.try_read_macro(&node.mac);
+        syn::visit::visit_expr_macro(self, node);
+    }
+
+    fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
+        self.try_read_macro(&node.mac);
+        syn::visit::visit_stmt_macro(self, node);
+    }
+}
+
 /// Get the stable index for a litter macro at the given position
 pub fn get_macro_index(path: &Path, line: u32, column: u32) -> Result<usize, io::Error> {
     FILE_STATES.with(|states| {
@@ -275,4 +332,20 @@ pub fn update_source_file(
     let index = get_macro_index(path, line, column)?;
     update_macro_by_index(path, index, new_tokens)?;
     Ok(())
+}
+
+/// Get the current tokens of a litter macro by its stable index
+pub fn get_macro_tokens_by_index(
+    path: &Path,
+    index: usize,
+) -> Result<proc_macro2::TokenStream, Box<dyn std::error::Error>> {
+    FILE_STATES.with(|states| {
+        let states = states.borrow();
+
+        let state = states.get(path)
+            .ok_or("File state not found - was get_macro_index called first?")?;
+
+        state.get_macro_tokens(index)
+            .map_err(|e| e.into())
+    })
 }
