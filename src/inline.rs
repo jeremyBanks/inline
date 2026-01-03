@@ -222,13 +222,13 @@ fn is_running_under_cargo() -> bool {
 /// This type wraps a `MutexGuard` to an [`LiteralInner<T>`] and provides
 /// convenient access to the value with a single dereference.
 ///
-/// Created via the [`literal!`](macro@crate::inline) macro. The lock is held
+/// Created via the [`literal!`](macro@crate::literal) macro. The lock is held
 /// for the entire lifetime of this value.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use inline::inline;
+/// use jeb_literal::literal;
 ///
 /// let mut counter = literal!(0u32);
 /// println!("Value: {}", *counter);  // Single deref
@@ -299,7 +299,7 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 /// # Example
 ///
 /// ```no_run
-/// use inline::inline;
+/// use jeb_literal::literal;
 ///
 /// let mut counter = literal!(0u32);
 /// let current = *counter;  // Single dereference

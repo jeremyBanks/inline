@@ -44,7 +44,7 @@ fn test_verify_mode_matching_value() {
 
     // Write a file with a inline value
     let content = r#"fn test() {
-    let x = inline::literal!(42u32);
+    let x = jeb_literal::literal!(42u32);
 }
 "#;
     fs::write(&path, content).unwrap();
@@ -64,14 +64,14 @@ fn test_verify_mode_matching_value() {
 }
 
 #[test]
-#[should_panic(expected = "Inline verification failed")]
+#[should_panic(expected = "Literal verification failed")]
 fn test_verify_mode_mismatched_value() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("test.rs");
 
     // Write a file with a inline value
     let content = r#"fn test() {
-    let x = inline::literal!(42u32);
+    let x = jeb_literal::literal!(42u32);
 }
 "#;
     fs::write(&path, content).unwrap();
@@ -97,7 +97,7 @@ fn test_verify_mode_complex_value() {
 
     // Write a file with a complex inline value
     let content = r#"fn test() {
-    let x = inline::literal!(vec![1u32, 2u32, 3u32]);
+    let x = jeb_literal::literal!(vec![1u32, 2u32, 3u32]);
 }
 "#;
     fs::write(&path, content).unwrap();
@@ -118,14 +118,14 @@ fn test_verify_mode_complex_value() {
 }
 
 #[test]
-#[should_panic(expected = "Inline verification failed")]
+#[should_panic(expected = "Literal verification failed")]
 fn test_verify_mode_complex_value_mismatch() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("test.rs");
 
     // Write a file with a complex inline value
     let content = r#"fn test() {
-    let x = inline::literal!(vec![1u32, 2u32, 3u32]);
+    let x = jeb_literal::literal!(vec![1u32, 2u32, 3u32]);
 }
 "#;
     fs::write(&path, content).unwrap();
