@@ -229,25 +229,32 @@ fn is_running_under_cargo() -> bool {
 
 /// Create a self-modifying value that can update its source code.
 ///
-/// The macro captures the source location and creates an `Inline<T>` wrapper
-/// around the provided value.
+/// The macro captures the source location and returns a `'static` reference
+/// to a `Mutex<Inline<T>>` that persists across function calls.
 ///
 /// # Example
 ///
 /// ```no_run
 /// use inline::inline;
 ///
-/// let mut counter = inline!(0u32);
-/// counter.set(1);
+/// let counter = inline!(0u32);
+/// counter.lock().set(1);
 /// // In Write mode, the source file is updated
+/// // On subsequent runs, the value persists
 /// ```
 ///
 /// # Requirements
 ///
 /// The value type must implement the `Bake` trait from the `databake` crate.
+///
+/// # Returns
+///
+/// A `'static` reference to a `Mutex<Inline<T>>`. Use `.lock()` to access
+/// the value. The same reference is returned for all calls from the same
+/// source location within the same program execution.
 #[macro_export]
 macro_rules! inline {
     ($value:expr) => {{
-        $crate::Inline::__new($value, file!(), line!(), column!())
+        $crate::registry::get_or_create($value, file!(), line!(), column!())
     }};
 }
