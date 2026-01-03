@@ -14,9 +14,9 @@ use std::path::PathBuf;
 /// ```no_run
 /// use inline::inline;
 ///
-/// let value = inline!(42u32);
-/// assert_eq!(**value.lock(), 42);
-/// value.lock().set(100);
+/// let mut value = inline!(42u32);
+/// assert_eq!(**value, 42);
+/// value.set(100);
 /// // In Write mode, the source file now contains inline!(100u32)
 /// ```
 pub struct Inline<T: Literal> {
@@ -229,18 +229,20 @@ fn is_running_under_cargo() -> bool {
 
 /// Create a self-modifying value that can update its source code.
 ///
-/// The macro captures the source location and returns a `'static` reference
-/// to a `Mutex<Inline<T>>` that persists across function calls.
+/// The macro captures the source location and returns a lock guard to an
+/// `Inline<T>` that persists across function calls. The lock is held until
+/// the guard is dropped.
 ///
 /// # Example
 ///
 /// ```no_run
 /// use inline::inline;
 ///
-/// let counter = inline!(0u32);
-/// counter.lock().set(1);
+/// let mut counter = inline!(0u32);
+/// let current = **counter;
+/// counter.set(current + 1);
 /// // In Write mode, the source file is updated
-/// // On subsequent runs, the value persists
+/// // Lock is released when counter goes out of scope
 /// ```
 ///
 /// # Requirements
@@ -249,12 +251,12 @@ fn is_running_under_cargo() -> bool {
 ///
 /// # Returns
 ///
-/// A `'static` reference to a `Mutex<Inline<T>>`. Use `.lock()` to access
-/// the value. The same reference is returned for all calls from the same
-/// source location within the same program execution.
+/// A `MutexGuard<'static, Inline<T>>` that holds the lock for its lifetime.
+/// Derefs to `&Inline<T>`, which in turn derefs to `&T`. The same underlying
+/// value is returned for all calls from the same source location.
 #[macro_export]
 macro_rules! inline {
     ($value:expr) => {{
-        $crate::registry::get_or_create($value, file!(), line!(), column!())
+        $crate::registry::get_or_create($value, file!(), line!(), column!()).lock()
     }};
 }
