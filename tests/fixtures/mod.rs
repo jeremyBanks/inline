@@ -8,3 +8,4 @@ pub mod counter_c;
 pub mod counter_d;
 pub mod counter_e;
 pub mod counter_f;
+pub mod counter_g;

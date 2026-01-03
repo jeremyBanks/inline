@@ -294,3 +294,156 @@ fn test_formatting_preservation() {
         original_line_count, modified_line_count
     );
 }
+
+#[test]
+fn test_multiple_macros_same_file() {
+    // Test modifying multiple different litter! macros in the same file
+    // in various orders, including on the same line and different lines
+    env::set_var("LITTER_MODE", "write");
+
+    let mut first = fixtures::counter_g::get_first();
+    let mut second = fixtures::counter_g::get_second();
+    let mut third = fixtures::counter_g::get_third();
+
+    // Verify initial values
+    assert_eq!(*first.get(), 10u32);
+    assert_eq!(*second.get(), 20u32);
+    assert_eq!(*third.get(), 30u32);
+
+    // Modify first macro
+    first.set(100u32);
+    let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
+    assert!(disk.contains("litter!(100u32)"));
+    assert!(disk.contains("litter!(20u32)"));
+    assert!(disk.contains("litter!(30u32)"));
+
+    // Modify second macro
+    second.set(200u32);
+    let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
+    assert!(disk.contains("litter!(100u32)"));
+    assert!(disk.contains("litter!(200u32)"));
+    assert!(disk.contains("litter!(30u32)"));
+
+    // Modify third macro
+    third.set(300u32);
+    let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
+    assert!(disk.contains("litter!(100u32)"));
+    assert!(disk.contains("litter!(200u32)"));
+    assert!(disk.contains("litter!(300u32)"));
+
+    // Modify first again
+    first.set(111u32);
+    let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
+    assert!(disk.contains("litter!(111u32)"));
+    assert!(disk.contains("litter!(200u32)"));
+    assert!(disk.contains("litter!(300u32)"));
+
+    // Modify in reverse order
+    third.set(333u32);
+    second.set(222u32);
+    first.set(11u32);
+    let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
+    assert!(disk.contains("litter!(11u32)"));
+    assert!(disk.contains("litter!(222u32)"));
+    assert!(disk.contains("litter!(333u32)"));
+
+    // Restore all to defaults
+    first.set(10u32);
+    second.set(20u32);
+    third.set(30u32);
+    let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
+    assert!(disk.contains("litter!(10u32)"));
+    assert!(disk.contains("litter!(20u32)"));
+    assert!(disk.contains("litter!(30u32)"));
+
+    env::remove_var("LITTER_MODE");
+}
+
+#[test]
+fn test_multiple_files_interleaved() {
+    // Test modifying macros across multiple files in arbitrary order
+    env::set_var("LITTER_MODE", "write");
+
+    let mut counter_a = fixtures::counter_a::get();
+    let mut counter_b = fixtures::counter_b::get();
+    let mut config_a = fixtures::config_a::get();
+    let mut counter_d = fixtures::counter_d::get();
+
+    // Verify all start at defaults
+    assert_eq!(*counter_a.get(), 0u32);
+    assert_eq!(*counter_b.get(), 0u32);
+    assert_eq!(config_a.get().as_str(), "default");
+    assert_eq!(*counter_d.get(), 0u32);
+
+    // Modify in arbitrary interleaved order
+    counter_a.set(1u32);
+    assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
+        .unwrap()
+        .contains("litter!(1u32)"));
+
+    counter_b.set(2u32);
+    assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
+        .unwrap()
+        .contains("litter!(2u32)"));
+
+    counter_a.set(11u32); // Modify counter_a again
+    assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
+        .unwrap()
+        .contains("litter!(11u32)"));
+
+    config_a.set("test_value".to_string());
+    assert!(fs::read_to_string("tests/fixtures/config_a.rs")
+        .unwrap()
+        .contains(r#""test_value""#));
+
+    counter_d.set(4u32);
+    assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
+        .unwrap()
+        .contains("litter!(4u32)"));
+
+    counter_b.set(22u32); // Modify counter_b again
+    assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
+        .unwrap()
+        .contains("litter!(22u32)"));
+
+    counter_a.set(111u32); // Modify counter_a third time
+    assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
+        .unwrap()
+        .contains("litter!(111u32)"));
+
+    // Verify all files have correct values
+    assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
+        .unwrap()
+        .contains("litter!(111u32)"));
+    assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
+        .unwrap()
+        .contains("litter!(22u32)"));
+    assert!(fs::read_to_string("tests/fixtures/config_a.rs")
+        .unwrap()
+        .contains(r#""test_value""#));
+    assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
+        .unwrap()
+        .contains("litter!(4u32)"));
+
+    // Restore all to defaults
+    counter_a.set(0u32);
+    counter_b.set(0u32);
+    config_a.set("default".to_string());
+    counter_d.set(0u32);
+
+    // Verify restoration
+    assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
+        .unwrap()
+        .contains("litter!(0u32)"));
+    assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
+        .unwrap()
+        .contains("litter!(0u32)"));
+    assert!(fs::read_to_string("tests/fixtures/config_a.rs")
+        .unwrap()
+        .contains(r#""default""#));
+    assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
+        .unwrap()
+        .contains("litter!(0u32)"));
+
+    env::remove_var("LITTER_MODE");
+}
