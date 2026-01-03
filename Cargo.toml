@@ -1,8 +1,16 @@
 [package]
 name = "inline"
-license = "MIT OR Apache-2.0"
 version = "0.20220713.0"
 edition = "2021"
+authors = ["Jeremy Banks"]
+license = "MIT OR Apache-2.0"
+description = "Self-modifying values that update their source code at runtime"
+repository = "https://github.com/jeremyBanks/inline"
+homepage = "https://github.com/jeremyBanks/inline"
+documentation = "https://docs.rs/inline"
+readme = "README.md"
+keywords = ["snapshot", "testing", "self-modifying", "codegen"]
+categories = ["development-tools::testing", "development-tools"]
 
 [dependencies]
 once_cell = "1.13.0"

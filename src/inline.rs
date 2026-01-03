@@ -2,8 +2,23 @@ use crate::literal::Literal;
 use std::ops::Deref;
 use std::path::PathBuf;
 
-/// A self-modifying value that can update itself in source code
-/// Uses a stable index to track its position in the AST
+/// A self-modifying value that can update itself in source code.
+///
+/// This type wraps a value and provides the ability to update both the
+/// in-memory value and its representation in the source code file.
+///
+/// Created via the [`inline!`](macro@crate::inline) macro, which captures the source location.
+///
+/// # Example
+///
+/// ```no_run
+/// use inline::inline;
+///
+/// let mut value = inline!(42u32);
+/// assert_eq!(*value, 42);
+/// value.set(100);
+/// // In Write mode, the source file now contains inline!(100u32)
+/// ```
 pub struct Inline<T: Literal> {
     value: T,
     file: PathBuf,
@@ -212,7 +227,24 @@ fn is_running_under_cargo() -> bool {
         || std::env::var("CARGO_PKG_NAME").is_ok()
 }
 
-/// Macro to create a Inline instance
+/// Create a self-modifying value that can update its source code.
+///
+/// The macro captures the source location and creates an `Inline<T>` wrapper
+/// around the provided value.
+///
+/// # Example
+///
+/// ```no_run
+/// use inline::inline;
+///
+/// let mut counter = inline!(0u32);
+/// counter.set(1);
+/// // In Write mode, the source file is updated
+/// ```
+///
+/// # Requirements
+///
+/// The value type must implement the `Bake` trait from the `databake` crate.
 #[macro_export]
 macro_rules! inline {
     ($value:expr) => {{

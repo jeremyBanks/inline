@@ -1,12 +1,10 @@
 # Inline
 
-<img src="assets/inline.jpg" align="right" alt="a drawing showing papers littered on the ground, dirty and crumpled, with indistinct writing" height="196" />
-
 `inline` provides mutable literals as smart pointers into your source code.
 
 ## Overview
 
-Inline lets you create values that can update themselves in your source code. It's like snapshot testing, but for any data in your program.
+Inline lets you create values that can update themselves in your source code. This is an experimental approach to snapshot testing and self-modifying code in Rust.
 
 ```rust
 use inline::inline;
@@ -77,8 +75,8 @@ INLINE_MODE=write cargo test         # Update all snapshots
    - Updates the in-memory value
    - Parses the source file
    - Finds the macro at the recorded location
-   - Replaces its content with the baked new value
-   - Formats and writes the file back
+   - Uses character-range splicing to replace only the macro's value
+   - Writes the file back (original formatting is preserved)
 
 ## Supported Types
 
@@ -98,19 +96,22 @@ See the `examples/` directory for complete examples:
 
 ## Use Cases
 
-- **Self-Executing Scripts**: Rust scripts that remember state between runs
-- **Learning Programs**: Code that adapts based on execution history
-- **Dynamic Configuration**: Config that evolves with usage
-- **Development Tools**: Scripts that track their own usage patterns
+- Snapshot testing for complex data structures
+- Counters and state that persists between test runs
+- Self-updating configuration values during development
+- Experimental self-modifying code patterns
+
+Note: This is an experimental library. Production use is not recommended.
 
 ## Implementation Details
 
 ### Architecture
 
-- Global per-file locking prevents concurrent modification
-- Immediate writes (no batching or delayed flushing)
-- Uses `syn` for parsing, `prettyplease` for formatting
-- Requires `proc-macro2` with `span-locations` feature for position tracking
+- Per-file shared state with thread-local caching for performance
+- Character-range splicing preserves original formatting
+- Uses `syn` for parsing, `proc-macro2` for span locations
+- Thread-safe with RwLock synchronization
+- Detects concurrent external file modifications
 
 ### Assumptions
 
