@@ -50,6 +50,7 @@
 mod literal;
 mod inline;
 pub mod runtime;
+pub mod registry;
 
 pub use literal::*;
 pub use inline::*;
