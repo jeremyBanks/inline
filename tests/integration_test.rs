@@ -11,8 +11,12 @@ struct TestFile {
 
 impl TestFile {
     fn new(content: &str) -> Self {
+        Self::with_name(content, "test.rs")
+    }
+
+    fn with_name(content: &str, filename: &str) -> Self {
         let dir = TempDir::new().unwrap();
-        let path = dir.path().join("test.rs");
+        let path = dir.path().join(filename);
         fs::write(&path, content).unwrap();
         TestFile { _dir: dir, path }
     }
@@ -149,12 +153,13 @@ fn test_update_source_file() {
 #[test]
 fn test_litter_basic_update() {
     // Test using the actual Litter API
-    let test_file = TestFile::new(
+    let test_file = TestFile::with_name(
         r#"#[allow(unused)]
 fn test() {
     let x = litter::litter!(42u32);
 }
 "#,
+        "test_litter_basic_update.rs",
     );
 
     env::set_var("LITTER_MODE", "write");

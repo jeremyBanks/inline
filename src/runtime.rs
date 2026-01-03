@@ -81,9 +81,6 @@ pub fn get_mode() -> Mode {
     Mode::default_for_context()
 }
 
-/// Convenience constant for accessing mode
-pub static MODE: Lazy<Mode> = Lazy::new(get_mode);
-
 /// Shared state across threads - the formatted source code is the source of truth
 #[derive(Clone)]
 struct SharedState {
