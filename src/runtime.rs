@@ -246,22 +246,47 @@ impl FileState {
     }
 
     /// Get the stable index for a macro at the given position
+    ///
+    /// Note: column matching is flexible because column!() returns the start of the
+    /// macro invocation (e.g., "litter::litter!") but syn's span might point to
+    /// the last segment. We match on line and find the closest macro on that line.
     pub fn get_index(&self, line: u32, column: u32) -> Result<usize, io::Error> {
         let (_, position_to_index) = self.get_cached_ast()?;
-        position_to_index
-            .get(&(line, column))
-            .copied()
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!(
-                        "No litter! macro found at {}:{}:{}",
-                        self.path.display(),
-                        line,
-                        column
-                    ),
-                )
-            })
+
+        // First try exact match
+        if let Some(&index) = position_to_index.get(&(line, column)) {
+            return Ok(index);
+        }
+
+        // If no exact match, find all macros on the same line
+        let macros_on_line: Vec<_> = position_to_index
+            .iter()
+            .filter(|((l, _c), _idx)| *l == line)
+            .collect();
+
+        if macros_on_line.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!(
+                    "No litter! macro found on line {} in {}",
+                    line,
+                    self.path.display()
+                ),
+            ));
+        }
+
+        // If there's only one macro on this line, use it
+        if macros_on_line.len() == 1 {
+            return Ok(*macros_on_line[0].1);
+        }
+
+        // Multiple macros on same line - find closest by column
+        let closest = macros_on_line
+            .iter()
+            .min_by_key(|((_, c), _)| (*c as i32 - column as i32).abs())
+            .unwrap();
+
+        Ok(*closest.1)
     }
 
     /// Update the macro at the given index with new tokens
