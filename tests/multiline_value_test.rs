@@ -11,15 +11,15 @@ fn test_very_long_value_formatting() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = litter!(1u32);
-    let b = litter!(2u32);
+    let a = inline!(1u32);
+    let b = inline!(2u32);
 }
 "#;
     fs::write(&path, original).unwrap();
     println!("=== ORIGINAL ===");
     println!("{}", original);
 
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
@@ -28,7 +28,7 @@ fn test_very_long_value_formatting() {
     println!("Initial: a at line {}, b at line {}", a_line, b_line);
 
     // Create a very large number (will this cause line wrapping?)
-    let mut litter_a = litter::Litter::__new(1u32, path.to_str().unwrap(), a_line, a_col);
+    let mut litter_a = inline::Inline::__new(1u32, path.to_str().unwrap(), a_line, a_col);
 
     // Update to maximum u32 value
     litter_a.set(4294967295u32);
@@ -55,7 +55,7 @@ fn test_very_long_value_formatting() {
         println!("\n✓ Line numbers stable even with large value");
     }
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
@@ -66,15 +66,15 @@ fn test_tuple_value_formatting() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = litter!((1u32, 2u32, 3u32));
-    let b = litter!(100u32);
+    let a = inline!((1u32, 2u32, 3u32));
+    let b = inline!(100u32);
 }
 "#;
     fs::write(&path, original).unwrap();
     println!("=== ORIGINAL ===");
     println!("{}", original);
 
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
@@ -83,7 +83,7 @@ fn test_tuple_value_formatting() {
     println!("Initial: a at line {}, b at line {}", a_line, b_line);
 
     let mut litter_a =
-        litter::Litter::__new((1u32, 2u32, 3u32), path.to_str().unwrap(), a_line, a_col);
+        inline::Inline::__new((1u32, 2u32, 3u32), path.to_str().unwrap(), a_line, a_col);
 
     // Update to different tuple
     litter_a.set((999u32, 888u32, 777u32));
@@ -106,7 +106,7 @@ fn test_tuple_value_formatting() {
 
     println!("\n✓ Line numbers stable with tuple values");
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
@@ -121,7 +121,7 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
     impl<'ast> Visit<'ast> for MacroCollector {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             let is_litter = if let Some(segment) = node.mac.path.segments.last() {
-                segment.ident == "litter"
+                segment.ident == "inline"
             } else {
                 false
             };

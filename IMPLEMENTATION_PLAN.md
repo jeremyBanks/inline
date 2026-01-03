@@ -1,4 +1,4 @@
-# Litter Implementation Plan
+# Inline Implementation Plan
 
 ## Overview
 Implement self-modifying literals that use databake for serialization and maintain a stable in-memory AST per source file.
@@ -16,12 +16,12 @@ struct FileState {
 ```
 
 **Rationale**:
-- One AST per file, shared by all litter instances in that file
+- One AST per file, shared by all inline instances in that file
 - File-level locking prevents concurrent modification races
 - Arc allows cloning the reference while keeping single instance
 
 ### 2. Location-Based Identification
-- Each `Litter` stores `(file, line, column)` from macro expansion
+- Each `Inline` stores `(file, line, column)` from macro expansion
 - Locations are stable because we only modify macro token contents
 - No need for unique IDs or complex indexing
 
@@ -99,22 +99,22 @@ impl FileState {
 }
 ```
 
-#### 1.3 Implement `litter.rs` Core Type
+#### 1.3 Implement `inline.rs` Core Type
 ```rust
 use databake::Bake;
 use std::path::PathBuf;
 
-pub struct Litter<T: Bake + PartialEq + Clone> {
+pub struct Inline<T: Bake + PartialEq + Clone> {
     value: T,
     file: PathBuf,
     line: u32,
     column: u32,
 }
 
-impl<T: Bake + PartialEq + Clone> Litter<T> {
+impl<T: Bake + PartialEq + Clone> Inline<T> {
     #[doc(hidden)]
     pub fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
-        Litter {
+        Inline {
             value,
             file: PathBuf::from(file),
             line,
@@ -179,9 +179,9 @@ struct FileState {
 #### 1.4 Implement Macro
 ```rust
 #[macro_export]
-macro_rules! litter {
+macro_rules! inline {
     ($value:expr) => {{
-        $crate::Litter::__new(
+        $crate::Inline::__new(
             $value,
             file!(),
             line!(),
@@ -211,9 +211,9 @@ impl VisitMut for MacroReplacer {
             return;
         }
 
-        // Check if this is the litter macro we're looking for
+        // Check if this is the inline macro we're looking for
         if let Some(ident) = node.mac.path.get_ident() {
-            if ident == "litter" {
+            if ident == "inline" {
                 let span = ident.span();
                 let start = span.start();
 
@@ -250,7 +250,7 @@ impl FileState {
 
         if !replacer.found {
             return Err(format!(
-                "Could not find litter! macro at line {}, column {}",
+                "Could not find inline! macro at line {}, column {}",
                 line, column
             ));
         }
@@ -280,20 +280,20 @@ fn setup_test_file(content: &str) -> (TempDir, PathBuf) {
 #[test]
 fn test_simple_update() {
     let (_dir, path) = setup_test_file(r#"
-        use litter::litter;
+        use inline::inline;
 
         fn main() {
-            let x = litter!(42);
+            let x = inline!(42);
         }
     "#);
 
-    // TODO: Create Litter instance, update, verify file changed
+    // TODO: Create Inline instance, update, verify file changed
 }
 ```
 
 #### 3.2 Test Cases
-1. **Single value update**: Update one litter, verify AST changes
-2. **Multiple values**: Two litter in same file, update both
+1. **Single value update**: Update one inline, verify AST changes
+2. **Multiple values**: Two inline in same file, update both
 3. **Type preservation**: Ensure baked type matches original
 4. **Concurrent updates**: Spawn threads updating different litters
 5. **Error handling**: Invalid file, parse errors, etc.
@@ -317,7 +317,7 @@ fn verify_file_contains(path: &Path, expected: &str) {
 ```rust
 let source = r#"
 fn main() {
-    let x = litter!(42);
+    let x = inline!(42);
 }
 "#;
 let ast = syn::parse_file(source).unwrap();
@@ -355,10 +355,10 @@ replacer.visit_file_mut(&mut *ast_ref);
 
 Target usage:
 ```rust
-use litter::litter;
+use inline::inline;
 
 fn main() {
-    let mut counter = litter!(0u32);
+    let mut counter = inline!(0u32);
 
     println!("Run #{}", counter.get() + 1);
 
@@ -368,15 +368,15 @@ fn main() {
 
 After first run, source becomes:
 ```rust
-let mut counter = litter!(1u32);
+let mut counter = inline!(1u32);
 ```
 
 ## Implementation Order
 
 1. ✅ Update Cargo.toml
 2. ✅ Implement FileState with RefCell
-3. ✅ Implement Litter<T> struct
-4. ✅ Implement litter! macro
+3. ✅ Implement Inline<T> struct
+4. ✅ Implement inline! macro
 5. ✅ Implement MacroReplacer visitor
 6. ✅ Write span preservation test
 7. ✅ Write simple update test
@@ -388,13 +388,13 @@ let mut counter = litter!(1u32);
 ## Open Questions
 
 1. **Span accuracy**: Do we get accurate line/column from syn::parse_file?
-2. **Macro contexts**: Does litter! work in all positions (expr, stmt, const, etc.)?
-3. **Type inference**: Can we avoid explicit type annotations like `litter!(42u32)`?
+2. **Macro contexts**: Does inline! work in all positions (expr, stmt, const, etc.)?
+3. **Type inference**: Can we avoid explicit type annotations like `inline!(42u32)`?
 4. **Performance**: Is parsing/formatting on every update acceptable?
 
 ## Success Criteria
 
-- [ ] Can update a single litter value
+- [ ] Can update a single inline value
 - [ ] Updates persist to source file
 - [ ] Multiple litters in same file work
 - [ ] Concurrent updates don't corrupt file

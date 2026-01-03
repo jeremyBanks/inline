@@ -8,7 +8,7 @@ fn debug_litter_update() {
     let path = dir.path().join("test.rs");
 
     // Write a simple file with qualified path
-    let content = "fn main() {\n    let x = litter::litter!(42u32);\n}\n";
+    let content = "fn main() {\n    let x = inline::inline!(42u32);\n}\n";
     fs::write(&path, content).unwrap();
     println!("Original file content:");
     println!("{}", content);
@@ -25,9 +25,9 @@ fn debug_litter_update() {
 
     impl<'ast> Visit<'ast> for MacroFinder {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            // Check if this is a litter macro (might be just "litter" or "litter::litter")
+            // Check if this is a inline macro (might be just "inline" or "inline::inline")
             let is_litter = if let Some(segments) = node.mac.path.segments.iter().last() {
-                segments.ident == "litter"
+                segments.ident == "inline"
             } else {
                 false
             };
@@ -38,7 +38,7 @@ fn debug_litter_update() {
                 self.line = Some(start.line as u32);
                 self.column = Some(start.column as u32);
                 println!(
-                    "Found litter macro at line {}, column {}",
+                    "Found inline macro at line {}, column {}",
                     start.line, start.column
                 );
             }
@@ -55,10 +55,10 @@ fn debug_litter_update() {
     let column = finder.column.unwrap();
 
     // Now try to update it
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let new_tokens: proc_macro2::TokenStream = "100u32".parse().unwrap();
-    match litter::update_source_file(&path, line, column, new_tokens) {
+    match inline::update_source_file(&path, line, column, new_tokens) {
         Ok(_) => println!("Update succeeded!"),
         Err(e) => println!("Update failed: {}", e),
     }
@@ -66,5 +66,5 @@ fn debug_litter_update() {
     println!("\nFile content after update:");
     println!("{}", fs::read_to_string(&path).unwrap());
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }

@@ -1,4 +1,4 @@
-# Future Research Topics for Litter
+# Future Research Topics for Inline
 
 ## Cargo Script Compatibility
 
@@ -17,11 +17,11 @@ Investigate compatibility with `cargo-script` / `rust-script` for single-file Ru
 #!/usr/bin/env rust-script
 //! ```cargo
 //! [dependencies]
-//! litter = "0.20220713"
+//! inline = "0.20220713"
 //! ```
 
 fn main() {
-    let config = litter!(42);
+    let config = inline!(42);
     // Script modifies its own config value
     config.set(calculate_new_value());
 }
@@ -31,7 +31,7 @@ fn main() {
 
 - **Performance**: Benchmark AST parsing/traversal overhead for large files
 - **Error Recovery**: Better error messages when macros can't be found
-- **Multi-file Support**: Track litter values across module boundaries
+- **Multi-file Support**: Track inline values across module boundaries
 - **IDE Integration**: LSP support for showing current vs. source values
 - **Serialization Formats**: Support JSON/TOML/YAML in addition to Rust syntax
 - **Diff Visualization**: Show what changed when updating snapshots

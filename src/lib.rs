@@ -1,7 +1,7 @@
 mod literal;
-mod litter;
+mod inline;
 pub mod runtime;
 
 pub use literal::*;
-pub use litter::*;
+pub use inline::*;
 pub use runtime::*;

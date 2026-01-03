@@ -1,4 +1,4 @@
-# Test Strategy for Litter
+# Test Strategy for Inline
 
 ## Testing Approach
 
@@ -56,7 +56,7 @@ impl TestFile {
 #[test]
 fn test_span_preservation() {
     let source = r#"fn main() {
-    let x = litter!(42);
+    let x = inline!(42);
 }"#;
 
     let ast = syn::parse_file(source).unwrap();
@@ -71,7 +71,7 @@ fn test_span_preservation() {
     impl<'ast> Visit<'ast> for MacroFinder {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             if let Some(ident) = node.mac.path.get_ident() {
-                if ident == "litter" {
+                if ident == "inline" {
                     let span = ident.span();
                     let start = span.start();
                     self.found_at = Some((start.line, start.column));
@@ -99,14 +99,14 @@ fn test_span_preservation() {
 #[test]
 fn test_file_state_load() {
     let test_file = TestFile::new(r#"
-use litter::litter;
+use inline::inline;
 
 fn main() {
-    let x = litter!(42);
+    let x = inline!(42);
 }
 "#);
 
-    let state = litter::runtime::FileState::load(&test_file.path);
+    let state = inline::runtime::FileState::load(&test_file.path);
     assert!(state.is_ok(), "Should successfully load file");
 }
 ```
@@ -119,14 +119,14 @@ fn main() {
 #[test]
 fn test_macro_replacement() {
     let test_file = TestFile::new(r#"
-use litter::litter;
+use inline::inline;
 
 fn main() {
-    let x = litter!(42);
+    let x = inline!(42);
 }
 "#);
 
-    let mut state = litter::runtime::FileState::load(&test_file.path).unwrap();
+    let mut state = inline::runtime::FileState::load(&test_file.path).unwrap();
 
     // Replace the value at line 5, column 13 (approximately)
     let new_tokens: proc_macro2::TokenStream = "100".parse().unwrap();
@@ -137,29 +137,29 @@ fn main() {
     // Write back and verify
     state.write_to_disk(&test_file.path).unwrap();
 
-    test_file.assert_contains("litter!(100)");
-    assert!(!test_file.contains("litter!(42)"));
+    test_file.assert_contains("inline!(100)");
+    assert!(!test_file.contains("inline!(42)"));
 }
 ```
 
-### Test 4: Single Litter Update
+### Test 4: Single Inline Update
 
-**Purpose**: End-to-end test of updating a Litter value.
+**Purpose**: End-to-end test of updating a Inline value.
 
 ```rust
 #[test]
 fn test_single_litter_update() {
-    // This test is tricky because we need to actually construct a Litter
+    // This test is tricky because we need to actually construct a Inline
     // instance that points to a real file...
 
     // For now, test the logic without the macro:
     let test_file = TestFile::new(r#"
 fn test() {
-    let x = litter!(42u32);
+    let x = inline!(42u32);
 }
 "#);
 
-    let mut litter = litter::Litter::__new(
+    let mut inline = inline::Inline::__new(
         42u32,
         test_file.path.to_str().unwrap(),
         3,  // line
@@ -167,10 +167,10 @@ fn test() {
     );
 
     // Update the value
-    litter.set(100u32);
+    inline.set(100u32);
 
     // Check file was updated
-    test_file.assert_contains("litter!(100u32)");
+    test_file.assert_contains("inline!(100u32)");
 }
 ```
 
@@ -183,15 +183,15 @@ fn test() {
 fn test_multiple_litters() {
     let test_file = TestFile::new(r#"
 fn test() {
-    let a = litter!(1u32);
-    let b = litter!(2u32);
-    let c = litter!(3u32);
+    let a = inline!(1u32);
+    let b = inline!(2u32);
+    let c = inline!(3u32);
 }
 "#);
 
-    let mut litter_a = litter::Litter::__new(1u32, test_file.path.to_str().unwrap(), 3, 13);
-    let mut litter_b = litter::Litter::__new(2u32, test_file.path.to_str().unwrap(), 4, 13);
-    let mut litter_c = litter::Litter::__new(3u32, test_file.path.to_str().unwrap(), 5, 13);
+    let mut litter_a = inline::Inline::__new(1u32, test_file.path.to_str().unwrap(), 3, 13);
+    let mut litter_b = inline::Inline::__new(2u32, test_file.path.to_str().unwrap(), 4, 13);
+    let mut litter_c = inline::Inline::__new(3u32, test_file.path.to_str().unwrap(), 5, 13);
 
     // Update in various orders
     litter_b.set(20u32);
@@ -200,9 +200,9 @@ fn test() {
 
     // Verify all updates persisted
     let content = test_file.read();
-    assert!(content.contains("litter!(10u32)"));
-    assert!(content.contains("litter!(20u32)"));
-    assert!(content.contains("litter!(30u32)"));
+    assert!(content.contains("inline!(10u32)"));
+    assert!(content.contains("inline!(20u32)"));
+    assert!(content.contains("inline!(30u32)"));
 }
 ```
 
@@ -217,7 +217,7 @@ fn test_databake_types() {
 
     let test_file = TestFile::new(r#"
 fn test() {
-    let v = litter!(vec![1, 2, 3]);
+    let v = inline!(vec![1, 2, 3]);
 }
 "#);
 
@@ -244,8 +244,8 @@ fn test_concurrent_updates() {
 
     let test_file = TestFile::new(r#"
 fn test() {
-    let a = litter!(0u32);
-    let b = litter!(0u32);
+    let a = inline!(0u32);
+    let b = inline!(0u32);
 }
 "#);
 
@@ -254,13 +254,13 @@ fn test() {
     let handles: Vec<_> = (0..10).map(|i| {
         let path = path.clone();
         thread::spawn(move || {
-            let mut litter = litter::Litter::__new(
+            let mut inline = inline::Inline::__new(
                 0u32,
                 path.to_str().unwrap(),
                 3 + (i % 2) as u32,  // Alternate between two lines
                 13,
             );
-            litter.set(i as u32);
+            inline.set(i as u32);
         })
     }).collect();
 
@@ -282,7 +282,7 @@ fn test() {
 ```rust
 #[test]
 fn test_invalid_file() {
-    let mut litter = litter::Litter::__new(
+    let mut inline = inline::Inline::__new(
         42u32,
         "/nonexistent/file.rs",
         1,
@@ -290,7 +290,7 @@ fn test_invalid_file() {
     );
 
     // Should not panic, just fail gracefully
-    litter.set(100u32);
+    inline.set(100u32);
     // (Error will be logged to stderr)
 }
 
@@ -298,11 +298,11 @@ fn test_invalid_file() {
 fn test_wrong_location() {
     let test_file = TestFile::new(r#"
 fn test() {
-    let x = litter!(42u32);
+    let x = inline!(42u32);
 }
 "#);
 
-    let mut state = litter::runtime::FileState::load(&test_file.path).unwrap();
+    let mut state = inline::runtime::FileState::load(&test_file.path).unwrap();
 
     // Try to replace at wrong location
     let new_tokens: proc_macro2::TokenStream = "100".parse().unwrap();
@@ -326,10 +326,10 @@ use std::fs;
 fn test_self_modifying_script() {
     // Copy template to temp location
     let script_content = r#"
-use litter::litter;
+use inline::inline;
 
 fn main() {
-    let mut counter = litter!(0u32);
+    let mut counter = inline!(0u32);
     println!("Run #{}", *counter.get() + 1);
     counter.set(counter.get() + 1);
 }
@@ -360,7 +360,7 @@ fn main() {
 
     // Verify final state
     let final_content = fs::read_to_string(&script_path).unwrap();
-    assert!(final_content.contains("litter!(3u32)"));
+    assert!(final_content.contains("inline!(3u32)"));
 }
 ```
 
@@ -419,10 +419,10 @@ fn main() {
 #[bench]
 fn bench_single_update(b: &mut Bencher) {
     let test_file = TestFile::new("...");
-    let mut litter = litter::Litter::__new(...);
+    let mut inline = inline::Inline::__new(...);
 
     b.iter(|| {
-        litter.set(black_box(42u32));
+        inline.set(black_box(42u32));
     });
 }
 ```

@@ -1,6 +1,6 @@
 # Future Extensions & Ideas
 
-This document captures rough ideas for potential future extensions to litter. These are **not currently planned for implementation** but are noted for future exploration.
+This document captures rough ideas for potential future extensions to inline. These are **not currently planned for implementation** but are noted for future exploration.
 
 ## 1. Alternative Serialization Formats (e.g., JSON, TOML, YAML)
 
@@ -15,7 +15,7 @@ config.set(Config { host: "prod.example.com".into(), port: 443 });
 
 **Tentative implementation notes** (Claude):
 - New trait: `trait JsonLiteral: Serialize + Deserialize {}`
-- New struct: `JsonLitter<T>` (parallel to `Litter<T>`)
+- New struct: `JsonLitter<T>` (parallel to `Inline<T>`)
 - Different macro: `json_litter!()` stores string literal containing JSON
 - Same architecture: index-based AST anchoring, same mode system
 - Compare serialized JSON strings instead of Rust AST tokens
@@ -39,12 +39,12 @@ config.set(Config { host: "prod.example.com".into(), port: 443 });
 
 ### A. Type inference (already works)
 ```rust
-let config: Litter<Config> = litter!(Config::default());
+let config: Inline<Config> = inline!(Config::default());
 ```
 
 ### B. Turbofish syntax (requires proc macro)
 ```rust
-let config = litter::<Config>(Config::default());
+let config = inline::<Config>(Config::default());
 ```
 
 ### C. Type as first parameter (for typed variants)
@@ -64,25 +64,25 @@ let config = json_litter!(Config, r#"{"x": 1}"#);
 
 ## 3. Empty Macro / Placeholder Pattern
 
-**User's idea**: Support `litter!()` with no arguments as a placeholder that gets filled in on first write.
+**User's idea**: Support `inline!()` with no arguments as a placeholder that gets filled in on first write.
 
 **Example**:
 ```rust
 // Write in source initially:
-let config: Litter<Config> = litter!();
+let config: Inline<Config> = inline!();
 
 // First set() rewrites source to:
-let config: Litter<Config> = litter!(Config { ... });
+let config: Inline<Config> = inline!(Config { ... });
 ```
 
 **Tentative implementation notes** (Claude):
 ```rust
-macro_rules! litter {
+macro_rules! inline {
     () => {{
-        $crate::Litter::__new(Default::default(), file!(), line!(), column!())
+        $crate::Inline::__new(Default::default(), file!(), line!(), column!())
     }};
     ($value:expr) => {{
-        $crate::Litter::__new($value, file!(), line!(), column!())
+        $crate::Inline::__new($value, file!(), line!(), column!())
     }};
 }
 // Would require: pub trait Literal: Bake + Default {}
@@ -95,8 +95,8 @@ macro_rules! litter {
 
 **Challenges**:
 - Requires `Default` trait (not all types have it)
-- Less readable - `litter!()` doesn't show what type it is
-- File state shows `litter!()` initially, then gets replaced
+- Less readable - `inline!()` doesn't show what type it is
+- File state shows `inline!()` initially, then gets replaced
 
 **Status**: Feasible, good for scaffolding workflow
 
@@ -109,10 +109,10 @@ macro_rules! litter {
 **Example** (hypothetical):
 ```rust
 #[track_caller]
-fn litter<T>(value: T) -> Litter<T> {
+fn inline<T>(value: T) -> Inline<T> {
     let location = std::panic::Location::caller();
     // Find and replace the function call in source?
-    Litter::__new(value, location.file(), location.line(), location.column())
+    Inline::__new(value, location.file(), location.line(), location.column())
 }
 ```
 
@@ -197,7 +197,7 @@ thread_local! {
 ### Testing Notes
 
 - Tests pass with `--test-threads=1`
-- Parallel test failures due to shared environment variables (`LITTER_MODE`)
+- Parallel test failures due to shared environment variables (`INLINE_MODE`)
 - **Recommended**: Use `cargo nextest` for parallel testing (runs each test in separate process)
 
 **Status**: ✅ **IMPLEMENTED** - Fully supports multi-threaded and multi-process usage

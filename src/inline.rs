@@ -4,22 +4,22 @@ use std::path::PathBuf;
 
 /// A self-modifying value that can update itself in source code
 /// Uses a stable index to track its position in the AST
-pub struct Litter<T: Literal> {
+pub struct Inline<T: Literal> {
     value: T,
     file: PathBuf,
     line: u32,
     column: u32,
-    /// Stable index into the file's litter macros (resolved lazily)
+    /// Stable index into the file's inline macros (resolved lazily)
     /// This never changes even if line numbers shift!
     macro_index: Option<usize>,
 }
 
-impl<T: Literal> Litter<T> {
-    /// Create a new Litter instance (called by the macro)
+impl<T: Literal> Inline<T> {
+    /// Create a new Inline instance (called by the macro)
     /// Does NOT fail if the source file doesn't exist - that's only an error if you call set()
     #[doc(hidden)]
     pub fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
-        Litter {
+        Inline {
             value,
             file: PathBuf::from(file),
             line,
@@ -37,7 +37,7 @@ impl<T: Literal> Litter<T> {
         let index =
             crate::runtime::get_macro_index(&self.file, self.line, self.column).map_err(|e| {
                 format!(
-                    "Failed to find litter! macro at {}:{}:{}\n{}",
+                    "Failed to find inline! macro at {}:{}:{}\n{}",
                     self.file.display(),
                     self.line,
                     self.column,
@@ -101,7 +101,7 @@ impl<T: Literal> Litter<T> {
         if mode == crate::runtime::Mode::Verify {
             if let Err(e) = self.verify_source(&new_value) {
                 panic!(
-                    "Litter verification failed at {}:{}:{}\n{}",
+                    "Inline verification failed at {}:{}:{}\n{}",
                     self.file.display(),
                     self.line,
                     self.column,
@@ -119,7 +119,7 @@ impl<T: Literal> Litter<T> {
                 panic!(
                     "Cannot write to source files outside of cargo environment!\n\
                      File: {}:{}:{}\n\
-                     Hint: Run with 'cargo run' or 'cargo test', or use LITTER_MODE=memory",
+                     Hint: Run with 'cargo run' or 'cargo test', or use INLINE_MODE=memory",
                     self.file.display(),
                     self.line,
                     self.column
@@ -185,7 +185,7 @@ impl<T: Literal> Litter<T> {
     }
 }
 
-impl<T: Literal> Deref for Litter<T> {
+impl<T: Literal> Deref for Inline<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -193,9 +193,9 @@ impl<T: Literal> Deref for Litter<T> {
     }
 }
 
-impl<T: Literal + std::fmt::Debug> std::fmt::Debug for Litter<T> {
+impl<T: Literal + std::fmt::Debug> std::fmt::Debug for Inline<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Litter")
+        f.debug_struct("Inline")
             .field("value", &self.value)
             .field("file", &self.file)
             .field("line", &self.line)
@@ -212,10 +212,10 @@ fn is_running_under_cargo() -> bool {
         || std::env::var("CARGO_PKG_NAME").is_ok()
 }
 
-/// Macro to create a Litter instance
+/// Macro to create a Inline instance
 #[macro_export]
-macro_rules! litter {
+macro_rules! inline {
     ($value:expr) => {{
-        $crate::Litter::__new($value, file!(), line!(), column!())
+        $crate::Inline::__new($value, file!(), line!(), column!())
     }};
 }

@@ -3,7 +3,7 @@
 ## Challenge 1: Accurate Location Tracking
 
 ### The Problem
-We need to find the exact `litter!()` macro invocation in the AST using only `(file, line, column)` from `file!()`, `line!()`, `column!()` macros.
+We need to find the exact `inline!()` macro invocation in the AST using only `(file, line, column)` from `file!()`, `line!()`, `column!()` macros.
 
 ### Why It's Hard
 - `file!()` etc. give us the location of the macro invocation
@@ -35,13 +35,13 @@ impl VisitMut for MacroReplacer {
 If spans don't work:
 1. Manually count lines and columns in source text
 2. Use byte offsets instead
-3. Add explicit IDs: `litter!(id = "counter", 0)`
+3. Add explicit IDs: `inline!(id = "counter", 0)`
 
 ### Validation Test
 ```rust
 #[test]
 fn verify_span_accuracy() {
-    let source = "fn main() {\n    let x = litter!(42);\n}";
+    let source = "fn main() {\n    let x = inline!(42);\n}";
     let ast = syn::parse_file(source).unwrap();
     // Find macro and verify span.start() == (2, 13)
 }
@@ -52,7 +52,7 @@ fn verify_span_accuracy() {
 ## Challenge 2: Shared Mutable AST
 
 ### The Problem
-Multiple `Litter` instances in the same file need to:
+Multiple `Inline` instances in the same file need to:
 - Share the same parsed AST (to avoid reparsing)
 - Mutate it independently (to update different values)
 - Synchronize access (to prevent corruption)
@@ -181,7 +181,7 @@ impl FileState {
 }
 
 // Usage:
-litter::reload_file(file!());  // Force reload before updates
+inline::reload_file(file!());  // Force reload before updates
 ```
 
 ---
@@ -189,14 +189,14 @@ litter::reload_file(file!());  // Force reload before updates
 ## Challenge 5: Macro Invocation Context
 
 ### The Problem
-`litter!()` can appear in different contexts:
+`inline!()` can appear in different contexts:
 
 ```rust
-let x = litter!(42);              // ExprMacro
-const Y: u32 = litter!(42);       // ExprMacro in const
-static Z: u32 = litter!(42);      // ExprMacro in static
-fn f() -> u32 { litter!(42) }     // ExprMacro in return
-litter!(println!("hi"));          // StmtMacro
+let x = inline!(42);              // ExprMacro
+const Y: u32 = inline!(42);       // ExprMacro in const
+static Z: u32 = inline!(42);      // ExprMacro in static
+fn f() -> u32 { inline!(42) }     // ExprMacro in return
+inline!(println!("hi"));          // StmtMacro
 ```
 
 Our visitor only handles `ExprMacro` currently.
@@ -218,7 +218,7 @@ impl VisitMut for MacroReplacer {
 
     fn try_replace_macro(&mut self, mac: &mut syn::Macro) {
         if let Some(ident) = mac.path.get_ident() {
-            if ident == "litter" {
+            if ident == "inline" {
                 let span = ident.span().start();
                 if span.line == self.target_line &&
                    span.column == self.target_column {
@@ -239,7 +239,7 @@ This handles both expression and statement contexts.
 fn test_stmt_macro() {
     let source = r#"
 fn main() {
-    litter!(println!("hello"));
+    inline!(println!("hello"));
 }
 "#;
     // Should be able to find and replace
@@ -248,11 +248,11 @@ fn main() {
 
 ---
 
-## Challenge 6: Type Erasure in Generic Litter<T>
+## Challenge 6: Type Erasure in Generic Inline<T>
 
 ### The Problem
 ```rust
-let x = litter!(42);  // What is T?
+let x = inline!(42);  // What is T?
 ```
 
 Without type annotations, Rust infers `i32`. But we need to know the type to:
@@ -261,19 +261,19 @@ Without type annotations, Rust infers `i32`. But we need to know the type to:
 
 ### Current Non-Issue
 For now, this isn't a problem because:
-- User specifies the type explicitly: `litter!(42u32)`
-- Or Rust infers it from usage: `let x: u32 = litter!(42);`
+- User specifies the type explicitly: `inline!(42u32)`
+- Or Rust infers it from usage: `let x: u32 = inline!(42);`
 - databake handles the types that have `Bake` implemented
 
 ### Future Issue
 If we want to support:
 ```rust
-let x = litter!(MyStruct { ... });
+let x = inline!(MyStruct { ... });
 // Later, how do we know it's MyStruct when parsing?
 ```
 
 We'd need to:
-1. Store type info in the macro: `litter!("MyStruct", MyStruct { ... })`
+1. Store type info in the macro: `inline!("MyStruct", MyStruct { ... })`
 2. Or parse the tokens and infer type from structure
 3. Or require type annotations always
 
@@ -295,21 +295,21 @@ Users may not want their code reformatted.
 Original:
 ```rust
 fn main() {
-    let x=litter!(42);    // weird spacing
+    let x=inline!(42);    // weird spacing
 }
 ```
 
 After update:
 ```rust
 fn main() {
-    let x = litter!(100); // normalized spacing
+    let x = inline!(100); // normalized spacing
 }
 ```
 
 ### Solution Options
 
 1. **Accept formatting changes** (simple)
-   - Document that litter normalizes code
+   - Document that inline normalizes code
    - Use prettyplease's default style
    - Consistent, predictable output
 
@@ -340,7 +340,7 @@ Rationale:
 What if updating fails?
 
 ```rust
-litter.set(new_value);
+inline.set(new_value);
 // Filesystem full? Parse error? Permission denied?
 ```
 

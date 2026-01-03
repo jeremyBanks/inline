@@ -69,17 +69,17 @@ fn get_or_load_file_state(path: &Path) -> Result<FileState, io::Error> {
 
 **Safe because:** Classic double-check locking pattern prevents duplicate loads.
 
-### ✅ Scenario 4: Mutable Access to Same Litter Instance
+### ✅ Scenario 4: Mutable Access to Same Inline Instance
 
 **Prevented by Rust's borrow checker:**
 ```rust
-impl<T: Literal> Litter<T> {
+impl<T: Literal> Inline<T> {
     pub fn set(&mut self, new_value: T) { ... }
 }
 ```
 
 Since `set()` requires `&mut self`, the borrow checker prevents concurrent mutable access.
-You'd need `Arc<Mutex<Litter<T>>>` to share across threads, which provides synchronization.
+You'd need `Arc<Mutex<Inline<T>>>` to share across threads, which provides synchronization.
 
 ### ✅ Scenario 5: External File Modification
 

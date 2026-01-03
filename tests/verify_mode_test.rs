@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use tempfile::TempDir;
 
-/// Helper to find all litter! macro positions in a file
+/// Helper to find all inline! macro positions in a file
 fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
     let source = fs::read_to_string(file_path).unwrap();
     let ast = syn::parse_file(&source).unwrap();
@@ -15,7 +15,7 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
     impl<'ast> Visit<'ast> for MacroCollector {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             let is_litter = if let Some(segments) = node.mac.path.segments.iter().last() {
-                segments.ident == "litter"
+                segments.ident == "inline"
             } else {
                 false
             };
@@ -42,52 +42,52 @@ fn test_verify_mode_matching_value() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("test.rs");
 
-    // Write a file with a litter value
+    // Write a file with a inline value
     let content = r#"fn test() {
-    let x = litter::litter!(42u32);
+    let x = inline::inline!(42u32);
 }
 "#;
     fs::write(&path, content).unwrap();
 
     // Enable verify mode
-    env::set_var("LITTER_MODE", "verify");
+    env::set_var("INLINE_MODE", "verify");
 
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
 
-    let mut value = litter::Litter::__new(42u32, path.to_str().unwrap(), line, column);
+    let mut value = inline::Inline::__new(42u32, path.to_str().unwrap(), line, column);
 
     // Setting to the same value should succeed in verify mode
     value.set(42u32);
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
-#[should_panic(expected = "Litter verification failed")]
+#[should_panic(expected = "Inline verification failed")]
 fn test_verify_mode_mismatched_value() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("test.rs");
 
-    // Write a file with a litter value
+    // Write a file with a inline value
     let content = r#"fn test() {
-    let x = litter::litter!(42u32);
+    let x = inline::inline!(42u32);
 }
 "#;
     fs::write(&path, content).unwrap();
 
     // Enable verify mode
-    env::set_var("LITTER_MODE", "verify");
+    env::set_var("INLINE_MODE", "verify");
 
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
 
-    let mut value = litter::Litter::__new(42u32, path.to_str().unwrap(), line, column);
+    let mut value = inline::Inline::__new(42u32, path.to_str().unwrap(), line, column);
 
     // Setting to a different value should panic in verify mode
     value.set(100u32);
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
@@ -95,52 +95,52 @@ fn test_verify_mode_complex_value() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("test.rs");
 
-    // Write a file with a complex litter value
+    // Write a file with a complex inline value
     let content = r#"fn test() {
-    let x = litter::litter!(vec![1u32, 2u32, 3u32]);
+    let x = inline::inline!(vec![1u32, 2u32, 3u32]);
 }
 "#;
     fs::write(&path, content).unwrap();
 
     // Enable verify mode
-    env::set_var("LITTER_MODE", "verify");
+    env::set_var("INLINE_MODE", "verify");
 
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
 
     let mut value =
-        litter::Litter::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
+        inline::Inline::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
 
     // Setting to the same value should succeed
     value.set(vec![1u32, 2u32, 3u32]);
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
-#[should_panic(expected = "Litter verification failed")]
+#[should_panic(expected = "Inline verification failed")]
 fn test_verify_mode_complex_value_mismatch() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("test.rs");
 
-    // Write a file with a complex litter value
+    // Write a file with a complex inline value
     let content = r#"fn test() {
-    let x = litter::litter!(vec![1u32, 2u32, 3u32]);
+    let x = inline::inline!(vec![1u32, 2u32, 3u32]);
 }
 "#;
     fs::write(&path, content).unwrap();
 
     // Enable verify mode
-    env::set_var("LITTER_MODE", "verify");
+    env::set_var("INLINE_MODE", "verify");
 
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
 
     let mut value =
-        litter::Litter::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
+        inline::Inline::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
 
     // Setting to a different value should panic
     value.set(vec![1u32, 2u32, 3u32, 4u32]);
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }

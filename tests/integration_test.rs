@@ -48,7 +48,7 @@ impl TestFile {
     }
 }
 
-/// Helper to find all litter! macro positions in a file
+/// Helper to find all inline! macro positions in a file
 fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
     let source = fs::read_to_string(file_path).unwrap();
     let ast = syn::parse_file(&source).unwrap();
@@ -60,9 +60,9 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
 
     impl<'ast> Visit<'ast> for MacroCollector {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            // Check if this is a litter macro (might be just "litter" or "litter::litter")
+            // Check if this is a inline macro (might be just "inline" or "inline::inline")
             let is_litter = if let Some(segments) = node.mac.path.segments.iter().last() {
-                segments.ident == "litter"
+                segments.ident == "inline"
             } else {
                 false
             };
@@ -88,7 +88,7 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
 fn test_span_preservation() {
     // Test that syn preserves line/column information when parsing
     let source = r#"fn main() {
-    let x = litter!(42);
+    let x = inline!(42);
 }"#;
 
     let ast = syn::parse_file(source).unwrap();
@@ -103,7 +103,7 @@ fn test_span_preservation() {
     impl<'ast> Visit<'ast> for MacroFinder {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             if let Some(ident) = node.mac.path.get_ident() {
-                if ident == "litter" {
+                if ident == "inline" {
                     let span = ident.span();
                     let start = span.start();
                     self.found_at = Some((start.line, start.column));
@@ -116,7 +116,7 @@ fn test_span_preservation() {
     finder.visit_file(&ast);
 
     // The macro should be at line 2 (1-indexed), some column
-    assert!(finder.found_at.is_some(), "Should find the litter macro");
+    assert!(finder.found_at.is_some(), "Should find the inline macro");
     let (line, _col) = finder.found_at.unwrap();
     assert_eq!(line, 2, "Macro should be on line 2");
 }
@@ -126,51 +126,51 @@ fn test_update_source_file() {
     // Test the low-level update_source_file function
     let test_file = TestFile::new(
         r#"fn main() {
-    let x = litter!(42u32);
+    let x = inline!(42u32);
 }
 "#,
     );
 
     // Enable update mode
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Find the actual position of the macro
     let positions = find_litter_positions(&test_file.path);
-    assert_eq!(positions.len(), 1, "Should find exactly one litter macro");
+    assert_eq!(positions.len(), 1, "Should find exactly one inline macro");
     let (line, column) = positions[0];
 
     // Update the value
     let new_tokens: proc_macro2::TokenStream = "100u32".parse().unwrap();
-    litter::update_source_file(&test_file.path, line, column, new_tokens).unwrap();
+    inline::update_source_file(&test_file.path, line, column, new_tokens).unwrap();
 
     // Verify the file was updated
-    test_file.assert_contains("litter!(100u32)");
-    test_file.assert_does_not_contain("litter!(42u32)");
+    test_file.assert_contains("inline!(100u32)");
+    test_file.assert_does_not_contain("inline!(42u32)");
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_litter_basic_update() {
-    // Test using the actual Litter API
+    // Test using the actual Inline API
     let test_file = TestFile::with_name(
         r#"#[allow(unused)]
 fn test() {
-    let x = litter::litter!(42u32);
+    let x = inline::inline!(42u32);
 }
 "#,
         "test_litter_basic_update.rs",
     );
 
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Find the actual position
     let positions = find_litter_positions(&test_file.path);
-    assert_eq!(positions.len(), 1, "Should find exactly one litter macro");
+    assert_eq!(positions.len(), 1, "Should find exactly one inline macro");
     let (line, column) = positions[0];
 
-    // Create a Litter instance manually (simulating what the macro does)
-    let mut value = litter::Litter::__new(42u32, test_file.path.to_str().unwrap(), line, column);
+    // Create a Inline instance manually (simulating what the macro does)
+    let mut value = inline::Inline::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Update the value
     value.set(100u32);
@@ -179,28 +179,28 @@ fn test() {
     assert_eq!(*value.get(), 100u32);
 
     // Check that the file was updated
-    test_file.assert_contains("litter!(100u32)");
+    test_file.assert_contains("inline!(100u32)");
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_litter_no_update_in_memory_mode() {
     let test_file = TestFile::new(
         r#"fn test() {
-    let x = litter::litter!(42u32);
+    let x = inline::inline!(42u32);
 }
 "#,
     );
 
     // Explicitly set memory mode (changes in memory only, no disk writes)
-    env::set_var("LITTER_MODE", "memory");
+    env::set_var("INLINE_MODE", "memory");
 
     let positions = find_litter_positions(&test_file.path);
     assert_eq!(positions.len(), 1);
     let (line, column) = positions[0];
 
-    let mut value = litter::Litter::__new(42u32, test_file.path.to_str().unwrap(), line, column);
+    let mut value = inline::Inline::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Update the value
     value.set(100u32);
@@ -209,9 +209,9 @@ fn test_litter_no_update_in_memory_mode() {
     assert_eq!(*value.get(), 100u32);
 
     // But file should NOT be updated (still contains original)
-    test_file.assert_contains("litter!(42u32)");
+    test_file.assert_contains("inline!(42u32)");
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
@@ -238,35 +238,35 @@ fn test_databake_integration() {
 fn test_multiple_litters_in_same_file() {
     let test_file = TestFile::new(
         r#"fn test() {
-    let a = litter::litter!(1u32);
-    let b = litter::litter!(2u32);
-    let c = litter::litter!(3u32);
+    let a = inline::inline!(1u32);
+    let b = inline::inline!(2u32);
+    let c = inline::inline!(3u32);
 }
 "#,
     );
 
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Find all positions
     let positions = find_litter_positions(&test_file.path);
     assert_eq!(positions.len(), 3, "Should find 3 macros");
 
-    // Create litter instances for each
-    let mut litter_a = litter::Litter::__new(
+    // Create inline instances for each
+    let mut litter_a = inline::Inline::__new(
         1u32,
         test_file.path.to_str().unwrap(),
         positions[0].0,
         positions[0].1,
     );
 
-    let mut litter_b = litter::Litter::__new(
+    let mut litter_b = inline::Inline::__new(
         2u32,
         test_file.path.to_str().unwrap(),
         positions[1].0,
         positions[1].1,
     );
 
-    let mut litter_c = litter::Litter::__new(
+    let mut litter_c = inline::Inline::__new(
         3u32,
         test_file.path.to_str().unwrap(),
         positions[2].0,
@@ -281,36 +281,36 @@ fn test_multiple_litters_in_same_file() {
     // All updates should have persisted
     let content = test_file.read();
     assert!(
-        content.contains("litter!(10u32)"),
+        content.contains("inline!(10u32)"),
         "Should contain updated a"
     );
     assert!(
-        content.contains("litter!(20u32)"),
+        content.contains("inline!(20u32)"),
         "Should contain updated b"
     );
     assert!(
-        content.contains("litter!(30u32)"),
+        content.contains("inline!(30u32)"),
         "Should contain updated c"
     );
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_litter_no_change_optimization() {
     let test_file = TestFile::new(
         r#"fn test() {
-    let x = litter::litter!(42u32);
+    let x = inline::inline!(42u32);
 }
 "#,
     );
 
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let positions = find_litter_positions(&test_file.path);
     let (line, column) = positions[0];
 
-    let mut value = litter::Litter::__new(42u32, test_file.path.to_str().unwrap(), line, column);
+    let mut value = inline::Inline::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Set to the same value
     value.set(42u32);
@@ -319,7 +319,7 @@ fn test_litter_no_change_optimization() {
     assert_eq!(*value.get(), 42u32);
 
     // File should still contain original value
-    test_file.assert_contains("litter!(42u32)");
+    test_file.assert_contains("inline!(42u32)");
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }

@@ -1,5 +1,5 @@
 // Re-export databake's Bake trait as our "Literal" concept
-// This allows any type implementing Bake to be used with litter
+// This allows any type implementing Bake to be used with inline
 
 pub use databake::Bake;
 

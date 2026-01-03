@@ -14,7 +14,7 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
     impl<'ast> Visit<'ast> for Finder {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             if let Some(segment) = node.mac.path.segments.last() {
-                if segment.ident == "litter" {
+                if segment.ident == "inline" {
                     let start = segment.ident.span().start();
                     self.positions
                         .push((start.line as u32, start.column as u32));
@@ -25,7 +25,7 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
 
         fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
             if let Some(segment) = node.mac.path.segments.last() {
-                if segment.ident == "litter" {
+                if segment.ident == "inline" {
                     let start = segment.ident.span().start();
                     self.positions
                         .push((start.line as u32, start.column as u32));
@@ -42,11 +42,11 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
 
 #[test]
 fn test_multi_threaded_access() {
-    // Create a simple test file with multiple litter! macros
+    // Create a simple test file with multiple inline! macros
     let test_code = r#"fn example() {
-    let a = litter!(42);
-    let b = litter!(100);
-    let c = litter!(200);
+    let a = inline!(42);
+    let b = inline!(100);
+    let c = inline!(200);
 }
 "#;
 
@@ -60,11 +60,11 @@ fn test_multi_threaded_access() {
 
     // Verify initial parsing works using actual positions
     let index_0 =
-        litter::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
+        inline::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
     let index_1 =
-        litter::runtime::get_macro_index(&test_file, positions[1].0, positions[1].1).unwrap();
+        inline::runtime::get_macro_index(&test_file, positions[1].0, positions[1].1).unwrap();
     let index_2 =
-        litter::runtime::get_macro_index(&test_file, positions[2].0, positions[2].1).unwrap();
+        inline::runtime::get_macro_index(&test_file, positions[2].0, positions[2].1).unwrap();
 
     assert_eq!(index_0, 0);
     assert_eq!(index_1, 1);
@@ -78,7 +78,7 @@ fn test_multi_threaded_access() {
             thread::spawn(move || {
                 // Each thread reads all three macros
                 for i in 0..3 {
-                    let tokens = litter::runtime::get_macro_tokens_by_index(&test_file, i).unwrap();
+                    let tokens = inline::runtime::get_macro_tokens_by_index(&test_file, i).unwrap();
                     assert!(!tokens.is_empty());
                 }
                 thread_id
@@ -96,20 +96,20 @@ fn test_multi_threaded_access() {
     let test_file_clone = Arc::clone(&test_file);
     let modifier = thread::spawn(move || {
         let new_tokens: proc_macro2::TokenStream = "999".parse().unwrap();
-        litter::runtime::update_macro_by_index(&test_file_clone, 0, new_tokens).unwrap();
-        litter::runtime::write_to_disk(&test_file_clone).unwrap();
+        inline::runtime::update_macro_by_index(&test_file_clone, 0, new_tokens).unwrap();
+        inline::runtime::write_to_disk(&test_file_clone).unwrap();
     });
 
     modifier.join().unwrap();
 
     // Verify from main thread that modification is visible
-    let tokens = litter::runtime::get_macro_tokens_by_index(&test_file, 0).unwrap();
+    let tokens = inline::runtime::get_macro_tokens_by_index(&test_file, 0).unwrap();
     assert_eq!(tokens.to_string(), "999");
 
     // Spawn another thread to verify it sees the update
     let test_file_clone = Arc::clone(&test_file);
     let reader = thread::spawn(move || {
-        let tokens = litter::runtime::get_macro_tokens_by_index(&test_file_clone, 0).unwrap();
+        let tokens = inline::runtime::get_macro_tokens_by_index(&test_file_clone, 0).unwrap();
         assert_eq!(tokens.to_string(), "999");
     });
 
@@ -119,7 +119,7 @@ fn test_multi_threaded_access() {
 #[test]
 fn test_sequential_modifications_across_threads() {
     let test_code = r#"fn example() {
-    let x = litter!(0);
+    let x = inline!(0);
 }
 "#;
 
@@ -131,7 +131,7 @@ fn test_sequential_modifications_across_threads() {
 
     // Find actual position and get initial index
     let positions = find_litter_positions(&test_file);
-    litter::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
+    inline::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
 
     // Spawn threads that each increment the value sequentially
     let handles: Vec<_> = (0..5)
@@ -143,8 +143,8 @@ fn test_sequential_modifications_across_threads() {
 
                 let new_value = format!("{}", (i + 1) * 100);
                 let new_tokens: proc_macro2::TokenStream = new_value.parse().unwrap();
-                litter::runtime::update_macro_by_index(&test_file, 0, new_tokens).unwrap();
-                litter::runtime::write_to_disk(&test_file).unwrap();
+                inline::runtime::update_macro_by_index(&test_file, 0, new_tokens).unwrap();
+                inline::runtime::write_to_disk(&test_file).unwrap();
             })
         })
         .collect();
@@ -154,7 +154,7 @@ fn test_sequential_modifications_across_threads() {
     }
 
     // After all modifications, verify we can still read
-    let final_tokens = litter::runtime::get_macro_tokens_by_index(&test_file, 0).unwrap();
+    let final_tokens = inline::runtime::get_macro_tokens_by_index(&test_file, 0).unwrap();
     // Should be 500 (the last write wins)
     assert_eq!(final_tokens.to_string(), "500");
 }

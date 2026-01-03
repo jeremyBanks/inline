@@ -1,6 +1,6 @@
 # Implementation Assumptions and Decisions
 
-This document lists all assumptions and design decisions made during the implementation of litter with databake integration.
+This document lists all assumptions and design decisions made during the implementation of inline with databake integration.
 
 ## Core Architectural Decisions
 
@@ -68,7 +68,7 @@ This document lists all assumptions and design decisions made during the impleme
 - More flexible for dynamic behavior
 - Minimal performance cost (env var lookup is fast)
 
-**Impact**: Tests can set LITTER_MODE=write and see immediate effect
+**Impact**: Tests can set INLINE_MODE=write and see immediate effect
 
 **Alternative Considered**: Cache mode in a Lazy static. Rejected because it wouldn't work with tests that set env vars after startup.
 
@@ -83,7 +83,7 @@ This document lists all assumptions and design decisions made during the impleme
 - Type-safe, compile-time validated serialization
 - Well-tested and maintained
 
-**Limitation**: Only types implementing `Bake` can be used with litter
+**Limitation**: Only types implementing `Bake` can be used with inline
 
 **Current Support**: Primitives, Vec, tuples, and other std types via databake's built-in implementations
 
@@ -145,7 +145,7 @@ This document lists all assumptions and design decisions made during the impleme
 
 ### 11. Qualified Path Handling
 
-**Decision**: Support both `litter!()` and `litter::litter!()` by checking the last path segment.
+**Decision**: Support both `inline!()` and `inline::inline!()` by checking the last path segment.
 
 **Implementation**: In `MacroReplacer`, use `mac.path.segments.last()` instead of `get_ident()`.
 
@@ -162,7 +162,7 @@ This document lists all assumptions and design decisions made during the impleme
 
 **Limitation**: Tests must run with `--test-threads=1` due to environment variable conflicts.
 
-**Cause**: Multiple tests set `LITTER_MODE` env var, which affects other tests running in parallel.
+**Cause**: Multiple tests set `INLINE_MODE` env var, which affects other tests running in parallel.
 
 **Rationale**: Using env vars is simpler than implementing a thread-safe mode override mechanism.
 
@@ -198,14 +198,14 @@ This document lists all assumptions and design decisions made during the impleme
 
 ### 15. Non-Fatal Errors
 
-**Decision**: Litter errors are warnings, not panics.
+**Decision**: Inline errors are warnings, not panics.
 
 **Rationale**:
 - File update failures shouldn't crash the program
 - User code can continue running even if persistence fails
 - Matches "best effort" philosophy for self-modifying code
 
-**Impact**: Program continues even if litter can't update files (e.g., read-only filesystem).
+**Impact**: Program continues even if inline can't update files (e.g., read-only filesystem).
 
 ## Future Considerations
 

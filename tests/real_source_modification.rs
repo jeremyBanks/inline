@@ -10,7 +10,7 @@ use std::panic;
 
 #[test]
 fn test_counter_a_modification() {
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut value = fixtures::counter_a::get();
 
@@ -24,7 +24,7 @@ fn test_counter_a_modification() {
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_a.rs").unwrap();
     assert!(
-        disk_content.contains("litter!(42u32)"),
+        disk_content.contains("inline!(42u32)"),
         "Disk should contain updated value. Content:\n{}",
         disk_content
     );
@@ -35,17 +35,17 @@ fn test_counter_a_modification() {
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_a.rs").unwrap();
     assert!(
-        disk_content.contains("litter!(0u32)"),
+        disk_content.contains("inline!(0u32)"),
         "Disk should be restored to default. Content:\n{}",
         disk_content
     );
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_counter_b_modification() {
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut value = fixtures::counter_b::get();
 
@@ -59,7 +59,7 @@ fn test_counter_b_modification() {
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_b.rs").unwrap();
     assert!(
-        disk_content.contains("litter!(999u32)"),
+        disk_content.contains("inline!(999u32)"),
         "Disk should contain updated value. Content:\n{}",
         disk_content
     );
@@ -70,17 +70,17 @@ fn test_counter_b_modification() {
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_b.rs").unwrap();
     assert!(
-        disk_content.contains("litter!(0u32)"),
+        disk_content.contains("inline!(0u32)"),
         "Disk should be restored to default. Content:\n{}",
         disk_content
     );
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_counter_c_modification() {
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut value = fixtures::counter_c::get();
 
@@ -94,7 +94,7 @@ fn test_counter_c_modification() {
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_c.rs").unwrap();
     assert!(
-        disk_content.contains("litter!(12345u32)"),
+        disk_content.contains("inline!(12345u32)"),
         "Disk should contain updated value. Content:\n{}",
         disk_content
     );
@@ -105,17 +105,17 @@ fn test_counter_c_modification() {
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_c.rs").unwrap();
     assert!(
-        disk_content.contains("litter!(0u32)"),
+        disk_content.contains("inline!(0u32)"),
         "Disk should be restored to default. Content:\n{}",
         disk_content
     );
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_config_a_modification() {
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut value = fixtures::config_a::get();
 
@@ -145,39 +145,39 @@ fn test_config_a_modification() {
         disk_content
     );
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_multiple_modifications_same_value() {
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut value = fixtures::counter_d::get();
 
     // Do multiple modifications
     value.set(100u32);
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("litter!(100u32)"));
+    assert!(disk.contains("inline!(100u32)"));
 
     value.set(200u32);
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("litter!(200u32)"));
+    assert!(disk.contains("inline!(200u32)"));
 
     value.set(300u32);
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("litter!(300u32)"));
+    assert!(disk.contains("inline!(300u32)"));
 
     // Restore
     value.set(0u32);
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("litter!(0u32)"));
+    assert!(disk.contains("inline!(0u32)"));
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_concurrent_modification_detection() {
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut value = fixtures::counter_e::get();
 
@@ -196,14 +196,14 @@ fn test_concurrent_modification_detection() {
         "tests/fixtures/counter_e.rs",
         r#"/// Fixture E: Counter for testing concurrent modification detection
 /// Default value: 0
-pub fn get() -> litter::Litter<u32> {
-    litter::litter!(777u32)  // Externally modified!
+pub fn get() -> inline::Inline<u32> {
+    inline::inline!(777u32)  // Externally modified!
 }
 "#,
     )
     .unwrap();
 
-    // Now try to modify with our Litter value - this should panic!
+    // Now try to modify with our Inline value - this should panic!
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         value.set(100u32);
     }));
@@ -236,20 +236,20 @@ pub fn get() -> litter::Litter<u32> {
         "tests/fixtures/counter_e.rs",
         r#"/// Fixture E: Counter for testing concurrent modification detection
 /// Default value: 0
-pub fn get() -> litter::Litter<u32> {
-    litter::litter!(0u32)
+pub fn get() -> inline::Inline<u32> {
+    inline::inline!(0u32)
 }
 "#,
     )
     .unwrap();
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_formatting_preservation() {
-    // This test demonstrates what happens to formatting when we modify a litter value
-    env::set_var("LITTER_MODE", "write");
+    // This test demonstrates what happens to formatting when we modify a inline value
+    env::set_var("INLINE_MODE", "write");
 
     // Capture the original content before any modifications
     let original_content = fs::read_to_string("tests/fixtures/counter_f.rs").unwrap();
@@ -277,7 +277,7 @@ fn test_formatting_preservation() {
     value.set(0u32);
     let restored_content = fs::read_to_string("tests/fixtures/counter_f.rs").unwrap();
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 
     // Report findings
     println!("=== FORMATTING ANALYSIS ===");
@@ -297,9 +297,9 @@ fn test_formatting_preservation() {
 
 #[test]
 fn test_multiple_macros_same_file() {
-    // Test modifying multiple different litter! macros in the same file
+    // Test modifying multiple different inline! macros in the same file
     // in various orders, including on the same line and different lines
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut first = fixtures::counter_g::get_first();
     let mut second = fixtures::counter_g::get_second();
@@ -313,56 +313,56 @@ fn test_multiple_macros_same_file() {
     // Modify first macro
     first.set(100u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("litter!(100u32)"));
-    assert!(disk.contains("litter!(20u32)"));
-    assert!(disk.contains("litter!(30u32)"));
+    assert!(disk.contains("inline!(100u32)"));
+    assert!(disk.contains("inline!(20u32)"));
+    assert!(disk.contains("inline!(30u32)"));
 
     // Modify second macro
     second.set(200u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("litter!(100u32)"));
-    assert!(disk.contains("litter!(200u32)"));
-    assert!(disk.contains("litter!(30u32)"));
+    assert!(disk.contains("inline!(100u32)"));
+    assert!(disk.contains("inline!(200u32)"));
+    assert!(disk.contains("inline!(30u32)"));
 
     // Modify third macro
     third.set(300u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("litter!(100u32)"));
-    assert!(disk.contains("litter!(200u32)"));
-    assert!(disk.contains("litter!(300u32)"));
+    assert!(disk.contains("inline!(100u32)"));
+    assert!(disk.contains("inline!(200u32)"));
+    assert!(disk.contains("inline!(300u32)"));
 
     // Modify first again
     first.set(111u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("litter!(111u32)"));
-    assert!(disk.contains("litter!(200u32)"));
-    assert!(disk.contains("litter!(300u32)"));
+    assert!(disk.contains("inline!(111u32)"));
+    assert!(disk.contains("inline!(200u32)"));
+    assert!(disk.contains("inline!(300u32)"));
 
     // Modify in reverse order
     third.set(333u32);
     second.set(222u32);
     first.set(11u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("litter!(11u32)"));
-    assert!(disk.contains("litter!(222u32)"));
-    assert!(disk.contains("litter!(333u32)"));
+    assert!(disk.contains("inline!(11u32)"));
+    assert!(disk.contains("inline!(222u32)"));
+    assert!(disk.contains("inline!(333u32)"));
 
     // Restore all to defaults
     first.set(10u32);
     second.set(20u32);
     third.set(30u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("litter!(10u32)"));
-    assert!(disk.contains("litter!(20u32)"));
-    assert!(disk.contains("litter!(30u32)"));
+    assert!(disk.contains("inline!(10u32)"));
+    assert!(disk.contains("inline!(20u32)"));
+    assert!(disk.contains("inline!(30u32)"));
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_multiple_files_interleaved() {
     // Test modifying macros across multiple files in arbitrary order
-    env::set_var("LITTER_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut counter_a = fixtures::counter_a::get();
     let mut counter_b = fixtures::counter_b::get();
@@ -379,17 +379,17 @@ fn test_multiple_files_interleaved() {
     counter_a.set(1u32);
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("litter!(1u32)"));
+        .contains("inline!(1u32)"));
 
     counter_b.set(2u32);
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("litter!(2u32)"));
+        .contains("inline!(2u32)"));
 
     counter_a.set(11u32); // Modify counter_a again
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("litter!(11u32)"));
+        .contains("inline!(11u32)"));
 
     config_a.set("test_value".to_string());
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
@@ -399,31 +399,31 @@ fn test_multiple_files_interleaved() {
     counter_d.set(4u32);
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
-        .contains("litter!(4u32)"));
+        .contains("inline!(4u32)"));
 
     counter_b.set(22u32); // Modify counter_b again
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("litter!(22u32)"));
+        .contains("inline!(22u32)"));
 
     counter_a.set(111u32); // Modify counter_a third time
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("litter!(111u32)"));
+        .contains("inline!(111u32)"));
 
     // Verify all files have correct values
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("litter!(111u32)"));
+        .contains("inline!(111u32)"));
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("litter!(22u32)"));
+        .contains("inline!(22u32)"));
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
         .unwrap()
         .contains(r#""test_value""#));
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
-        .contains("litter!(4u32)"));
+        .contains("inline!(4u32)"));
 
     // Restore all to defaults
     counter_a.set(0u32);
@@ -434,16 +434,16 @@ fn test_multiple_files_interleaved() {
     // Verify restoration
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("litter!(0u32)"));
+        .contains("inline!(0u32)"));
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("litter!(0u32)"));
+        .contains("inline!(0u32)"));
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
         .unwrap()
         .contains(r#""default""#));
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
-        .contains("litter!(0u32)"));
+        .contains("inline!(0u32)"));
 
-    env::remove_var("LITTER_MODE");
+    env::remove_var("INLINE_MODE");
 }

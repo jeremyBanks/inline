@@ -4,13 +4,13 @@
 //
 // To run:
 // 1. Compile: rustc --edition 2021 -L ../target/debug/deps examples/counter.rs
-// 2. Run with LITTER_MODE=write ./counter
+// 2. Run with INLINE_MODE=write ./counter
 // 3. Check the source file - the counter value will have been updated!
 
-use litter::litter;
+use inline::inline;
 
 fn main() {
-    let mut counter = litter!(0u32);
+    let mut counter = inline!(0u32);
 
     println!("This program has been run {} times", *counter.get() + 1);
 

@@ -1,17 +1,17 @@
 // Example: Self-updating configuration
 //
-// This demonstrates using litter with more complex types via databake.
+// This demonstrates using inline with more complex types via databake.
 //
 // To run:
-// LITTER_MODE=write cargo run --example config
+// INLINE_MODE=write cargo run --example config
 
-use litter::litter;
+use inline::inline;
 
 fn main() {
     // Simple configuration values that update themselves
-    let mut max_retries = litter!(3u32);
-    let mut timeout_ms = litter!(1000u32);
-    let mut debug_mode = litter!(false);
+    let mut max_retries = inline!(3u32);
+    let mut timeout_ms = inline!(1000u32);
+    let mut debug_mode = inline!(false);
 
     println!("Current configuration:");
     println!("  Max retries: {}", *max_retries.get());
