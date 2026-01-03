@@ -102,8 +102,10 @@ fn test_static_persistence_thread_safety() {
             thread::spawn(|| {
                 let counter = get_or_create(0u32, file!(), 110, 35);
                 for _ in 0..100 {
-                    let current = *counter.lock().get();
-                    counter.lock().set(current + 1);
+                    // Hold the lock for the entire read-modify-write operation
+                    let mut guard = counter.lock();
+                    let current = *guard.get();
+                    guard.set(current + 1);
                 }
             })
         })
