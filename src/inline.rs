@@ -1,4 +1,4 @@
-use crate::literal::Literal;
+use crate::literal::Value;
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -7,24 +7,24 @@ use std::path::PathBuf;
 /// This type wraps a value and provides the ability to update both the
 /// in-memory value and its representation in the source code file.
 ///
-/// **Note:** This is an internal type. Users should interact with the [`Inline`]
-/// wrapper returned by the `inline!` macro instead.
+/// **Note:** This is an internal type. Users should interact with the [`Literal`]
+/// wrapper returned by the `literal!` macro instead.
 #[doc(hidden)]
-pub struct InlineInner<T: Literal> {
+pub struct LiteralInner<T: Value> {
     value: T,
     file: PathBuf,
     line: u32,
     column: u32,
-    /// Stable index into the file's inline macros (resolved lazily)
+    /// Stable index into the file's literal macros (resolved lazily)
     /// This never changes even if line numbers shift!
     macro_index: Option<usize>,
 }
 
-impl<T: Literal> InlineInner<T> {
-    /// Create a new InlineInner instance (called by the registry)
+impl<T: Value> LiteralInner<T> {
+    /// Create a new LiteralInner instance (called by the registry)
     /// Does NOT fail if the source file doesn't exist - that's only an error if you call set()
     pub(crate) fn new(value: T, file: &str, line: u32, column: u32) -> Self {
-        InlineInner {
+        LiteralInner {
             value,
             file: PathBuf::from(file),
             line,
@@ -42,7 +42,7 @@ impl<T: Literal> InlineInner<T> {
         let index =
             crate::runtime::get_macro_index(&self.file, self.line, self.column).map_err(|e| {
                 format!(
-                    "Failed to find inline! macro at {}:{}:{}\n{}",
+                    "Failed to find literal! macro at {}:{}:{}\n{}",
                     self.file.display(),
                     self.line,
                     self.column,
@@ -106,7 +106,7 @@ impl<T: Literal> InlineInner<T> {
         if mode == crate::runtime::Mode::Verify {
             if let Err(e) = self.verify_source(&new_value) {
                 panic!(
-                    "Inline verification failed at {}:{}:{}\n{}",
+                    "Literal verification failed at {}:{}:{}\n{}",
                     self.file.display(),
                     self.line,
                     self.column,
@@ -124,7 +124,7 @@ impl<T: Literal> InlineInner<T> {
                 panic!(
                     "Cannot write to source files outside of cargo environment!\n\
                      File: {}:{}:{}\n\
-                     Hint: Run with 'cargo run' or 'cargo test', or use INLINE_MODE=memory",
+                     Hint: Run with 'cargo run' or 'cargo test', or use LITERAL_MODE=memory",
                     self.file.display(),
                     self.line,
                     self.column
@@ -190,7 +190,7 @@ impl<T: Literal> InlineInner<T> {
     }
 }
 
-impl<T: Literal> Deref for InlineInner<T> {
+impl<T: Value> Deref for LiteralInner<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -198,9 +198,9 @@ impl<T: Literal> Deref for InlineInner<T> {
     }
 }
 
-impl<T: Literal + std::fmt::Debug> std::fmt::Debug for InlineInner<T> {
+impl<T: Value + std::fmt::Debug> std::fmt::Debug for LiteralInner<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("InlineInner")
+        f.debug_struct("LiteralInner")
             .field("value", &self.value)
             .field("file", &self.file)
             .field("line", &self.line)
@@ -219,10 +219,10 @@ fn is_running_under_cargo() -> bool {
 
 /// A self-modifying value that holds a lock and can update its source code.
 ///
-/// This type wraps a `MutexGuard` to an [`InlineInner<T>`] and provides
+/// This type wraps a `MutexGuard` to an [`LiteralInner<T>`] and provides
 /// convenient access to the value with a single dereference.
 ///
-/// Created via the [`inline!`](macro@crate::inline) macro. The lock is held
+/// Created via the [`literal!`](macro@crate::inline) macro. The lock is held
 /// for the entire lifetime of this value.
 ///
 /// # Example
@@ -230,22 +230,22 @@ fn is_running_under_cargo() -> bool {
 /// ```no_run
 /// use inline::inline;
 ///
-/// let mut counter = inline!(0u32);
+/// let mut counter = literal!(0u32);
 /// println!("Value: {}", *counter);  // Single deref
 /// counter.set(*counter + 1);
 /// ```
-pub struct Inline<T: Literal + 'static> {
-    guard: parking_lot::MutexGuard<'static, InlineInner<T>>,
+pub struct Literal<T: Value + 'static> {
+    guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
 }
 
-impl<T: Literal + 'static> Inline<T> {
-    /// Create an Inline wrapper from a mutex guard
+impl<T: Value + 'static> Literal<T> {
+    /// Create an Literal wrapper from a mutex guard
     #[doc(hidden)]
-    pub fn from_guard(guard: parking_lot::MutexGuard<'static, InlineInner<T>>) -> Self {
-        Inline { guard }
+    pub fn from_guard(guard: parking_lot::MutexGuard<'static, LiteralInner<T>>) -> Self {
+        Literal { guard }
     }
 
-    /// Create a new Inline value for testing purposes
+    /// Create a new Literal value for testing purposes
     ///
     /// This is equivalent to calling the macro, but allows specifying
     /// custom file/line/column values for testing.
@@ -256,12 +256,12 @@ impl<T: Literal + 'static> Inline<T> {
         // Leak the string to get 'static lifetime (acceptable for tests)
         let file_static: &'static str = Box::leak(file.to_string().into_boxed_str());
         let mutex_ref = crate::registry::get_or_create(value, file_static, line, column);
-        Inline::from_guard(mutex_ref.lock())
+        Literal::from_guard(mutex_ref.lock())
     }
 
     /// Update the value and possibly persist to source file
     ///
-    /// Delegates to [`InlineInner::set()`].
+    /// Delegates to [`LiteralInner::set()`].
     pub fn set(&mut self, new_value: T) {
         self.guard.set(new_value);
     }
@@ -274,17 +274,17 @@ impl<T: Literal + 'static> Inline<T> {
     }
 }
 
-impl<T: Literal + 'static> Deref for Inline<T> {
+impl<T: Value + 'static> Deref for Literal<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.guard  // Auto-deref from guard to InlineInner to T
+        &self.guard  // Auto-deref from guard to LiteralInner to T
     }
 }
 
-impl<T: Literal + std::fmt::Debug + 'static> std::fmt::Debug for Inline<T> {
+impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Inline")
+        f.debug_struct("Literal")
             .field("value", &**self)  // Double deref to get to T
             .finish()
     }
@@ -292,7 +292,7 @@ impl<T: Literal + std::fmt::Debug + 'static> std::fmt::Debug for Inline<T> {
 
 /// Create a self-modifying value that can update its source code.
 ///
-/// The macro captures the source location and returns an [`Inline<T>`] that
+/// The macro captures the source location and returns an [`Literal<T>`] that
 /// holds a lock to the underlying value. The lock is held until the value
 /// is dropped.
 ///
@@ -301,7 +301,7 @@ impl<T: Literal + std::fmt::Debug + 'static> std::fmt::Debug for Inline<T> {
 /// ```no_run
 /// use inline::inline;
 ///
-/// let mut counter = inline!(0u32);
+/// let mut counter = literal!(0u32);
 /// let current = *counter;  // Single dereference
 /// counter.set(current + 1);
 /// // In Write mode, the source file is updated
@@ -314,11 +314,11 @@ impl<T: Literal + std::fmt::Debug + 'static> std::fmt::Debug for Inline<T> {
 ///
 /// # Returns
 ///
-/// An [`Inline<T>`] that holds the lock and derefs to `&T`.
+/// An [`Literal<T>`] that holds the lock and derefs to `&T`.
 /// The same underlying value is returned for all calls from the same source location.
 #[macro_export]
-macro_rules! inline {
+macro_rules! literal {
     ($value:expr) => {{
-        $crate::Inline::from_guard($crate::registry::get_or_create($value, file!(), line!(), column!()).lock())
+        $crate::Literal::from_guard($crate::registry::get_or_create($value, file!(), line!(), column!()).lock())
     }};
 }

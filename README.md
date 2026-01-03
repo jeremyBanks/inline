@@ -1,16 +1,16 @@
-# Inline
+# jeb-literal
 
-`inline` provides mutable literals as smart pointers into your source code.
+`jeb-literal` provides mutable literals as smart pointers into your source code.
 
 ## Overview
 
-Inline lets you create values that can update themselves in your source code. This is an experimental approach to snapshot testing and self-modifying code in Rust.
+jeb-literal lets you create values that can update themselves in your source code. This is an experimental approach to snapshot testing and self-modifying code in Rust.
 
 ```rust
-use inline::inline;
+use jeb_literal::literal;
 
 fn main() {
-    let mut counter = inline!(0u32);
+    let mut counter = literal!(0u32);
 
     println!("Run #{}", *counter + 1);
 
@@ -33,15 +33,15 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-inline = "0.20220713"
+jeb-literal = "0.0.1-dev.1"
 ```
 
-Create a inline value:
+Create a literal value:
 
 ```rust
-use inline::inline;
+use jeb_literal::literal;
 
-let mut value = inline!(42u32);
+let mut value = literal!(42u32);
 ```
 
 Update it:
@@ -53,25 +53,25 @@ value.set(100u32);
 
 ## Modes
 
-Inline has four modes, controlled by the `INLINE_MODE` environment variable:
+jeb-literal has four modes, controlled by the `LITERAL_MODE` environment variable:
 
 - **Write** (default outside tests): Changes are written back to source files
 - **Verify** (default in tests): Validates that values round-trip correctly
-- **Memory** (`INLINE_MODE=memory`): Changes in memory only, no file writes
-- **Reject** (`INLINE_MODE=reject`): Rejects any write attempts, always fails
+- **Memory** (`LITERAL_MODE=memory`): Changes in memory only, no file writes
+- **Reject** (`LITERAL_MODE=reject`): Rejects any write attempts, always fails
 
 ```bash
-INLINE_MODE=write cargo run          # Enable self-modifying mode
-INLINE_MODE=memory cargo run         # Run without file writes
+LITERAL_MODE=write cargo run          # Enable self-modifying mode
+LITERAL_MODE=memory cargo run         # Run without file writes
 cargo test                            # Verify mode (default in tests)
-INLINE_MODE=write cargo test         # Update all snapshots
+LITERAL_MODE=write cargo test         # Update all snapshots
 ```
 
 ## How It Works
 
-1. The `inline!()` macro captures the source location (file, line, column)
+1. The `literal!()` macro captures the source location (file, line, column)
 2. Values implement the `Bake` trait from [databake](https://docs.rs/databake) for serialization
-3. When `.set()` is called, inline:
+3. When `.set()` is called, jeb-literal:
    - Updates the in-memory value
    - Parses the source file
    - Finds the macro at the recorded location
@@ -80,7 +80,7 @@ INLINE_MODE=write cargo test         # Update all snapshots
 
 ## Supported Types
 
-Any type implementing `Bake + PartialEq + Clone` works with inline:
+Any type implementing `Bake + PartialEq + Clone` works with jeb-literal:
 
 - Primitives: `u32`, `i64`, `f32`, `bool`, etc.
 - Strings: `&str`
@@ -148,7 +148,7 @@ cargo test --test integration_serial_test -- --test-threads=1
 
 ## License
 
-`inline` is Copyright Jeremy Banks, released under the familiar choice of `MIT OR Apache-2.0`.
+`jeb-literal` is Copyright Jeremy Banks, released under the familiar choice of `MIT OR Apache-2.0`.
 
 This is heavily based on [the `expect-test` library](https://docs.rs/expect-test), which is also under `MIT OR Apache-2.0` and is Copyright the rust-analyzer developers, including Aleksey Kladov and Dylan MacKenzie.
 

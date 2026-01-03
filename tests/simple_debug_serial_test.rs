@@ -8,7 +8,7 @@ fn debug_litter_update() {
     let path = dir.path().join("test.rs");
 
     // Write a simple file with qualified path
-    let content = "fn main() {\n    let x = inline::inline!(42u32);\n}\n";
+    let content = "fn main() {\n    let x = inline::literal!(42u32);\n}\n";
     fs::write(&path, content).unwrap();
     println!("Original file content:");
     println!("{}", content);
@@ -27,7 +27,7 @@ fn debug_litter_update() {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             // Check if this is a inline macro (might be just "inline" or "inline::inline")
             let is_litter = if let Some(segments) = node.mac.path.segments.iter().last() {
-                segments.ident == "inline"
+                segments.ident == "literal"
             } else {
                 false
             };
@@ -55,10 +55,10 @@ fn debug_litter_update() {
     let column = finder.column.unwrap();
 
     // Now try to update it
-    env::set_var("INLINE_MODE", "write");
+    env::set_var("LITERAL_MODE", "write");
 
     let new_tokens: proc_macro2::TokenStream = "100u32".parse().unwrap();
-    match inline::update_source_file(&path, line, column, new_tokens) {
+    match jeb_literal::update_source_file(&path, line, column, new_tokens) {
         Ok(_) => println!("Update succeeded!"),
         Err(e) => println!("Update failed: {}", e),
     }
@@ -66,5 +66,5 @@ fn debug_litter_update() {
     println!("\nFile content after update:");
     println!("{}", fs::read_to_string(&path).unwrap());
 
-    env::remove_var("INLINE_MODE");
+    env::remove_var("LITERAL_MODE");
 }

@@ -9,15 +9,15 @@ fn test_long_vec_causes_line_wrapping() {
 
     // Start with SHORT values
     let original = r#"fn main() {
-    let a = inline!(vec![1u32, 2u32]);
-    let b = inline!(100u32);
+    let a = literal!(vec![1u32, 2u32]);
+    let b = literal!(100u32);
 }
 "#;
     fs::write(&path, original).unwrap();
     println!("=== ORIGINAL ===");
     println!("{}", original);
 
-    env::set_var("INLINE_MODE", "write");
+    env::set_var("LITERAL_MODE", "write");
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
@@ -29,7 +29,7 @@ fn test_long_vec_causes_line_wrapping() {
 
     // Create inline for the vector
     let mut litter_a =
-        inline::Inline::__new(vec![1u32, 2u32], path.to_str().unwrap(), a_line, a_col);
+        jeb_literal::Literal::__new(vec![1u32, 2u32], path.to_str().unwrap(), a_line, a_col);
 
     // Update to a REALLY LONG vector that will definitely wrap
     let long_vec: Vec<u32> = (0..100).collect();
@@ -63,7 +63,7 @@ fn test_long_vec_causes_line_wrapping() {
         println!("This would break a position-based approach, but index-based should handle it!");
 
         // Try to update B using the OLD position - this tests the index-based approach
-        let mut litter_b = inline::Inline::__new(
+        let mut litter_b = jeb_literal::Literal::__new(
             100u32,
             path.to_str().unwrap(),
             b_line, // OLD position from initial parse
@@ -78,7 +78,7 @@ fn test_long_vec_causes_line_wrapping() {
         println!("\n=== FINAL FILE CONTENT ===");
         println!("{}", final_content);
 
-        if final_content.contains("inline!(999u32)") {
+        if final_content.contains("literal!(999u32)") {
             println!("\n✅ SUCCESS! Index-based approach works even when line numbers shift!");
             println!(
                 "The original position (line {}) was mapped to a stable index,",
@@ -89,25 +89,25 @@ fn test_long_vec_causes_line_wrapping() {
                 positions_after[1].0
             );
         } else {
-            println!("❌ Failed to update B! Expected to find inline!(999u32)");
+            println!("❌ Failed to update B! Expected to find literal!(999u32)");
             panic!("Index-based approach failed!");
         }
     } else {
         println!("\n✓ B stayed at line {} (formatter didn't wrap)", b_line);
         println!("Let's still verify the index-based approach works by updating B");
 
-        let mut litter_b = inline::Inline::__new(100u32, path.to_str().unwrap(), b_line, b_col);
+        let mut litter_b = jeb_literal::Literal::__new(100u32, path.to_str().unwrap(), b_line, b_col);
 
         litter_b.set(999u32);
         let final_content = fs::read_to_string(&path).unwrap();
         assert!(
-            final_content.contains("inline!(999u32)"),
+            final_content.contains("literal!(999u32)"),
             "Should update B successfully"
         );
         println!("✅ B updated successfully");
     }
 
-    env::remove_var("INLINE_MODE");
+    env::remove_var("LITERAL_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
@@ -122,7 +122,7 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
     impl<'ast> Visit<'ast> for MacroCollector {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             let is_litter = if let Some(segment) = node.mac.path.segments.last() {
-                segment.ident == "inline"
+                segment.ident == "literal"
             } else {
                 false
             };

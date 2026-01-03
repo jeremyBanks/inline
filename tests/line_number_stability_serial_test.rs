@@ -11,16 +11,16 @@ fn test_line_number_stability_with_multiple_litters() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = inline!(1u32);
-    let b = inline!(2u32);
-    let c = inline!(3u32);
+    let a = literal!(1u32);
+    let b = literal!(2u32);
+    let c = literal!(3u32);
 }
 "#;
     fs::write(&path, original).unwrap();
     println!("=== ORIGINAL FILE ===");
     println!("{}", original);
 
-    env::set_var("INLINE_MODE", "write");
+    env::set_var("LITERAL_MODE", "write");
 
     // Find all positions initially
     let positions = find_all_positions(&path);
@@ -35,9 +35,9 @@ fn test_line_number_stability_with_multiple_litters() {
     let (c_line, c_col) = positions[2];
 
     // Create inline instances
-    let mut litter_a = inline::Inline::__new(1u32, path.to_str().unwrap(), a_line, a_col);
-    let mut litter_b = inline::Inline::__new(2u32, path.to_str().unwrap(), b_line, b_col);
-    let mut litter_c = inline::Inline::__new(3u32, path.to_str().unwrap(), c_line, c_col);
+    let mut litter_a = jeb_literal::Literal::__new(1u32, path.to_str().unwrap(), a_line, a_col);
+    let mut litter_b = jeb_literal::Literal::__new(2u32, path.to_str().unwrap(), b_line, b_col);
+    let mut litter_c = jeb_literal::Literal::__new(3u32, path.to_str().unwrap(), c_line, c_col);
 
     // Update A
     println!("\n=== UPDATING A (1 -> 999) ===");
@@ -105,7 +105,7 @@ fn test_line_number_stability_with_multiple_litters() {
 
     println!("\n✓ ALL LINE NUMBERS REMAINED STABLE!");
 
-    env::remove_var("INLINE_MODE");
+    env::remove_var("LITERAL_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
@@ -120,7 +120,7 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
     impl<'ast> Visit<'ast> for MacroCollector {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             let is_litter = if let Some(segment) = node.mac.path.segments.last() {
-                segment.ident == "inline"
+                segment.ident == "literal"
             } else {
                 false
             };

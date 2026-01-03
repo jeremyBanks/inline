@@ -3,15 +3,15 @@
 // This demonstrates using inline with more complex types via databake.
 //
 // To run:
-// INLINE_MODE=write cargo run --example config
+// LITERAL_MODE=write cargo run --example config
 
-use inline::inline;
+use jeb_literal::literal;
 
 fn main() {
     // Simple configuration values that update themselves
-    let mut max_retries = inline!(3u32);
-    let mut timeout_ms = inline!(1000u32);
-    let mut debug_mode = inline!(false);
+    let mut max_retries = literal!(3u32);
+    let mut timeout_ms = literal!(1000u32);
+    let mut debug_mode = literal!(false);
 
     println!("Current configuration:");
     println!("  Max retries: {}", *max_retries.get());

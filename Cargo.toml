@@ -1,13 +1,13 @@
 [package]
-name = "inline"
+name = "jeb-literal"
 version = "0.0.1-dev.1"
 edition = "2021"
 authors = ["Jeremy Banks"]
 license = "MIT OR Apache-2.0"
-description = "Self-modifying values that update their source code at runtime"
+description = "Self-modifying literal values that update their source code at runtime"
 repository = "https://github.com/jeremyBanks/inline"
 homepage = "https://github.com/jeremyBanks/inline"
-documentation = "https://docs.rs/inline"
+documentation = "https://docs.rs/jeb-literal"
 readme = "README.md"
 keywords = ["snapshot", "testing", "self-modifying", "codegen"]
 categories = ["development-tools::testing", "development-tools"]

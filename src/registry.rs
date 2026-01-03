@@ -1,13 +1,13 @@
-//! Type-erased value registry for static persistence of inline values.
+//! Type-erased value registry for static persistence of literal values.
 //!
-//! This module provides a global registry that allows inline values to persist
+//! This module provides a global registry that allows literal values to persist
 //! across function calls within the same execution. Each unique source location
 //! (file, line, column) and type gets exactly one shared value that lives for
 //! the entire program lifetime.
 //!
 //! # Implementation
 //!
-//! Uses a global `HashMap` storing raw pointers to `Box<Mutex<InlineInner<T>>>`.
+//! Uses a global `HashMap` storing raw pointers to `Box<Mutex<LiteralInner<T>>>`.
 //! The boxes are intentionally leaked to provide true `'static` lifetime.
 //! Type safety is ensured by including `TypeId` in the registry key.
 //!
@@ -18,8 +18,8 @@
 //! - `TypeId` in the key guarantees we only cast to the correct type
 //! - Boxes are allocated by this module, pointers are valid for `'static`
 
-use crate::inline::InlineInner;
-use crate::Literal;
+use crate::inline::LiteralInner;
+use crate::literal::Value;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::any::TypeId;
@@ -34,28 +34,28 @@ type RegistryValue = usize;
 
 /// Global registry mapping (file, line, column, type) to raw pointers.
 ///
-/// Each entry is a `Box<Mutex<InlineInner<T>>>` cast to `usize` for type erasure.
+/// Each entry is a `Box<Mutex<LiteralInner<T>>>` cast to `usize` for type erasure.
 /// The TypeId in the key ensures type safety when casting back.
 static VALUE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, RegistryValue>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-/// Get or create a static inline value at the given source location.
+/// Get or create a static literal value at the given source location.
 ///
-/// **Note:** This is an internal function called by the `inline!` macro.
+/// **Note:** This is an internal function called by the `literal!` macro.
 /// Users should use the macro instead.
 #[doc(hidden)]
-pub fn get_or_create<T: Literal + 'static>(
+pub fn get_or_create<T: Value + 'static>(
     initial: T,
     file: &'static str,
     line: u32,
     column: u32,
-) -> &'static Mutex<InlineInner<T>> {
+) -> &'static Mutex<LiteralInner<T>> {
     // Build the registry key including TypeId for type safety
     let key = (
         PathBuf::from(file),
         line,
         column,
-        TypeId::of::<InlineInner<T>>(),
+        TypeId::of::<LiteralInner<T>>(),
     );
 
     // Get or create the raw pointer in the registry
@@ -63,7 +63,7 @@ pub fn get_or_create<T: Literal + 'static>(
         let mut registry = VALUE_REGISTRY.lock();
         *registry.entry(key).or_insert_with(|| {
             // Create a new boxed value and leak it for 'static lifetime
-            let boxed = Box::new(Mutex::new(InlineInner::new(initial, file, line, column)));
+            let boxed = Box::new(Mutex::new(LiteralInner::new(initial, file, line, column)));
             Box::into_raw(boxed) as usize
         })
     };
@@ -73,5 +73,5 @@ pub fn get_or_create<T: Literal + 'static>(
     // - TypeId in key guarantees we only cast to the correct type T
     // - Box was allocated above, pointer is valid for 'static
     // - Multiple threads can safely share the &'static reference
-    unsafe { &*(ptr_as_usize as *const Mutex<InlineInner<T>>) }
+    unsafe { &*(ptr_as_usize as *const Mutex<LiteralInner<T>>) }
 }

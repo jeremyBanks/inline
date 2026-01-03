@@ -11,12 +11,12 @@ fn test_multiple_updates_same_litter() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let x = inline!(42u32);
+    let x = literal!(42u32);
 }
 "#;
     fs::write(&path, original).unwrap();
 
-    env::set_var("INLINE_MODE", "write");
+    env::set_var("LITERAL_MODE", "write");
 
     // Find initial position
     let source = fs::read_to_string(&path).unwrap();
@@ -31,7 +31,7 @@ fn test_multiple_updates_same_litter() {
     impl<'ast> Visit<'ast> for MacroFinder {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             if let Some(ident) = node.mac.path.get_ident() {
-                if ident == "inline" {
+                if ident == "literal" {
                     let span = ident.span();
                     let start = span.start();
                     self.line = Some(start.line as u32);
@@ -54,7 +54,7 @@ fn test_multiple_updates_same_litter() {
     );
 
     // Create a Inline instance with the captured position
-    let mut value = inline::Inline::__new(
+    let mut value = jeb_literal::Literal::__new(
         42u32,
         path.to_str().unwrap(),
         original_line,
@@ -140,5 +140,5 @@ fn test_multiple_updates_same_litter() {
     );
     println!("  Final:    line {}, column {}", line_after_3, col_after_3);
 
-    env::remove_var("INLINE_MODE");
+    env::remove_var("LITERAL_MODE");
 }

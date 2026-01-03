@@ -15,14 +15,14 @@ pub enum Mode {
     /// DEFAULT IN TESTS
     Verify,
     /// Actually writes changes to source files
-    /// Fails if files can't be found or inline macros missing at expected positions
+    /// Fails if files can't be found or literal macros missing at expected positions
     /// DEFAULT OUTSIDE TESTS (self-modifying code!)
     Write,
     /// Changes in memory only, never writes to disk
-    /// Must be explicitly enabled via INLINE_MODE=memory
+    /// Must be explicitly enabled via LITERAL_MODE=memory
     Memory,
     /// Rejects any attempt to write, always fails
-    /// Must be explicitly enabled via INLINE_MODE=reject
+    /// Must be explicitly enabled via LITERAL_MODE=reject
     Reject,
 }
 
@@ -52,26 +52,26 @@ impl Mode {
 
 /// Get the current mode by checking environment variable
 ///
-/// Modes (set via INLINE_MODE environment variable):
+/// Modes (set via LITERAL_MODE environment variable):
 /// - "verify": Verify values match source (DEFAULT IN TESTS)
 /// - "write": Write changes to source files (DEFAULT OUTSIDE TESTS)
 /// - "memory": Changes in memory only (opt-in only)
 /// - "reject": Reject any write attempts (opt-in only)
 ///
 /// Examples:
-///   INLINE_MODE=write cargo test     # Update all snapshots
+///   LITERAL_MODE=write cargo test     # Update all snapshots
 ///   cargo test                        # Verify snapshots (default in tests)
 ///   cargo run                         # Self-modifying mode (default outside tests)
-///   INLINE_MODE=memory cargo run     # Run without file writes
+///   LITERAL_MODE=memory cargo run     # Run without file writes
 pub fn get_mode() -> Mode {
-    if let Ok(mode_str) = env::var("INLINE_MODE") {
+    if let Ok(mode_str) = env::var("LITERAL_MODE") {
         return match mode_str.to_lowercase().as_str() {
             "write" | "update" => Mode::Write,
             "verify" => Mode::Verify,
             "memory" => Mode::Memory,
             "reject" => Mode::Reject,
             _ => {
-                eprintln!("Warning: Unknown INLINE_MODE='{}', using default. Valid: write, verify, memory, reject", mode_str);
+                eprintln!("Warning: Unknown LITERAL_MODE='{}', using default. Valid: write, verify, memory, reject", mode_str);
                 Mode::default_for_context()
             }
         };
@@ -204,7 +204,7 @@ impl FileState {
         impl<'ast> Visit<'ast> for IndexBuilder {
             fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
                 let is_litter = if let Some(segment) = node.mac.path.segments.last() {
-                    segment.ident == "inline"
+                    segment.ident == "literal"
                 } else {
                     false
                 };
@@ -222,7 +222,7 @@ impl FileState {
 
             fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
                 let is_litter = if let Some(segment) = node.mac.path.segments.last() {
-                    segment.ident == "inline"
+                    segment.ident == "literal"
                 } else {
                     false
                 };
@@ -250,7 +250,7 @@ impl FileState {
     /// Get the stable index for a macro at the given position
     ///
     /// Note: column matching is flexible because column!() returns the start of the
-    /// macro invocation (e.g., "inline::inline!") but syn's span might point to
+    /// macro invocation (e.g., "inline::literal!") but syn's span might point to
     /// the last segment. We match on line and find the closest macro on that line.
     pub fn get_index(&self, line: u32, column: u32) -> Result<usize, io::Error> {
         let (_, position_to_index) = self.get_cached_ast()?;
@@ -270,7 +270,7 @@ impl FileState {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!(
-                    "No inline! macro found on line {} in {}",
+                    "No literal! macro found on line {} in {}",
                     line,
                     self.path.display()
                 ),
@@ -352,7 +352,7 @@ impl FileState {
         impl SpanFinder {
             fn try_find_span(&mut self, mac: &syn::Macro) {
                 let is_litter = if let Some(segment) = mac.path.segments.last() {
-                    segment.ident == "inline"
+                    segment.ident == "literal"
                 } else {
                     false
                 };
@@ -395,7 +395,7 @@ impl FileState {
 
         let (start_lc, end_lc) = finder
             .span
-            .ok_or_else(|| format!("Could not find inline! macro at index {}", target_index))?;
+            .ok_or_else(|| format!("Could not find literal! macro at index {}", target_index))?;
 
         // Convert line/column to byte offsets
         let start_byte = Self::line_col_to_byte_static(source, start_lc.line, start_lc.column)?;
@@ -452,7 +452,7 @@ impl FileState {
         ))
     }
 
-    /// Get the current tokens of a inline macro at the given index
+    /// Get the current tokens of a literal macro at the given index
     pub fn get_macro_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
         let (ast, _) = self
             .get_cached_ast()
@@ -469,7 +469,7 @@ impl FileState {
 
         reader
             .tokens
-            .ok_or_else(|| format!("Could not find inline! macro at index {}", index))
+            .ok_or_else(|| format!("Could not find literal! macro at index {}", index))
     }
 
     /// Write the current shared source to disk
@@ -527,7 +527,7 @@ impl FileState {
     }
 }
 
-/// Visitor that reads the Nth inline! macro (by index)
+/// Visitor that reads the Nth literal! macro (by index)
 struct IndexedMacroReader {
     target_index: usize,
     current_index: usize,
@@ -541,7 +541,7 @@ impl IndexedMacroReader {
         }
 
         let is_litter = if let Some(segment) = mac.path.segments.last() {
-            segment.ident == "inline"
+            segment.ident == "literal"
         } else {
             false
         };
@@ -593,13 +593,13 @@ fn get_or_load_file_state(path: &Path) -> Result<FileState, io::Error> {
     Ok(state)
 }
 
-/// Get the stable index for a inline macro at the given position
+/// Get the stable index for a literal macro at the given position
 pub fn get_macro_index(path: &Path, line: u32, column: u32) -> Result<usize, io::Error> {
     let state = get_or_load_file_state(path)?;
     state.get_index(line, column)
 }
 
-/// Update a inline macro by its stable index
+/// Update a literal macro by its stable index
 /// This only updates the in-memory shared state.
 /// To persist to disk, you must call write_to_disk separately.
 pub fn update_macro_by_index(
@@ -618,7 +618,7 @@ pub fn write_to_disk(path: &Path) -> Result<(), io::Error> {
     state.write_to_disk()
 }
 
-/// Convenience function: update a inline macro at the given position
+/// Convenience function: update a literal macro at the given position
 /// This combines get_macro_index, update_macro_by_index, and write_to_disk
 pub fn update_source_file(
     path: &Path,
@@ -632,7 +632,7 @@ pub fn update_source_file(
     Ok(())
 }
 
-/// Get the current tokens of a inline macro by its stable index
+/// Get the current tokens of a literal macro by its stable index
 pub fn get_macro_tokens_by_index(
     path: &Path,
     index: usize,
