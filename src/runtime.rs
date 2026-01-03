@@ -6,6 +6,7 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use syn::visit_mut::{self, VisitMut};
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
@@ -83,40 +84,104 @@ pub fn get_mode() -> Mode {
 /// Convenience constant for accessing mode
 pub static MODE: Lazy<Mode> = Lazy::new(get_mode);
 
-// Thread-local state: one FileState per source file
-// The AST is kept in memory and mutated in place - never re-parsed!
-// We use thread_local! because syn::File contains non-Send types (proc_macro::Span)
-thread_local! {
-    static FILE_STATES: RefCell<HashMap<PathBuf, FileState>> = RefCell::new(HashMap::new());
+/// Shared state across threads - the formatted source code is the source of truth
+#[derive(Clone)]
+struct SharedState {
+    /// The source code (formatted with prettyplease)
+    source: String,
+    /// Version counter - incremented on every modification
+    version: u64,
 }
 
-/// Represents the parsed AST and index mapping for a single source file
-/// The key insight: we parse once, keep the AST in memory, and use stable indices
-pub struct FileState {
-    /// The AST is kept in memory and mutated in place
-    ast: RwLock<syn::File>,
+/// Thread-local cached AST and index mapping
+struct CachedState {
+    /// Parsed AST (cached to avoid re-parsing on every access)
+    ast: syn::File,
     /// Maps (line, column) positions to stable indices
-    /// Built on first load, never changes
     position_to_index: HashMap<(u32, u32), usize>,
+    /// Version this cache is based on
+    version: u64,
+}
+
+// Global registry of FileStates (one per source file)
+// Uses Arc so FileState can be shared across threads
+static FILE_STATES: Lazy<RwLock<HashMap<PathBuf, FileState>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
+
+// Thread-local cache: each thread keeps its own parsed AST
+thread_local! {
+    static CACHE: RefCell<HashMap<PathBuf, CachedState>> = RefCell::new(HashMap::new());
+}
+
+/// Represents the shared state for a single source file
+/// The key insight: String is Send+Sync, so we use it as the source of truth.
+/// Each thread maintains a thread-local parsed AST for efficiency.
+#[derive(Clone)]
+pub struct FileState {
+    /// Shared source of truth (formatted source code + version counter)
+    shared: Arc<RwLock<SharedState>>,
+    /// Path to this file (needed for caching)
+    path: PathBuf,
 }
 
 impl FileState {
-    /// Load and parse a source file, building the position->index mapping
+    /// Load and parse a source file
     pub fn load(path: &Path) -> Result<Self, io::Error> {
         let source = fs::read_to_string(path)?;
-        let ast = syn::parse_file(&source).map_err(|e| {
+
+        // Validate that it parses
+        syn::parse_file(&source).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("Failed to parse Rust file: {}", e),
             )
         })?;
 
-        // Build the initial position->index mapping
-        let position_to_index = Self::build_index_map(&ast);
-
         Ok(FileState {
-            ast: RwLock::new(ast),
-            position_to_index,
+            shared: Arc::new(RwLock::new(SharedState { source, version: 0 })),
+            path: path.to_path_buf(),
+        })
+    }
+
+    /// Get a thread-local cached AST, re-parsing if the shared version has changed
+    fn get_cached_ast(&self) -> Result<(syn::File, HashMap<(u32, u32), usize>), io::Error> {
+        CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
+
+            // Get current version from shared state
+            let shared = self.shared.read();
+            let current_version = shared.version;
+            let source = shared.source.clone();
+            drop(shared); // Release read lock immediately
+
+            // Check if we have a valid cached version
+            if let Some(cached) = cache.get(&self.path) {
+                if cached.version == current_version {
+                    // Cache hit! Return cached AST and index map
+                    return Ok((cached.ast.clone(), cached.position_to_index.clone()));
+                }
+            }
+
+            // Cache miss or stale - need to re-parse
+            let ast = syn::parse_file(&source).map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Failed to parse Rust file: {}", e),
+                )
+            })?;
+            let position_to_index = Self::build_index_map(&ast);
+
+            // Update thread-local cache
+            cache.insert(
+                self.path.clone(),
+                CachedState {
+                    ast: ast.clone(),
+                    position_to_index: position_to_index.clone(),
+                    version: current_version,
+                },
+            );
+
+            Ok((ast, position_to_index))
         })
     }
 
@@ -177,19 +242,39 @@ impl FileState {
     }
 
     /// Get the stable index for a macro at the given position
-    pub fn get_index(&self, line: u32, column: u32) -> Option<usize> {
-        self.position_to_index.get(&(line, column)).copied()
+    pub fn get_index(&self, line: u32, column: u32) -> Result<usize, io::Error> {
+        let (_, position_to_index) = self.get_cached_ast()?;
+        position_to_index
+            .get(&(line, column))
+            .copied()
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "No litter! macro found at {}:{}:{}",
+                        self.path.display(),
+                        line,
+                        column
+                    ),
+                )
+            })
     }
 
     /// Update the macro at the given index with new tokens
-    /// This is the core operation - we find the Nth litter! macro and update it
+    /// CRITICAL: Holds write lock for the entire operation to prevent concurrent modifications
     pub fn update_macro_by_index(
         &self,
         index: usize,
         new_tokens: proc_macro2::TokenStream,
     ) -> Result<(), String> {
-        let mut ast = self.ast.write();
+        // ACQUIRE WRITE LOCK - blocks all other threads from reading or writing
+        let mut shared = self.shared.write();
 
+        // Parse the current source
+        let mut ast = syn::parse_file(&shared.source)
+            .map_err(|e| format!("Failed to parse source: {}", e))?;
+
+        // Find and update the target macro
         let mut updater = IndexedMacroUpdater {
             target_index: index,
             current_index: 0,
@@ -197,18 +282,42 @@ impl FileState {
             found: false,
         };
 
-        updater.visit_file_mut(&mut *ast);
+        updater.visit_file_mut(&mut ast);
 
         if !updater.found {
             return Err(format!("Could not find litter! macro at index {}", index));
         }
 
+        // Format the modified AST
+        let new_source = prettyplease::unparse(&ast);
+
+        // Update shared state (increments version)
+        shared.source = new_source;
+        shared.version += 1;
+        let new_version = shared.version;
+
+        // Update thread-local cache with the new AST
+        let position_to_index = Self::build_index_map(&ast);
+        CACHE.with(|cache| {
+            cache.borrow_mut().insert(
+                self.path.clone(),
+                CachedState {
+                    ast,
+                    position_to_index,
+                    version: new_version,
+                },
+            );
+        });
+
+        // Write lock is released here when `shared` goes out of scope
         Ok(())
     }
 
     /// Get the current tokens of a litter macro at the given index
     pub fn get_macro_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
-        let ast = self.ast.read();
+        let (ast, _) = self
+            .get_cached_ast()
+            .map_err(|e| format!("Failed to get AST: {}", e))?;
 
         let mut reader = IndexedMacroReader {
             target_index: index,
@@ -217,23 +326,23 @@ impl FileState {
         };
 
         use syn::visit::Visit;
-        reader.visit_file(&*ast);
+        reader.visit_file(&ast);
 
         reader
             .tokens
             .ok_or_else(|| format!("Could not find litter! macro at index {}", index))
     }
 
-    /// Write the current AST back to disk
+    /// Write the current shared source to disk
     /// Then runs cargo fmt on the file to match project's rustfmt.toml
-    pub fn write_to_disk(&self, path: &Path) -> Result<(), io::Error> {
-        let ast = self.ast.read();
-        let formatted = prettyplease::unparse(&*ast);
-        fs::write(path, formatted)?;
+    pub fn write_to_disk(&self) -> Result<(), io::Error> {
+        let shared = self.shared.read();
+        fs::write(&self.path, &shared.source)?;
+        drop(shared); // Release read lock before running cargo fmt
 
         // Run cargo fmt on this specific file to match project's formatting rules
         // This ensures stability with user running `cargo fmt` later
-        if let Some(path_str) = path.to_str() {
+        if let Some(path_str) = self.path.to_str() {
             match std::process::Command::new("cargo")
                 .args(["fmt", "--", path_str])
                 .output()
@@ -241,14 +350,14 @@ impl FileState {
                 Ok(output) if !output.status.success() => {
                     eprintln!(
                         "Warning: cargo fmt failed for {}: {}",
-                        path.display(),
+                        self.path.display(),
                         String::from_utf8_lossy(&output.stderr)
                     );
                 }
                 Err(e) => {
                     eprintln!(
                         "Warning: could not run cargo fmt for {}: {}",
-                        path.display(),
+                        self.path.display(),
                         e
                     );
                 }
@@ -345,54 +454,58 @@ impl<'ast> syn::visit::Visit<'ast> for IndexedMacroReader {
     }
 }
 
+/// Get or load the FileState for a given path
+fn get_or_load_file_state(path: &Path) -> Result<FileState, io::Error> {
+    let states = FILE_STATES.read();
+
+    // Fast path: already loaded
+    if let Some(state) = states.get(path) {
+        return Ok(state.clone());
+    }
+
+    drop(states); // Release read lock
+
+    // Slow path: need to load
+    let mut states = FILE_STATES.write();
+
+    // Double-check in case another thread loaded it while we were waiting
+    if let Some(state) = states.get(path) {
+        return Ok(state.clone());
+    }
+
+    // Actually load the file
+    let state = FileState::load(path)?;
+    states.insert(path.to_path_buf(), state.clone());
+    Ok(state)
+}
+
 /// Get the stable index for a litter macro at the given position
 pub fn get_macro_index(path: &Path, line: u32, column: u32) -> Result<usize, io::Error> {
-    FILE_STATES.with(|states| {
-        let mut states = states.borrow_mut();
-
-        // Load the file if not already loaded
-        if !states.contains_key(path) {
-            let state = FileState::load(path)?;
-            states.insert(path.to_path_buf(), state);
-        }
-
-        let state = states.get(path).unwrap();
-        state.get_index(line, column).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                format!(
-                    "No litter! macro found at {}:{}:{}",
-                    path.display(),
-                    line,
-                    column
-                ),
-            )
-        })
-    })
+    let state = get_or_load_file_state(path)?;
+    state.get_index(line, column)
 }
 
 /// Update a litter macro by its stable index
+/// This only updates the in-memory shared state.
+/// To persist to disk, you must call write_to_disk separately.
 pub fn update_macro_by_index(
     path: &Path,
     index: usize,
     new_tokens: proc_macro2::TokenStream,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    FILE_STATES.with(|states| {
-        let states = states.borrow();
+    let state = get_or_load_file_state(path)?;
+    state.update_macro_by_index(index, new_tokens)?;
+    Ok(())
+}
 
-        let state = states
-            .get(path)
-            .ok_or("File state not found - was get_macro_index called first?")?;
-
-        state.update_macro_by_index(index, new_tokens)?;
-        state.write_to_disk(path)?;
-
-        Ok(())
-    })
+/// Write the current state of a file to disk
+pub fn write_to_disk(path: &Path) -> Result<(), io::Error> {
+    let state = get_or_load_file_state(path)?;
+    state.write_to_disk()
 }
 
 /// Convenience function: update a litter macro at the given position
-/// This combines get_macro_index and update_macro_by_index
+/// This combines get_macro_index, update_macro_by_index, and write_to_disk
 pub fn update_source_file(
     path: &Path,
     line: u32,
@@ -401,6 +514,7 @@ pub fn update_source_file(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let index = get_macro_index(path, line, column)?;
     update_macro_by_index(path, index, new_tokens)?;
+    write_to_disk(path)?;
     Ok(())
 }
 
@@ -409,13 +523,6 @@ pub fn get_macro_tokens_by_index(
     path: &Path,
     index: usize,
 ) -> Result<proc_macro2::TokenStream, Box<dyn std::error::Error>> {
-    FILE_STATES.with(|states| {
-        let states = states.borrow();
-
-        let state = states
-            .get(path)
-            .ok_or("File state not found - was get_macro_index called first?")?;
-
-        state.get_macro_tokens(index).map_err(|e| e.into())
-    })
+    let state = get_or_load_file_state(path)?;
+    state.get_macro_tokens(index).map_err(|e| e.into())
 }

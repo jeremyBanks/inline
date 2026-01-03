@@ -175,8 +175,11 @@ impl<T: Literal> Litter<T> {
         let env = databake::CrateEnv::default();
         let baked_tokens = new_value.bake(&env);
 
-        // Update using our stable index
+        // Update the shared in-memory state
         crate::runtime::update_macro_by_index(&self.file, index, baked_tokens)?;
+
+        // Write to disk (this runs cargo fmt as well)
+        crate::runtime::write_to_disk(&self.file)?;
 
         Ok(())
     }
