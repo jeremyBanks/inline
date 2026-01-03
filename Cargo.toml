@@ -8,7 +8,7 @@ edition = "2021"
 once_cell = "1.13.0"
 databake = "0.1"
 syn = { version = "2", features = ["full", "visit-mut", "visit", "extra-traits"] }
-proc-macro0 = { git = "https://github.com/jeremyBanks/proc-macro0", branch = "master", features = ["sync", "span-locations"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
 prettyplease = "0.2"
 parking_lot = "0.12"

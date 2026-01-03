@@ -95,7 +95,7 @@ fn test_multi_threaded_access() {
     // Spawn a thread that modifies macro 0
     let test_file_clone = Arc::clone(&test_file);
     let modifier = thread::spawn(move || {
-        let new_tokens: proc_macro0::TokenStream = "999".parse().unwrap();
+        let new_tokens: proc_macro2::TokenStream = "999".parse().unwrap();
         litter::runtime::update_macro_by_index(&test_file_clone, 0, new_tokens).unwrap();
         litter::runtime::write_to_disk(&test_file_clone).unwrap();
     });
@@ -142,7 +142,7 @@ fn test_sequential_modifications_across_threads() {
                 thread::sleep(std::time::Duration::from_millis(i * 10));
 
                 let new_value = format!("{}", (i + 1) * 100);
-                let new_tokens: proc_macro0::TokenStream = new_value.parse().unwrap();
+                let new_tokens: proc_macro2::TokenStream = new_value.parse().unwrap();
                 litter::runtime::update_macro_by_index(&test_file, 0, new_tokens).unwrap();
                 litter::runtime::write_to_disk(&test_file).unwrap();
             })

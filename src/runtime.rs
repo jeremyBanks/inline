@@ -297,7 +297,7 @@ impl FileState {
     pub fn update_macro_by_index(
         &self,
         index: usize,
-        new_tokens: proc_macro0::TokenStream,
+        new_tokens: proc_macro2::TokenStream,
     ) -> Result<(), String> {
         // ACQUIRE WRITE LOCK - blocks all other threads from reading or writing
         let mut shared = self.shared.write();
@@ -344,7 +344,7 @@ impl FileState {
         struct SpanFinder {
             target_index: usize,
             current_index: usize,
-            span: Option<(proc_macro0::LineColumn, proc_macro0::LineColumn)>,
+            span: Option<(proc_macro2::LineColumn, proc_macro2::LineColumn)>,
         }
 
         impl SpanFinder {
@@ -451,7 +451,7 @@ impl FileState {
     }
 
     /// Get the current tokens of a litter macro at the given index
-    pub fn get_macro_tokens(&self, index: usize) -> Result<proc_macro0::TokenStream, String> {
+    pub fn get_macro_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
         let (ast, _) = self
             .get_cached_ast()
             .map_err(|e| format!("Failed to get AST: {}", e))?;
@@ -530,7 +530,7 @@ impl FileState {
 struct IndexedMacroUpdater {
     target_index: usize,
     current_index: usize,
-    new_tokens: proc_macro0::TokenStream,
+    new_tokens: proc_macro2::TokenStream,
     found: bool,
 }
 
@@ -573,7 +573,7 @@ impl VisitMut for IndexedMacroUpdater {
 struct IndexedMacroReader {
     target_index: usize,
     current_index: usize,
-    tokens: Option<proc_macro0::TokenStream>,
+    tokens: Option<proc_macro2::TokenStream>,
 }
 
 impl IndexedMacroReader {
@@ -647,7 +647,7 @@ pub fn get_macro_index(path: &Path, line: u32, column: u32) -> Result<usize, io:
 pub fn update_macro_by_index(
     path: &Path,
     index: usize,
-    new_tokens: proc_macro0::TokenStream,
+    new_tokens: proc_macro2::TokenStream,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let state = get_or_load_file_state(path)?;
     state.update_macro_by_index(index, new_tokens)?;
@@ -666,7 +666,7 @@ pub fn update_source_file(
     path: &Path,
     line: u32,
     column: u32,
-    new_tokens: proc_macro0::TokenStream,
+    new_tokens: proc_macro2::TokenStream,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let index = get_macro_index(path, line, column)?;
     update_macro_by_index(path, index, new_tokens)?;
@@ -678,7 +678,7 @@ pub fn update_source_file(
 pub fn get_macro_tokens_by_index(
     path: &Path,
     index: usize,
-) -> Result<proc_macro0::TokenStream, Box<dyn std::error::Error>> {
+) -> Result<proc_macro2::TokenStream, Box<dyn std::error::Error>> {
     let state = get_or_load_file_state(path)?;
     state.get_macro_tokens(index).map_err(|e| e.into())
 }

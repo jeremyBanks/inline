@@ -66,7 +66,7 @@ fn test_detects_external_file_modification() {
     fs::write(&test_file, modified_code).unwrap();
 
     // Now try to write - this should panic because the file was modified externally
-    let new_tokens: proc_macro0::TokenStream = "100".parse().unwrap();
+    let new_tokens: proc_macro2::TokenStream = "100".parse().unwrap();
     litter::runtime::update_macro_by_index(&test_file, 0, new_tokens).unwrap();
     litter::runtime::write_to_disk(&test_file).unwrap(); // Should panic here
 }
@@ -88,7 +88,7 @@ fn test_no_panic_when_no_concurrent_modification() {
         litter::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
 
     // Modify through litter - should work fine
-    let new_tokens: proc_macro0::TokenStream = "100".parse().unwrap();
+    let new_tokens: proc_macro2::TokenStream = "100".parse().unwrap();
     litter::runtime::update_macro_by_index(&test_file, 0, new_tokens).unwrap();
     litter::runtime::write_to_disk(&test_file).unwrap(); // Should succeed
 
@@ -114,12 +114,12 @@ fn test_multiple_writes_without_external_modification() {
         litter::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
 
     // First write
-    let tokens1: proc_macro0::TokenStream = "100".parse().unwrap();
+    let tokens1: proc_macro2::TokenStream = "100".parse().unwrap();
     litter::runtime::update_macro_by_index(&test_file, 0, tokens1).unwrap();
     litter::runtime::write_to_disk(&test_file).unwrap();
 
     // Second write - should work because we track the disk state after the first write
-    let tokens2: proc_macro0::TokenStream = "200".parse().unwrap();
+    let tokens2: proc_macro2::TokenStream = "200".parse().unwrap();
     litter::runtime::update_macro_by_index(&test_file, 0, tokens2).unwrap();
     litter::runtime::write_to_disk(&test_file).unwrap();
 

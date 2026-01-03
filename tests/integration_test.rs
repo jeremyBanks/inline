@@ -140,7 +140,7 @@ fn test_update_source_file() {
     let (line, column) = positions[0];
 
     // Update the value
-    let new_tokens: proc_macro0::TokenStream = "100u32".parse().unwrap();
+    let new_tokens: proc_macro2::TokenStream = "100u32".parse().unwrap();
     litter::update_source_file(&test_file.path, line, column, new_tokens).unwrap();
 
     // Verify the file was updated
