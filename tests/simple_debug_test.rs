@@ -57,7 +57,7 @@ fn debug_litter_update() {
     // Now try to update it
     env::set_var("LITTER_MODE", "write");
 
-    let new_tokens: proc_macro2::TokenStream = "100u32".parse().unwrap();
+    let new_tokens: proc_macro0::TokenStream = "100u32".parse().unwrap();
     match litter::update_source_file(&path, line, column, new_tokens) {
         Ok(_) => println!("Update succeeded!"),
         Err(e) => println!("Update failed: {}", e),
