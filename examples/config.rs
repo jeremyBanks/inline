@@ -3,7 +3,7 @@
 // This demonstrates using litter with more complex types via databake.
 //
 // To run:
-// LITTER_UPDATE=1 cargo run --example config
+// LITTER_MODE=write cargo run --example config
 
 use litter::litter;
 

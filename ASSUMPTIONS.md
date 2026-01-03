@@ -68,7 +68,7 @@ This document lists all assumptions and design decisions made during the impleme
 - More flexible for dynamic behavior
 - Minimal performance cost (env var lookup is fast)
 
-**Impact**: Tests can set LITTER_UPDATE=1 and see immediate effect
+**Impact**: Tests can set LITTER_MODE=write and see immediate effect
 
 **Alternative Considered**: Cache mode in a Lazy static. Rejected because it wouldn't work with tests that set env vars after startup.
 
@@ -124,21 +124,24 @@ This document lists all assumptions and design decisions made during the impleme
 
 **Mitigation**: Tests will catch this.
 
-### 10. prettyplease for Formatting
+### 10. Character-Range Splicing for Formatting Preservation
 
-**Decision**: Use prettyplease to format output, accepting that it will normalize all formatting.
+**Decision**: Use character-range splicing to replace only the macro value, preserving all original formatting.
 
 **Impact**:
-- Original formatting is lost
-- Code becomes consistently formatted
-- Indentation, spacing, etc. are normalized
+- Original formatting is preserved
+- Only the value inside the macro changes
+- Indentation, spacing, comments, etc. remain unchanged
 
 **Rationale**:
-- Consistent, predictable output
-- Much simpler than trying to preserve original formatting
-- Self-modifying code benefits from consistent format
+- Minimizes diff noise in version control
+- Preserves user's formatting preferences
+- More intuitive for self-modifying code
+- Works reliably with proc-macro2 span locations
 
-**Alternative Considered**: Manual text replacement preserving format. Rejected due to complexity and fragility.
+**Implementation**: Convert line/column positions to byte offsets, then splice the new value into the exact character range of the old value.
+
+**Previous Approach**: Originally used prettyplease to reformat entire files. Changed to character-range splicing to preserve formatting.
 
 ### 11. Qualified Path Handling
 
@@ -159,7 +162,7 @@ This document lists all assumptions and design decisions made during the impleme
 
 **Limitation**: Tests must run with `--test-threads=1` due to environment variable conflicts.
 
-**Cause**: Multiple tests set `LITTER_UPDATE` env var, which affects other tests running in parallel.
+**Cause**: Multiple tests set `LITTER_MODE` env var, which affects other tests running in parallel.
 
 **Rationale**: Using env vars is simpler than implementing a thread-safe mode override mechanism.
 
@@ -208,12 +211,8 @@ This document lists all assumptions and design decisions made during the impleme
 
 ### Not Yet Implemented
 
-1. **Per-File Locking**: Currently uses a global lock, could be per-file
-2. **Custom Bake Implementations**: Users can add these, but no examples yet
-3. **Verify Mode**: Defined but not fully tested
-4. **External File Support**: Original `External` type not implemented with databake
-5. **Format Preservation**: Could add option to preserve original formatting
-6. **Concurrent File Access**: No handling for external editors modifying files
+1. **Custom Bake Implementations**: Users can add these, but no examples yet
+2. **External File Support**: Original `External` type not implemented with databake
 
 ### Intentionally Omitted
 
@@ -227,13 +226,13 @@ This document lists all assumptions and design decisions made during the impleme
 
 1. **Span locations are accurate** (verified by tests)
 2. **Line numbers remain stable** (only value changes, not structure)
-3. **File system is writable** (errors are warnings, not failures)
-4. **Single process per file** (no external concurrent modification)
+3. **File system is writable** (panics on write failures in Write mode)
+4. **Single process per file** (concurrent modification detection via read-verify-write)
 5. **Tests run serially** (environment variable conflicts)
 6. **databake output is acceptable** (even if verbose)
-7. **prettyplease formatting is acceptable** (consistency over preservation)
+7. **Character-range splicing preserves formatting** (original formatting maintained)
 8. **Immediate writes are acceptable** (no performance issues)
-9. **File locking prevents corruption** (coarse-grained but sufficient)
+9. **Thread-local AST caching improves performance** (with Arc<RwLock<String>> for shared state)
 10. **Type bounds are acceptable** (`Bake + PartialEq + Clone`)
 
 All assumptions have been tested and documented. The implementation is complete and functional for the target use case: self-modifying Rust scripts with embedded, persistent configuration.

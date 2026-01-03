@@ -27,7 +27,7 @@ fn main() {
 - **Type-Safe**: Uses Rust's type system and databake for serialization
 - **Mode-Based**: Control when updates happen via environment variables
 - **Thread-Safe**: File-level locking prevents corruption
-- **Format-Preserving**: Uses prettyplease for consistent formatting
+- **Format-Preserving**: Character-range splicing preserves original formatting
 
 ## Usage
 
@@ -50,19 +50,23 @@ Update it:
 
 ```rust
 value.set(100u32);
-// In UPDATE mode, this writes to your source file!
+// In WRITE mode, this writes to your source file!
 ```
 
 ## Modes
 
-Litter has three modes, controlled by environment variables:
+Litter has four modes, controlled by the `LITTER_MODE` environment variable:
 
-- **Inactive** (default): Normal behavior, no file updates
-- **Update** (`LITTER_UPDATE=1`): Changes are written back to source files
-- **Verify** (`LITTER_VERIFY=1`): Validates that values round-trip correctly
+- **Write** (default outside tests): Changes are written back to source files
+- **Verify** (default in tests): Validates that values round-trip correctly
+- **Memory** (`LITTER_MODE=memory`): Changes in memory only, no file writes
+- **Reject** (`LITTER_MODE=reject`): Rejects any write attempts, always fails
 
 ```bash
-LITTER_UPDATE=1 cargo run
+LITTER_MODE=write cargo run          # Enable self-modifying mode
+LITTER_MODE=memory cargo run         # Run without file writes
+cargo test                            # Verify mode (default in tests)
+LITTER_MODE=write cargo test         # Update all snapshots
 ```
 
 ## How It Works
