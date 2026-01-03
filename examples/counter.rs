@@ -10,11 +10,12 @@
 use inline::inline;
 
 fn main() {
-    let mut counter = inline!(0u32);
+    let counter = inline!(0u32);
 
-    println!("This program has been run {} times", *counter.get() + 1);
+    println!("This program has been run {} times", *counter.lock().get() + 1);
 
-    counter.set(counter.get() + 1);
+    let current = *counter.lock().get();
+    counter.lock().set(current + 1);
 
     println!("\nThe counter has been updated in the source code!");
     println!("Run this program again to see it increment.");
