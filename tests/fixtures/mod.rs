@@ -6,3 +6,5 @@ pub mod counter_a;
 pub mod counter_b;
 pub mod counter_c;
 pub mod counter_d;
+pub mod counter_e;
+pub mod counter_f;

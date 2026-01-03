@@ -81,10 +81,10 @@ pub fn get_mode() -> Mode {
     Mode::default_for_context()
 }
 
-/// Shared state across threads - the formatted source code is the source of truth
+/// Shared state across threads - the source code (with original formatting) is the source of truth
 #[derive(Clone)]
 struct SharedState {
-    /// The source code (formatted with prettyplease)
+    /// The source code (preserves original formatting via character-range splicing)
     source: String,
     /// Version counter - incremented on every modification
     version: u64,
@@ -291,6 +291,9 @@ impl FileState {
 
     /// Update the macro at the given index with new tokens
     /// CRITICAL: Holds write lock for the entire operation to prevent concurrent modifications
+    ///
+    /// IMPORTANT: Uses character-range splicing to preserve formatting!
+    /// Only the macro value is replaced - everything else stays untouched.
     pub fn update_macro_by_index(
         &self,
         index: usize,
@@ -299,47 +302,152 @@ impl FileState {
         // ACQUIRE WRITE LOCK - blocks all other threads from reading or writing
         let mut shared = self.shared.write();
 
-        // Parse the current source
-        let mut ast = syn::parse_file(&shared.source)
+        // Get the source while holding the lock (avoid deadlock)
+        let source = shared.source.clone();
+
+        // Parse the current source to find the macro
+        let ast = syn::parse_file(&source)
             .map_err(|e| format!("Failed to parse source: {}", e))?;
 
-        // Find and update the target macro
-        let mut updater = IndexedMacroUpdater {
-            target_index: index,
-            current_index: 0,
-            new_tokens,
-            found: false,
-        };
+        // Find the byte span of the target macro's value tokens
+        // Pass source as parameter to avoid deadlock
+        let value_span = Self::find_macro_value_span_static(&ast, index, &source)?;
 
-        updater.visit_file_mut(&mut ast);
+        // Generate the new value string
+        let new_value_str = new_tokens.to_string();
 
-        if !updater.found {
-            return Err(format!("Could not find litter! macro at index {}", index));
-        }
-
-        // Format the modified AST
-        let new_source = prettyplease::unparse(&ast);
+        // Perform character-range splicing to preserve formatting
+        let mut new_source = String::with_capacity(source.len());
+        new_source.push_str(&source[..value_span.start]);
+        new_source.push_str(&new_value_str);
+        new_source.push_str(&source[value_span.end..]);
 
         // Update shared state (increments version)
         shared.source = new_source;
         shared.version += 1;
-        let new_version = shared.version;
 
-        // Update thread-local cache with the new AST
-        let position_to_index = Self::build_index_map(&ast);
-        CACHE.with(|cache| {
-            cache.borrow_mut().insert(
-                self.path.clone(),
-                CachedState {
-                    ast,
-                    position_to_index,
-                    version: new_version,
-                },
-            );
-        });
+        // Invalidate thread-local caches by incrementing version
+        // They'll re-parse on next access
 
         // Write lock is released here when `shared` goes out of scope
         Ok(())
+    }
+
+    /// Find the byte span of a macro's value tokens in the source code (static method)
+    fn find_macro_value_span_static(
+        ast: &syn::File,
+        target_index: usize,
+        source: &str,
+    ) -> Result<std::ops::Range<usize>, String> {
+        use syn::visit::Visit;
+
+        struct SpanFinder {
+            target_index: usize,
+            current_index: usize,
+            span: Option<(proc_macro2::LineColumn, proc_macro2::LineColumn)>,
+        }
+
+        impl SpanFinder {
+            fn try_find_span(&mut self, mac: &syn::Macro) {
+                let is_litter = if let Some(segment) = mac.path.segments.last() {
+                    segment.ident == "litter"
+                } else {
+                    false
+                };
+
+                if is_litter {
+                    if self.current_index == self.target_index {
+                        // Found our target! Extract the line/column span of the tokens
+                        if !mac.tokens.is_empty() {
+                            // Get the span from the first to last token
+                            let first_span = mac.tokens.clone().into_iter().next().unwrap().span();
+                            let last_span = mac.tokens.clone().into_iter().last().unwrap().span();
+
+                            self.span = Some((first_span.start(), last_span.end()));
+                        }
+                    }
+                    self.current_index += 1;
+                }
+            }
+        }
+
+        impl<'ast> Visit<'ast> for SpanFinder {
+            fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
+                self.try_find_span(&node.mac);
+                syn::visit::visit_expr_macro(self, node);
+            }
+
+            fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
+                self.try_find_span(&node.mac);
+                syn::visit::visit_stmt_macro(self, node);
+            }
+        }
+
+        let mut finder = SpanFinder {
+            target_index,
+            current_index: 0,
+            span: None,
+        };
+
+        finder.visit_file(ast);
+
+        let (start_lc, end_lc) = finder
+            .span
+            .ok_or_else(|| format!("Could not find litter! macro at index {}", target_index))?;
+
+        // Convert line/column to byte offsets
+        let start_byte = Self::line_col_to_byte_static(source, start_lc.line, start_lc.column)?;
+        let end_byte = Self::line_col_to_byte_static(source, end_lc.line, end_lc.column)?;
+
+        Ok(start_byte..end_byte)
+    }
+
+    /// Convert line/column (1-indexed line, 0-indexed column) to byte offset (static method)
+    fn line_col_to_byte_static(
+        source: &str,
+        line: usize,
+        column: usize,
+    ) -> Result<usize, String> {
+        let mut current_line = 0;
+        let mut byte_offset = 0;
+
+        for (idx, ch) in source.char_indices() {
+            if current_line + 1 == line {
+                // We're on the target line
+                let chars_on_line = source[byte_offset..].chars().take(column).count();
+                if chars_on_line == column {
+                    // Count bytes for 'column' characters
+                    let bytes: usize = source[byte_offset..]
+                        .chars()
+                        .take(column)
+                        .map(|c| c.len_utf8())
+                        .sum();
+                    return Ok(byte_offset + bytes);
+                }
+            }
+
+            if ch == '\n' {
+                current_line += 1;
+                byte_offset = idx + 1;
+            }
+        }
+
+        // Handle last line (no trailing newline)
+        if current_line + 1 == line {
+            let bytes: usize = source[byte_offset..]
+                .chars()
+                .take(column)
+                .map(|c| c.len_utf8())
+                .sum();
+            return Ok(byte_offset + bytes);
+        }
+
+        Err(format!(
+            "Line {} column {} is out of bounds (source has {} lines)",
+            line,
+            column,
+            source.lines().count()
+        ))
     }
 
     /// Get the current tokens of a litter macro at the given index
@@ -409,43 +517,9 @@ impl FileState {
         // Update our record of what's on disk
         shared.disk_source = shared.source.clone();
 
-        drop(shared); // Release write lock before running cargo fmt
-
-        // Run cargo fmt on this specific file to match project's formatting rules
-        // This ensures stability with user running `cargo fmt` later
-        if let Some(path_str) = self.path.to_str() {
-            match std::process::Command::new("cargo")
-                .args(["fmt", "--", path_str])
-                .output()
-            {
-                Ok(output) if !output.status.success() => {
-                    eprintln!(
-                        "Warning: cargo fmt failed for {}: {}",
-                        self.path.display(),
-                        String::from_utf8_lossy(&output.stderr)
-                    );
-                }
-                Err(e) => {
-                    eprintln!(
-                        "Warning: could not run cargo fmt for {}: {}",
-                        self.path.display(),
-                        e
-                    );
-                }
-                _ => {
-                    // cargo fmt succeeded - re-read the file to update our disk_source
-                    // (cargo fmt may have reformatted the file)
-                    // IMPORTANT: We do NOT update shared.source here!
-                    // shared.source remains the prettyplease output, which is what
-                    // all line/column positions are based on. disk_source tracks
-                    // what's actually on disk (after cargo fmt).
-                    if let Ok(formatted_content) = fs::read_to_string(&self.path) {
-                        let mut shared = self.shared.write();
-                        shared.disk_source = formatted_content;
-                    }
-                }
-            }
-        }
+        // NOTE: We do NOT run cargo fmt here!
+        // Character-range splicing preserves the original formatting,
+        // so there's no need to reformat the file.
 
         Ok(())
     }
