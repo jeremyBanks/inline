@@ -7,7 +7,6 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use syn::visit_mut::{self, VisitMut};
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum Mode {
@@ -103,6 +102,9 @@ struct CachedState {
     version: u64,
 }
 
+/// Type alias for the return value of get_cached_ast
+type CachedAstResult = Result<(syn::File, HashMap<(u32, u32), usize>), io::Error>;
+
 // Global registry of FileStates (one per source file)
 // Uses Arc so FileState can be shared across threads
 static FILE_STATES: Lazy<RwLock<HashMap<PathBuf, FileState>>> =
@@ -148,7 +150,7 @@ impl FileState {
     }
 
     /// Get a thread-local cached AST, re-parsing if the shared version has changed
-    fn get_cached_ast(&self) -> Result<(syn::File, HashMap<(u32, u32), usize>), io::Error> {
+    fn get_cached_ast(&self) -> CachedAstResult {
         CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
 
@@ -522,50 +524,6 @@ impl FileState {
         // so there's no need to reformat the file.
 
         Ok(())
-    }
-}
-
-/// Visitor that updates the Nth litter! macro (by index)
-/// Key insight: we count macros in traversal order, which is stable
-struct IndexedMacroUpdater {
-    target_index: usize,
-    current_index: usize,
-    new_tokens: proc_macro2::TokenStream,
-    found: bool,
-}
-
-impl IndexedMacroUpdater {
-    fn try_update_macro(&mut self, mac: &mut syn::Macro) {
-        if self.found {
-            return;
-        }
-
-        let is_litter = if let Some(segment) = mac.path.segments.last() {
-            segment.ident == "litter"
-        } else {
-            false
-        };
-
-        if is_litter {
-            if self.current_index == self.target_index {
-                // Found our target!
-                mac.tokens = self.new_tokens.clone();
-                self.found = true;
-            }
-            self.current_index += 1;
-        }
-    }
-}
-
-impl VisitMut for IndexedMacroUpdater {
-    fn visit_expr_macro_mut(&mut self, node: &mut syn::ExprMacro) {
-        self.try_update_macro(&mut node.mac);
-        visit_mut::visit_expr_macro_mut(self, node);
-    }
-
-    fn visit_stmt_macro_mut(&mut self, node: &mut syn::StmtMacro) {
-        self.try_update_macro(&mut node.mac);
-        visit_mut::visit_stmt_macro_mut(self, node);
     }
 }
 
