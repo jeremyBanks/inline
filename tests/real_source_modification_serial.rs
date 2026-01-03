@@ -12,7 +12,7 @@ use std::panic;
 fn test_counter_a_modification() {
     env::set_var("INLINE_MODE", "write");
 
-    let value = fixtures::counter_a::get();
+    let mut value = fixtures::counter_a::get();
 
     // Verify starts at default
     assert_eq!(*value.get(), 0u32);
@@ -47,7 +47,7 @@ fn test_counter_a_modification() {
 fn test_counter_b_modification() {
     env::set_var("INLINE_MODE", "write");
 
-    let value = fixtures::counter_b::get();
+    let mut value = fixtures::counter_b::get();
 
     // Verify starts at default
     assert_eq!(*value.get(), 0u32);
@@ -82,7 +82,7 @@ fn test_counter_b_modification() {
 fn test_counter_c_modification() {
     env::set_var("INLINE_MODE", "write");
 
-    let value = fixtures::counter_c::get();
+    let mut value = fixtures::counter_c::get();
 
     // Verify starts at default
     assert_eq!(*value.get(), 0u32);
@@ -117,7 +117,7 @@ fn test_counter_c_modification() {
 fn test_config_a_modification() {
     env::set_var("INLINE_MODE", "write");
 
-    let value = fixtures::config_a::get();
+    let mut value = fixtures::config_a::get();
 
     // Verify starts at default
     assert_eq!(value.get().as_str(), "default");
@@ -152,7 +152,7 @@ fn test_config_a_modification() {
 fn test_multiple_modifications_same_value() {
     env::set_var("INLINE_MODE", "write");
 
-    let value = fixtures::counter_d::get();
+    let mut value = fixtures::counter_d::get();
 
     // Do multiple modifications
     value.set(100u32);
@@ -179,7 +179,7 @@ fn test_multiple_modifications_same_value() {
 fn test_concurrent_modification_detection() {
     env::set_var("INLINE_MODE", "write");
 
-    let value = fixtures::counter_e::get();
+    let mut value = fixtures::counter_e::get();
 
     // Verify starts at default
     assert_eq!(*value.get(), 0u32);
@@ -261,7 +261,7 @@ fn test_formatting_preservation() {
     println!("Line count: {}", original_line_count);
 
     // Now modify the value
-    let value = fixtures::counter_f::get();
+    let mut value = fixtures::counter_f::get();
     value.set(42u32);
 
     // Read back the file and see what happened to formatting

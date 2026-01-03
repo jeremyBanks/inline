@@ -47,7 +47,8 @@ fn test_lazy_loading_verify_mode_fails_for_missing_file() {
     // In Verify mode, we need file access
     env::set_var("INLINE_MODE", "verify");
 
-    let mut value = inline::Inline::__new(42u32, "/nonexistent/path.rs", 1, 1);
+    // Use a different location than other tests to avoid registry collision
+    let mut value = inline::Inline::__new(42u32, "/nonexistent/verify_test.rs", 1, 1);
 
     // This should fail because the file doesn't exist
     // Use a different value so we don't hit the early return

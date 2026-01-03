@@ -270,7 +270,7 @@ impl<T: Literal + 'static> Inline<T> {
     ///
     /// Same as dereferencing, but explicit.
     pub fn get(&self) -> &T {
-        &*self.guard
+        &self.guard
     }
 }
 
@@ -278,7 +278,7 @@ impl<T: Literal + 'static> Deref for Inline<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &*self.guard  // Deref guard to InlineInner, then to T
+        &self.guard  // Auto-deref from guard to InlineInner to T
     }
 }
 

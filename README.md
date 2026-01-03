@@ -87,6 +87,8 @@ Any type implementing `Bake + PartialEq + Clone` works with inline:
 - Collections: `Vec<T>`, arrays, tuples
 - And more via databake's built-in implementations
 
+**Future Goal**: Add serde compatibility to support any type implementing `Serialize + Deserialize`, expanding beyond databake's current type coverage.
+
 ## Examples
 
 See the `examples/` directory for complete examples:
