@@ -121,13 +121,28 @@ Note: This is an experimental library. Production use is not recommended.
 
 ## Testing
 
-Run tests with:
+Tests are organized into two categories:
+
+- **Parallel-safe tests**: `concurrent_process_detection`, `multi_threaded` (don't use environment variables)
+- **Serial tests**: All tests with `_serial` in the filename (use environment variables)
+
+Run all tests serially (recommended):
 
 ```bash
 cargo test -- --test-threads=1
 ```
 
-Note: Tests must run serially due to shared environment variables.
+Run only parallel-safe tests:
+
+```bash
+cargo test --test concurrent_process_detection --test multi_threaded
+```
+
+Run a specific serial test:
+
+```bash
+cargo test --test integration_serial_test -- --test-threads=1
+```
 
 ## License
 
