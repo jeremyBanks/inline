@@ -5,12 +5,12 @@ use inline::inline;
 fn main() {
     let mut counter = inline!(0u32);
 
-    println!("Counter value: {}", **counter);
+    println!("Counter value: {}", *counter);
 
-    let current = **counter;
+    let current = *counter;
     counter.set(current + 1);
 
-    println!("After increment: {}", **counter);
+    println!("After increment: {}", *counter);
 
     // Test that we can't access the same value twice (would deadlock)
     // Uncomment to test:

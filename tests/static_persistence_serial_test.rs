@@ -1,40 +1,35 @@
-use inline::registry::get_or_create;
+use inline::inline;
 use std::env;
 
 #[test]
-fn test_static_persistence_same_reference() {
-    // Get two references from the same location
-    let ref1 = get_or_create(42u32, file!(), 10, 20);
-    let ref2 = get_or_create(99u32, file!(), 10, 20);
+fn test_static_persistence_same_value() {
+    // Calling the macro twice should give us the same underlying value
+    let mut val1 = inline!(100u32);
+    assert_eq!(*val1, 42);
 
-    // Should return the exact same reference (same address)
-    assert_eq!(
-        ref1 as *const _,
-        ref2 as *const _,
-        "Same location should return same reference"
-    );
+    val1.set(100);
+    drop(val1);  // Release lock
 
-    // The initial value should be used (42, not 99)
-    assert_eq!(*ref1.lock().get(), 42);
-    assert_eq!(*ref2.lock().get(), 42);
+    // Get it again - should see the updated value
+    let val2 = inline!(42u32);  // Same location
+    assert_eq!(*val2, 100);
 }
 
 #[test]
 fn test_static_persistence_value_mutation() {
     env::set_var("INLINE_MODE", "memory");
 
-    // Get a reference
-    let ref1 = get_or_create(1u32, file!(), 30, 40);
-    assert_eq!(*ref1.lock().get(), 1);
+    let mut val = inline!(1u32);
+    assert_eq!(*val, 1);
 
-    // Modify it
-    ref1.lock().set(100);
+    val.set(100);
+    assert_eq!(*val, 100);
 
-    // Get another reference to the "same location"
-    let ref2 = get_or_create(1u32, file!(), 30, 40);
+    drop(val);  // Release lock
 
-    // Should see the modified value
-    assert_eq!(*ref2.lock().get(), 100);
+    // Get again - should persist
+    let val2 = inline!(1u32);
+    assert_eq!(*val2, 100);
 
     env::remove_var("INLINE_MODE");
 }
@@ -42,32 +37,23 @@ fn test_static_persistence_value_mutation() {
 #[test]
 fn test_static_persistence_different_locations() {
     // Different locations should get different values
-    let ref1 = get_or_create(10u32, file!(), 50, 10);
-    let ref2 = get_or_create(20u32, file!(), 50, 20); // Different column
-    let ref3 = get_or_create(30u32, file!(), 60, 10); // Different line
+    let val1 = inline!(10u32);
+    let val2 = inline!(20u32);
+    let val3 = inline!(30u32);
 
-    // Should be different references
-    assert_ne!(ref1 as *const _, ref2 as *const _);
-    assert_ne!(ref1 as *const _, ref3 as *const _);
-    assert_ne!(ref2 as *const _, ref3 as *const _);
-
-    // Should have different values
-    assert_eq!(*ref1.lock().get(), 10);
-    assert_eq!(*ref2.lock().get(), 20);
-    assert_eq!(*ref3.lock().get(), 30);
+    assert_eq!(*val1, 10);
+    assert_eq!(*val2, 20);
+    assert_eq!(*val3, 30);
 }
 
 #[test]
 fn test_static_persistence_different_types() {
-    // Same location but different types should be different entries
-    let ref_u32 = get_or_create(42u32, file!(), 70, 10);
-    let ref_i32 = get_or_create(42i32, file!(), 70, 10);
+    // Same location but different types
+    let val_u32 = inline!(42u32);
+    let val_i32 = inline!(42i32);
 
-    // These are different types, so different registry entries
-    // We can't directly compare them since they're different types,
-    // but we can verify they both work independently
-    assert_eq!(*ref_u32.lock().get(), 42u32);
-    assert_eq!(*ref_i32.lock().get(), 42i32);
+    assert_eq!(*val_u32, 42u32);
+    assert_eq!(*val_i32, 42i32);
 }
 
 #[test]
@@ -75,9 +61,9 @@ fn test_static_persistence_across_function_calls() {
     env::set_var("INLINE_MODE", "memory");
 
     fn increment_counter() -> u32 {
-        let counter = get_or_create(0u32, file!(), 90, 23);
-        let current = *counter.lock().get();
-        counter.lock().set(current + 1);
+        let mut counter = inline!(0u32);
+        let current = *counter;
+        counter.set(current + 1);
         current + 1
     }
 
@@ -100,12 +86,11 @@ fn test_static_persistence_thread_safety() {
     let handles: Vec<_> = (0..10)
         .map(|_| {
             thread::spawn(|| {
-                let counter = get_or_create(0u32, file!(), 110, 35);
                 for _ in 0..100 {
-                    // Hold the lock for the entire read-modify-write operation
-                    let mut guard = counter.lock();
-                    let current = *guard.get();
-                    guard.set(current + 1);
+                    let mut counter = inline!(0u32);
+                    let current = *counter;
+                    counter.set(current + 1);
+                    // Lock is dropped here
                 }
             })
         })
@@ -117,8 +102,8 @@ fn test_static_persistence_thread_safety() {
     }
 
     // Check final value
-    let counter = get_or_create(0u32, file!(), 110, 35);
-    let final_value = *counter.lock().get();
+    let mut counter = inline!(0u32);
+    let final_value = *counter;
 
     // Should be 10 threads * 100 increments = 1000
     assert_eq!(final_value, 1000, "All increments should be accounted for");

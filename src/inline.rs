@@ -2,24 +2,15 @@ use crate::literal::Literal;
 use std::ops::Deref;
 use std::path::PathBuf;
 
-/// A self-modifying value that can update itself in source code.
+/// Internal implementation of a self-modifying value.
 ///
 /// This type wraps a value and provides the ability to update both the
 /// in-memory value and its representation in the source code file.
 ///
-/// Created via the [`inline!`](macro@crate::inline) macro, which captures the source location.
-///
-/// # Example
-///
-/// ```no_run
-/// use inline::inline;
-///
-/// let mut value = inline!(42u32);
-/// assert_eq!(**value, 42);
-/// value.set(100);
-/// // In Write mode, the source file now contains inline!(100u32)
-/// ```
-pub struct Inline<T: Literal> {
+/// **Note:** This is an internal type. Users should interact with the [`Inline`]
+/// wrapper returned by the `inline!` macro instead.
+#[doc(hidden)]
+pub struct InlineInner<T: Literal> {
     value: T,
     file: PathBuf,
     line: u32,
@@ -29,12 +20,11 @@ pub struct Inline<T: Literal> {
     macro_index: Option<usize>,
 }
 
-impl<T: Literal> Inline<T> {
-    /// Create a new Inline instance (called by the macro)
+impl<T: Literal> InlineInner<T> {
+    /// Create a new InlineInner instance (called by the registry)
     /// Does NOT fail if the source file doesn't exist - that's only an error if you call set()
-    #[doc(hidden)]
-    pub fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
-        Inline {
+    pub(crate) fn new(value: T, file: &str, line: u32, column: u32) -> Self {
+        InlineInner {
             value,
             file: PathBuf::from(file),
             line,
@@ -200,7 +190,7 @@ impl<T: Literal> Inline<T> {
     }
 }
 
-impl<T: Literal> Deref for Inline<T> {
+impl<T: Literal> Deref for InlineInner<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -208,9 +198,9 @@ impl<T: Literal> Deref for Inline<T> {
     }
 }
 
-impl<T: Literal + std::fmt::Debug> std::fmt::Debug for Inline<T> {
+impl<T: Literal + std::fmt::Debug> std::fmt::Debug for InlineInner<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Inline")
+        f.debug_struct("InlineInner")
             .field("value", &self.value)
             .field("file", &self.file)
             .field("line", &self.line)
@@ -227,11 +217,13 @@ fn is_running_under_cargo() -> bool {
         || std::env::var("CARGO_PKG_NAME").is_ok()
 }
 
-/// Create a self-modifying value that can update its source code.
+/// A self-modifying value that holds a lock and can update its source code.
 ///
-/// The macro captures the source location and returns a lock guard to an
-/// `Inline<T>` that persists across function calls. The lock is held until
-/// the guard is dropped.
+/// This type wraps a `MutexGuard` to an [`InlineInner<T>`] and provides
+/// convenient access to the value with a single dereference.
+///
+/// Created via the [`inline!`](macro@crate::inline) macro. The lock is held
+/// for the entire lifetime of this value.
 ///
 /// # Example
 ///
@@ -239,7 +231,78 @@ fn is_running_under_cargo() -> bool {
 /// use inline::inline;
 ///
 /// let mut counter = inline!(0u32);
-/// let current = **counter;
+/// println!("Value: {}", *counter);  // Single deref
+/// counter.set(*counter + 1);
+/// ```
+pub struct Inline<T: Literal + 'static> {
+    guard: parking_lot::MutexGuard<'static, InlineInner<T>>,
+}
+
+impl<T: Literal + 'static> Inline<T> {
+    /// Create an Inline wrapper from a mutex guard
+    #[doc(hidden)]
+    pub fn from_guard(guard: parking_lot::MutexGuard<'static, InlineInner<T>>) -> Self {
+        Inline { guard }
+    }
+
+    /// Create a new Inline value for testing purposes
+    ///
+    /// This is equivalent to calling the macro, but allows specifying
+    /// custom file/line/column values for testing.
+    ///
+    /// **Note:** For testing only. Leaks the file path string.
+    #[doc(hidden)]
+    pub fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
+        // Leak the string to get 'static lifetime (acceptable for tests)
+        let file_static: &'static str = Box::leak(file.to_string().into_boxed_str());
+        let mutex_ref = crate::registry::get_or_create(value, file_static, line, column);
+        Inline::from_guard(mutex_ref.lock())
+    }
+
+    /// Update the value and possibly persist to source file
+    ///
+    /// Delegates to [`InlineInner::set()`].
+    pub fn set(&mut self, new_value: T) {
+        self.guard.set(new_value);
+    }
+
+    /// Get a reference to the current value
+    ///
+    /// Same as dereferencing, but explicit.
+    pub fn get(&self) -> &T {
+        &*self.guard
+    }
+}
+
+impl<T: Literal + 'static> Deref for Inline<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &*self.guard  // Deref guard to InlineInner, then to T
+    }
+}
+
+impl<T: Literal + std::fmt::Debug + 'static> std::fmt::Debug for Inline<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Inline")
+            .field("value", &**self)  // Double deref to get to T
+            .finish()
+    }
+}
+
+/// Create a self-modifying value that can update its source code.
+///
+/// The macro captures the source location and returns an [`Inline<T>`] that
+/// holds a lock to the underlying value. The lock is held until the value
+/// is dropped.
+///
+/// # Example
+///
+/// ```no_run
+/// use inline::inline;
+///
+/// let mut counter = inline!(0u32);
+/// let current = *counter;  // Single dereference
 /// counter.set(current + 1);
 /// // In Write mode, the source file is updated
 /// // Lock is released when counter goes out of scope
@@ -251,12 +314,11 @@ fn is_running_under_cargo() -> bool {
 ///
 /// # Returns
 ///
-/// A `MutexGuard<'static, Inline<T>>` that holds the lock for its lifetime.
-/// Derefs to `&Inline<T>`, which in turn derefs to `&T`. The same underlying
-/// value is returned for all calls from the same source location.
+/// An [`Inline<T>`] that holds the lock and derefs to `&T`.
+/// The same underlying value is returned for all calls from the same source location.
 #[macro_export]
 macro_rules! inline {
     ($value:expr) => {{
-        $crate::registry::get_or_create($value, file!(), line!(), column!()).lock()
+        $crate::Inline::from_guard($crate::registry::get_or_create($value, file!(), line!(), column!()).lock())
     }};
 }

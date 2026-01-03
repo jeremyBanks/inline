@@ -9,31 +9,31 @@ use inline::inline;
 
 fn main() {
     // Simple configuration values that update themselves
-    let max_retries = inline!(3u32);
-    let timeout_ms = inline!(1000u32);
-    let debug_mode = inline!(false);
+    let mut max_retries = inline!(3u32);
+    let mut timeout_ms = inline!(1000u32);
+    let mut debug_mode = inline!(false);
 
     println!("Current configuration:");
-    println!("  Max retries: {}", *max_retries.lock().get());
-    println!("  Timeout: {}ms", *timeout_ms.lock().get());
-    println!("  Debug mode: {}", *debug_mode.lock().get());
+    println!("  Max retries: {}", *max_retries.get());
+    println!("  Timeout: {}ms", *timeout_ms.get());
+    println!("  Debug mode: {}", *debug_mode.get());
 
     // Simulate configuration changes
     println!("\nAdjusting configuration based on runtime conditions...");
 
-    if *max_retries.lock().get() < 5 {
+    if *max_retries.get() < 5 {
         println!("  Increasing max_retries to 5");
-        max_retries.lock().set(5);
+        max_retries.set(5);
     }
 
-    if *timeout_ms.lock().get() < 2000 {
+    if *timeout_ms.get() < 2000 {
         println!("  Increasing timeout to 2000ms");
-        timeout_ms.lock().set(2000);
+        timeout_ms.set(2000);
     }
 
-    if !*debug_mode.lock().get() {
+    if !*debug_mode.get() {
         println!("  Enabling debug mode");
-        debug_mode.lock().set(true);
+        debug_mode.set(true);
     }
 
     println!("\nConfiguration updated! Check the source file to see the changes.");

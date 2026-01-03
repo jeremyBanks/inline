@@ -15,11 +15,11 @@ fn test_counter_a_modification() {
     let value = fixtures::counter_a::get();
 
     // Verify starts at default
-    assert_eq!(*value.lock().get(), 0u32);
+    assert_eq!(*value.get(), 0u32);
 
     // Set to test value
     let test_val = 42u32;
-    value.lock().set(test_val);
+    value.set(test_val);
 
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_a.rs").unwrap();
@@ -30,7 +30,7 @@ fn test_counter_a_modification() {
     );
 
     // Restore to default
-    value.lock().set(0u32);
+    value.set(0u32);
 
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_a.rs").unwrap();
@@ -50,11 +50,11 @@ fn test_counter_b_modification() {
     let value = fixtures::counter_b::get();
 
     // Verify starts at default
-    assert_eq!(*value.lock().get(), 0u32);
+    assert_eq!(*value.get(), 0u32);
 
     // Set to different test value
     let test_val = 999u32;
-    value.lock().set(test_val);
+    value.set(test_val);
 
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_b.rs").unwrap();
@@ -65,7 +65,7 @@ fn test_counter_b_modification() {
     );
 
     // Restore to default
-    value.lock().set(0u32);
+    value.set(0u32);
 
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_b.rs").unwrap();
@@ -85,11 +85,11 @@ fn test_counter_c_modification() {
     let value = fixtures::counter_c::get();
 
     // Verify starts at default
-    assert_eq!(*value.lock().get(), 0u32);
+    assert_eq!(*value.get(), 0u32);
 
     // Set to yet another test value
     let test_val = 12345u32;
-    value.lock().set(test_val);
+    value.set(test_val);
 
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_c.rs").unwrap();
@@ -100,7 +100,7 @@ fn test_counter_c_modification() {
     );
 
     // Restore to default
-    value.lock().set(0u32);
+    value.set(0u32);
 
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_c.rs").unwrap();
@@ -120,11 +120,11 @@ fn test_config_a_modification() {
     let value = fixtures::config_a::get();
 
     // Verify starts at default
-    assert_eq!(value.lock().get().as_str(), "default");
+    assert_eq!(value.get().as_str(), "default");
 
     // Set to test value
     let test_val = "test_config_value".to_string();
-    value.lock().set(test_val);
+    value.set(test_val);
 
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/config_a.rs").unwrap();
@@ -135,7 +135,7 @@ fn test_config_a_modification() {
     );
 
     // Restore to default
-    value.lock().set("default".to_string());
+    value.set("default".to_string());
 
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/config_a.rs").unwrap();
@@ -155,20 +155,20 @@ fn test_multiple_modifications_same_value() {
     let value = fixtures::counter_d::get();
 
     // Do multiple modifications
-    value.lock().set(100u32);
+    value.set(100u32);
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
     assert!(disk.contains("inline!(100u32)"));
 
-    value.lock().set(200u32);
+    value.set(200u32);
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
     assert!(disk.contains("inline!(200u32)"));
 
-    value.lock().set(300u32);
+    value.set(300u32);
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
     assert!(disk.contains("inline!(300u32)"));
 
     // Restore
-    value.lock().set(0u32);
+    value.set(0u32);
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
     assert!(disk.contains("inline!(0u32)"));
 
@@ -182,12 +182,12 @@ fn test_concurrent_modification_detection() {
     let value = fixtures::counter_e::get();
 
     // Verify starts at default
-    assert_eq!(*value.lock().get(), 0u32);
+    assert_eq!(*value.get(), 0u32);
 
     // Force the file to be loaded by doing a set operation
     // This establishes the baseline for concurrent modification detection
-    value.lock().set(1u32);
-    value.lock().set(0u32); // Set back to default
+    value.set(1u32);
+    value.set(0u32); // Set back to default
 
     // NOW simulate external modification to the file
     // This mimics what would happen if another process modified the file
@@ -205,7 +205,7 @@ pub fn get() -> &'static parking_lot::Mutex<inline::Inline<u32>> {
 
     // Now try to modify with our Inline value - this should panic!
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        value.lock().set(100u32);
+        value.set(100u32);
     }));
 
     // Verify we got the expected panic
@@ -262,7 +262,7 @@ fn test_formatting_preservation() {
 
     // Now modify the value
     let value = fixtures::counter_f::get();
-    value.lock().set(42u32);
+    value.set(42u32);
 
     // Read back the file and see what happened to formatting
     let modified_content = fs::read_to_string("tests/fixtures/counter_f.rs").unwrap();
@@ -274,7 +274,7 @@ fn test_formatting_preservation() {
     println!("Line count: {}", modified_line_count);
 
     // Restore to default
-    value.lock().set(0u32);
+    value.set(0u32);
     let restored_content = fs::read_to_string("tests/fixtures/counter_f.rs").unwrap();
 
     env::remove_var("INLINE_MODE");
@@ -301,56 +301,56 @@ fn test_multiple_macros_same_file() {
     // in various orders, including on the same line and different lines
     env::set_var("INLINE_MODE", "write");
 
-    let first = fixtures::counter_g::get_first();
-    let second = fixtures::counter_g::get_second();
-    let third = fixtures::counter_g::get_third();
+    let mut first = fixtures::counter_g::get_first();
+    let mut second = fixtures::counter_g::get_second();
+    let mut third = fixtures::counter_g::get_third();
 
     // Verify initial values
-    assert_eq!(*first.lock().get(), 10u32);
-    assert_eq!(*second.lock().get(), 20u32);
-    assert_eq!(*third.lock().get(), 30u32);
+    assert_eq!(*first.get(), 10u32);
+    assert_eq!(*second.get(), 20u32);
+    assert_eq!(*third.get(), 30u32);
 
     // Modify first macro
-    first.lock().set(100u32);
+    first.set(100u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("inline!(100u32)"));
     assert!(disk.contains("inline!(20u32)"));
     assert!(disk.contains("inline!(30u32)"));
 
     // Modify second macro
-    second.lock().set(200u32);
+    second.set(200u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("inline!(100u32)"));
     assert!(disk.contains("inline!(200u32)"));
     assert!(disk.contains("inline!(30u32)"));
 
     // Modify third macro
-    third.lock().set(300u32);
+    third.set(300u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("inline!(100u32)"));
     assert!(disk.contains("inline!(200u32)"));
     assert!(disk.contains("inline!(300u32)"));
 
     // Modify first again
-    first.lock().set(111u32);
+    first.set(111u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("inline!(111u32)"));
     assert!(disk.contains("inline!(200u32)"));
     assert!(disk.contains("inline!(300u32)"));
 
     // Modify in reverse order
-    third.lock().set(333u32);
-    second.lock().set(222u32);
-    first.lock().set(11u32);
+    third.set(333u32);
+    second.set(222u32);
+    first.set(11u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("inline!(11u32)"));
     assert!(disk.contains("inline!(222u32)"));
     assert!(disk.contains("inline!(333u32)"));
 
     // Restore all to defaults
-    first.lock().set(10u32);
-    second.lock().set(20u32);
-    third.lock().set(30u32);
+    first.set(10u32);
+    second.set(20u32);
+    third.set(30u32);
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("inline!(10u32)"));
     assert!(disk.contains("inline!(20u32)"));
@@ -364,49 +364,49 @@ fn test_multiple_files_interleaved() {
     // Test modifying macros across multiple files in arbitrary order
     env::set_var("INLINE_MODE", "write");
 
-    let counter_a = fixtures::counter_a::get();
-    let counter_b = fixtures::counter_b::get();
-    let config_a = fixtures::config_a::get();
-    let counter_d = fixtures::counter_d::get();
+    let mut counter_a = fixtures::counter_a::get();
+    let mut counter_b = fixtures::counter_b::get();
+    let mut config_a = fixtures::config_a::get();
+    let mut counter_d = fixtures::counter_d::get();
 
     // Verify all start at defaults
-    assert_eq!(*counter_a.lock().get(), 0u32);
-    assert_eq!(*counter_b.lock().get(), 0u32);
-    assert_eq!(config_a.lock().get().as_str(), "default");
-    assert_eq!(*counter_d.lock().get(), 0u32);
+    assert_eq!(*counter_a.get(), 0u32);
+    assert_eq!(*counter_b.get(), 0u32);
+    assert_eq!(config_a.get().as_str(), "default");
+    assert_eq!(*counter_d.get(), 0u32);
 
     // Modify in arbitrary interleaved order
-    counter_a.lock().set(1u32);
+    counter_a.set(1u32);
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
         .contains("inline!(1u32)"));
 
-    counter_b.lock().set(2u32);
+    counter_b.set(2u32);
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
         .contains("inline!(2u32)"));
 
-    counter_a.lock().set(11u32); // Modify counter_a again
+    counter_a.set(11u32); // Modify counter_a again
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
         .contains("inline!(11u32)"));
 
-    config_a.lock().set("test_value".to_string());
+    config_a.set("test_value".to_string());
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
         .unwrap()
         .contains(r#""test_value""#));
 
-    counter_d.lock().set(4u32);
+    counter_d.set(4u32);
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
         .contains("inline!(4u32)"));
 
-    counter_b.lock().set(22u32); // Modify counter_b again
+    counter_b.set(22u32); // Modify counter_b again
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
         .contains("inline!(22u32)"));
 
-    counter_a.lock().set(111u32); // Modify counter_a third time
+    counter_a.set(111u32); // Modify counter_a third time
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
         .contains("inline!(111u32)"));
@@ -426,10 +426,10 @@ fn test_multiple_files_interleaved() {
         .contains("inline!(4u32)"));
 
     // Restore all to defaults
-    counter_a.lock().set(0u32);
-    counter_b.lock().set(0u32);
-    config_a.lock().set("default".to_string());
-    counter_d.lock().set(0u32);
+    counter_a.set(0u32);
+    counter_b.set(0u32);
+    config_a.set("default".to_string());
+    counter_d.set(0u32);
 
     // Verify restoration
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
