@@ -91,6 +91,9 @@ struct SharedState {
     source: String,
     /// Version counter - incremented on every modification
     version: u64,
+    /// The source code as it exists on disk (for detecting external modifications)
+    /// Updated only when we read from or write to disk
+    disk_source: String,
 }
 
 /// Thread-local cached AST and index mapping
@@ -138,7 +141,11 @@ impl FileState {
         })?;
 
         Ok(FileState {
-            shared: Arc::new(RwLock::new(SharedState { source, version: 0 })),
+            shared: Arc::new(RwLock::new(SharedState {
+                source: source.clone(),
+                version: 0,
+                disk_source: source,
+            })),
             path: path.to_path_buf(),
         })
     }
@@ -335,10 +342,52 @@ impl FileState {
 
     /// Write the current shared source to disk
     /// Then runs cargo fmt on the file to match project's rustfmt.toml
+    ///
+    /// IMPORTANT: Before writing, this verifies the file hasn't been modified by another process.
+    /// If the file on disk differs from our expected state, this panics to prevent data loss.
     pub fn write_to_disk(&self) -> Result<(), io::Error> {
-        let shared = self.shared.read();
+        // First, re-read the file from disk to detect concurrent modifications
+        let current_disk_content = fs::read_to_string(&self.path).map_err(|e| {
+            io::Error::new(
+                e.kind(),
+                format!(
+                    "Failed to read file before write (checking for concurrent modifications): {}",
+                    e
+                ),
+            )
+        })?;
+
+        // Acquire write lock for the comparison and write
+        let mut shared = self.shared.write();
+
+        // Verify the file hasn't been modified by another process
+        if current_disk_content != shared.disk_source {
+            panic!(
+                "CONCURRENT MODIFICATION DETECTED!\n\
+                 File: {}\n\
+                 \n\
+                 Another process has modified this file since we loaded it.\n\
+                 This is unsafe and could cause data loss.\n\
+                 \n\
+                 Expected content length: {} bytes\n\
+                 Actual content length: {} bytes\n\
+                 \n\
+                 To avoid this error:\n\
+                 - Run only one process that modifies this file at a time\n\
+                 - Or use proper inter-process coordination\n",
+                self.path.display(),
+                shared.disk_source.len(),
+                current_disk_content.len(),
+            );
+        }
+
+        // Safe to write - no concurrent modification detected
         fs::write(&self.path, &shared.source)?;
-        drop(shared); // Release read lock before running cargo fmt
+
+        // Update our record of what's on disk
+        shared.disk_source = shared.source.clone();
+
+        drop(shared); // Release write lock before running cargo fmt
 
         // Run cargo fmt on this specific file to match project's formatting rules
         // This ensures stability with user running `cargo fmt` later
@@ -361,7 +410,18 @@ impl FileState {
                         e
                     );
                 }
-                _ => {} // Success, no output needed
+                _ => {
+                    // cargo fmt succeeded - re-read the file to update our disk_source
+                    // (cargo fmt may have reformatted the file)
+                    // IMPORTANT: We do NOT update shared.source here!
+                    // shared.source remains the prettyplease output, which is what
+                    // all line/column positions are based on. disk_source tracks
+                    // what's actually on disk (after cargo fmt).
+                    if let Ok(formatted_content) = fs::read_to_string(&self.path) {
+                        let mut shared = self.shared.write();
+                        shared.disk_source = formatted_content;
+                    }
+                }
             }
         }
 
