@@ -25,11 +25,17 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+/// Type alias for the registry key: (file, line, column, type_id)
+type RegistryKey = (PathBuf, u32, u32, TypeId);
+
+/// Type alias for the registry value: raw pointer as usize
+type RegistryValue = usize;
+
 /// Global registry mapping (file, line, column, type) to raw pointers.
 ///
 /// Each entry is a `Box<Mutex<Inline<T>>>` cast to `usize` for type erasure.
 /// The TypeId in the key ensures type safety when casting back.
-static VALUE_REGISTRY: Lazy<Mutex<HashMap<(PathBuf, u32, u32, TypeId), usize>>> =
+static VALUE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, RegistryValue>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Get or create a static inline value at the given source location.
