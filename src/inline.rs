@@ -14,9 +14,9 @@ use std::path::PathBuf;
 /// ```no_run
 /// use inline::inline;
 ///
-/// let mut value = inline!(42u32);
-/// assert_eq!(*value, 42);
-/// value.set(100);
+/// let value = inline!(42u32);
+/// assert_eq!(**value.lock(), 42);
+/// value.lock().set(100);
 /// // In Write mode, the source file now contains inline!(100u32)
 /// ```
 pub struct Inline<T: Literal> {

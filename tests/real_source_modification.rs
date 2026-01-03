@@ -196,7 +196,7 @@ fn test_concurrent_modification_detection() {
         "tests/fixtures/counter_e.rs",
         r#"/// Fixture E: Counter for testing concurrent modification detection
 /// Default value: 0
-pub fn get() -> inline::Inline<u32> {
+pub fn get() -> &'static parking_lot::Mutex<inline::Inline<u32>> {
     inline::inline!(777u32)  // Externally modified!
 }
 "#,
@@ -236,7 +236,7 @@ pub fn get() -> inline::Inline<u32> {
         "tests/fixtures/counter_e.rs",
         r#"/// Fixture E: Counter for testing concurrent modification detection
 /// Default value: 0
-pub fn get() -> inline::Inline<u32> {
+pub fn get() -> &'static parking_lot::Mutex<inline::Inline<u32>> {
     inline::inline!(0u32)
 }
 "#,
