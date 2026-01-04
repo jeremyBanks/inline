@@ -225,7 +225,7 @@ fn is_running_under_cargo() -> bool {
 /// Created via the [`literal!`](macro@crate::literal) macro. The lock is held
 /// for the entire lifetime of this value.
 ///
-/// # Example
+/// # Example (explicit .set())
 ///
 /// ```no_run
 /// use jeb_literal::literal;
@@ -234,15 +234,30 @@ fn is_running_under_cargo() -> bool {
 /// println!("Value: {}", *counter);  // Single deref
 /// counter.set(*counter + 1);
 /// ```
+///
+/// # Example (write-on-drop with DerefMut)
+///
+/// ```no_run
+/// use jeb_literal::literal;
+///
+/// let mut counter = literal!(0u32);
+/// *counter += 1;  // Mutate directly
+/// // Value is automatically written on drop
+/// ```
 pub struct Literal<T: Value + 'static> {
     guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
+    /// Clone of the original value when this Literal was created.
+    /// Used in Drop to detect mutations made through DerefMut.
+    original: T,
 }
 
 impl<T: Value + 'static> Literal<T> {
     /// Create an Literal wrapper from a mutex guard
     #[doc(hidden)]
     pub fn from_guard(guard: parking_lot::MutexGuard<'static, LiteralInner<T>>) -> Self {
-        Literal { guard }
+        // Clone the current value to detect mutations later
+        let original = guard.value.clone();
+        Literal { guard, original }
     }
 
     /// Create a new Literal value for testing purposes
@@ -279,6 +294,63 @@ impl<T: Value + 'static> Deref for Literal<T> {
 
     fn deref(&self) -> &T {
         &self.guard  // Auto-deref from guard to LiteralInner to T
+    }
+}
+
+impl<T: Value + 'static> std::ops::DerefMut for Literal<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.guard.value
+    }
+}
+
+impl<T: Value + 'static> Drop for Literal<T> {
+    fn drop(&mut self) {
+        // Check if the value was mutated through DerefMut
+        // Compare by baked tokens (same approach as set())
+        let env = databake::CrateEnv::default();
+        let original_tokens = self.original.bake(&env).to_string();
+        let current_tokens = self.guard.value.bake(&env).to_string();
+
+        if original_tokens != current_tokens {
+            // Value was mutated through DerefMut, trigger write
+            let mode = crate::runtime::get_mode();
+
+            // Skip writes in Memory mode
+            if mode == crate::runtime::Mode::Memory {
+                return;
+            }
+
+            // Skip writes in Reject mode
+            if mode.should_reject_write() {
+                return;
+            }
+
+            // For Verify or Write modes, we need file access
+            if mode.needs_file_access() {
+                // Resolve the index (if not already resolved)
+                if let Err(_) = self.guard.resolve_index() {
+                    // Silently skip if we can't resolve the index
+                    return;
+                }
+
+                // In Verify mode, we don't write
+                // (In actual usage, verify mode shouldn't have mutations anyway)
+                if mode == crate::runtime::Mode::Verify {
+                    return;
+                }
+
+                // In Write mode, update the source
+                if mode.can_write() {
+                    // Check if we're running under cargo
+                    if !is_running_under_cargo() {
+                        return;
+                    }
+
+                    // Silently ignore errors in drop - we can't panic or return an error
+                    let _ = self.guard.update_source(&self.guard.value);
+                }
+            }
+        }
     }
 }
 

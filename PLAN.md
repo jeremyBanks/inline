@@ -110,7 +110,9 @@ let value = literal!(include!("snapshots/empty.snap"));  // File is empty
 
 ---
 
-## 2. DerefMut + Write-on-Drop
+## 2. DerefMut + Write-on-Drop ✓
+
+**Status**: ✅ **IMPLEMENTED** - Mutations through DerefMut automatically trigger writes on drop.
 
 **Goal**: Enable mutation through `&mut T` with automatic write-on-drop for better ergonomics.
 
@@ -193,7 +195,7 @@ Keep `.set()` method for explicit updates. DerefMut is additive - doesn't break 
 
 0. ✅ **Registry key stability** - CRITICAL: Fix value loss when lines shift
 1. ✅ **Default values for empty macros** - Simple, high value
-2. **DerefMut + write-on-drop** - Better ergonomics, natural Rust patterns
+2. ✅ **DerefMut + write-on-drop** - Better ergonomics, natural Rust patterns
 
 ---
 
