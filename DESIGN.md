@@ -207,6 +207,7 @@ thread_local! {
 
 **Source files** are the ultimate source of truth. The library:
 - Reads source files lazily (on first access)
+- Verifies initial value matches source in Verify mode (on first access)
 - Detects external modifications (via `disk_source` comparison)
 - Preserves formatting via character-range splicing
 - Requires running under `cargo` for write access
