@@ -80,7 +80,7 @@ The library has **four modes** controlled by the `LITERAL_MODE` environment vari
 | **Memory** | Changes in-memory only, never writes | Outside tests, when not run by `cargo` |
 | **Reject** | Always panics on write attempts | Never (explicit opt-in only) |
 
-**Note:** If the default cargo feature `"write"` is disabled, Write mode behaves the same as Memory mode.
+**Note:** If the default Cargo feature `"write"` is disabled, Write mode behaves the same as Memory mode.
 
 ### 5. Write-on-Drop Pattern
 
