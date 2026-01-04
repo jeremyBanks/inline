@@ -2,8 +2,19 @@
 //!
 //! This module provides a global registry that allows literal values to persist
 //! across function calls within the same execution. Each unique source location
-//! (file, line, column) and type gets exactly one shared value that lives for
+//! (file, index) and type gets exactly one shared value that lives for
 //! the entire program lifetime.
+//!
+//! # Registry Key Stability
+//!
+//! The registry uses **index-based keys** `(file, index, TypeId)` where `index`
+//! is the position of the literal in the file ("Nth literal!() macro").
+//! This is stable across line insertions, unlike line/column-based keys.
+//!
+//! When a literal!() is first accessed with (file, line, column), we:
+//! 1. Parse the file to resolve (line, column) → stable index
+//! 2. Use (file, index, TypeId) as the registry key
+//! 3. Store the index in LiteralInner for future use
 //!
 //! # Implementation
 //!
@@ -24,10 +35,13 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::any::TypeId;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-/// Type alias for the registry key: (file, line, column, type_id)
-type RegistryKey = (PathBuf, u32, u32, TypeId);
+/// Type alias for the registry key: (file, index, type_id)
+///
+/// The index is the stable position of the literal in the file (Nth literal! macro),
+/// which remains constant even when lines are inserted or removed above it.
+type RegistryKey = (PathBuf, usize, TypeId);
 
 /// Type alias for the registry value: raw pointer as usize
 type RegistryValue = usize;
@@ -41,6 +55,10 @@ static VALUE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, RegistryValue>>> =
 
 /// Get or create a static literal value at the given source location.
 ///
+/// This function resolves the stable index for the literal before looking it up
+/// in the registry. The index is stable across line insertions, ensuring values
+/// persist even when the source code changes.
+///
 /// **Note:** This is an internal function called by the `literal!` macro.
 /// Users should use the macro instead.
 #[doc(hidden)]
@@ -50,11 +68,33 @@ pub fn get_or_create<T: Value + 'static>(
     line: u32,
     column: u32,
 ) -> &'static Mutex<LiteralInner<T>> {
-    // Build the registry key including TypeId for type safety
+    let path = Path::new(file);
+
+    // Resolve the stable index from (line, column)
+    // This ensures the same literal always maps to the same registry entry,
+    // even if lines are inserted or deleted above it
+    let index = match crate::runtime::get_macro_index(path, line, column) {
+        Ok(idx) => idx,
+        Err(_) => {
+            // File doesn't exist or can't be parsed
+            // This is OK for the initial access - we'll create an entry anyway
+            // The error will surface later if the user tries to call .set()
+            // For now, use a fallback: hash the (line, column) to a pseudo-index
+            // This ensures consistent behavior even without file access
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+
+            let mut hasher = DefaultHasher::new();
+            line.hash(&mut hasher);
+            column.hash(&mut hasher);
+            hasher.finish() as usize
+        }
+    };
+
+    // Build the registry key using the stable index
     let key = (
         PathBuf::from(file),
-        line,
-        column,
+        index,
         TypeId::of::<LiteralInner<T>>(),
     );
 

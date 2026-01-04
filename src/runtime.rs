@@ -640,3 +640,23 @@ pub fn get_macro_tokens_by_index(
     let state = get_or_load_file_state(path)?;
     state.get_macro_tokens(index).map_err(|e| e.into())
 }
+
+/// Clear all cached file states (for testing only)
+///
+/// This is useful in tests when files are manually modified outside
+/// the normal runtime update flow. In production, the cache is managed
+/// automatically through the update_macro_by_index flow.
+///
+/// **WARNING:** This is for testing purposes only. Do not use in production code.
+#[doc(hidden)]
+pub fn clear_file_state_cache() {
+    // Clear the global FILE_STATES cache
+    let mut states = FILE_STATES.write();
+    states.clear();
+    drop(states); // Release lock before accessing thread-local
+
+    // Clear the thread-local parsed AST cache
+    CACHE.with(|cache| {
+        cache.borrow_mut().clear();
+    });
+}

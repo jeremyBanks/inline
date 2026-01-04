@@ -4,7 +4,9 @@ This document outlines planned features and design decisions for future developm
 
 ---
 
-## 0. Registry Key Stability (CRITICAL FIX)
+## 0. Registry Key Stability (CRITICAL FIX) ✓
+
+**Status**: ✅ **IMPLEMENTED** - Registry now uses index-based keys, values persist across line insertions.
 
 **Problem**: Current registry uses `(file, line, column, TypeId)` as keys. When lines shift above a `literal!()` call, the key changes, creating a NEW registry entry and **losing the stored value**.
 
@@ -187,7 +189,7 @@ Keep `.set()` method for explicit updates. DerefMut is additive - doesn't break 
 
 ## Implementation Priority
 
-0. **Registry key stability** - CRITICAL: Fix value loss when lines shift
+0. ✅ **Registry key stability** - CRITICAL: Fix value loss when lines shift
 1. **Default values for empty macros** - Simple, high value
 2. **DerefMut + write-on-drop** - Better ergonomics, natural Rust patterns
 
