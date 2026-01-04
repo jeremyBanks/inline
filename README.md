@@ -14,7 +14,7 @@ fn main() {
 
     println!("Run #{}", *counter + 1);
 
-    counter.set(*counter + 1);
+    *counter += 1;  // Mutate directly - writes on drop!
     // The source file is now updated with the new value!
 }
 ```
@@ -22,8 +22,11 @@ fn main() {
 ## Features
 
 - **Self-Modifying Code**: Values that update their own source code
+- **Write-on-Drop**: Mutations through `DerefMut` automatically persist
+- **Default Values**: `literal!()` with no arguments uses `Default::default()`
 - **Type-Safe**: Uses Rust's type system and databake for serialization
 - **Mode-Based**: Control when updates happen via environment variables
+- **Stable Positions**: Index-based tracking survives line insertions
 - **Thread-Safe**: File-level locking prevents corruption
 - **Format-Preserving**: Character-range splicing preserves original formatting
 
@@ -42,13 +45,19 @@ Create a literal value:
 use jeb_literal::literal;
 
 let mut value = literal!(42u32);
+let counter: Literal<u32> = literal!();  // Uses Default::default()
 ```
 
-Update it:
+Update it (two syntaxes):
 
 ```rust
+// Option 1: Write-on-drop (ergonomic)
+*value += 1;  // Automatically writes when dropped
+
+// Option 2: Explicit .set() (still available)
 value.set(100u32);
-// In WRITE mode, this writes to your source file!
+
+// Both write to your source file in WRITE mode!
 ```
 
 ## Modes
@@ -71,21 +80,24 @@ LITERAL_MODE=write cargo test         # Update all snapshots
 
 1. The `literal!()` macro captures the source location (file, line, column)
 2. Values implement the `Bake` trait from [databake](https://docs.rs/databake) for serialization
-3. When `.set()` is called, jeb-literal:
-   - Updates the in-memory value
+3. The registry uses **index-based keys** (Nth literal in file) for stability across line insertions
+4. When mutated (via `.set()` or `DerefMut`), jeb-literal:
+   - Detects the change (by comparing baked tokens)
    - Parses the source file
-   - Finds the macro at the recorded location
+   - Finds the macro by its stable index
    - Uses character-range splicing to replace only the macro's value
    - Writes the file back (original formatting is preserved)
 
 ## Supported Types
 
-Any type implementing `Bake + PartialEq + Clone` works with jeb-literal:
+Any type implementing `Bake + Clone` works with jeb-literal:
 
 - Primitives: `u32`, `i64`, `f32`, `bool`, etc.
-- Strings: `&str`
+- Strings: `String`, `&str`
 - Collections: `Vec<T>`, arrays, tuples
 - And more via databake's built-in implementations
+
+Note: `Clone` is required for write-on-drop functionality. Values are compared by their baked representation (tokens), not by `PartialEq`.
 
 ### Future Ideas
 
@@ -125,7 +137,8 @@ Note: This is an experimental library. Production use is not recommended.
 
 - Single process modifies each file (no external editors while updating)
 - Source files are valid Rust that can be parsed
-- Line/column positions remain stable (only value content changes)
+- Literal count remains stable (adding/removing literals changes indices)
+- Only value content changes (the literal's position in file remains the same)
 
 ## Testing
 
