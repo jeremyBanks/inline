@@ -39,143 +39,7 @@ let value = literal!(include!("snapshots/empty.snap"));  // File is empty
 
 ---
 
-## 2. File-Backed Literals via `include!()`
-
-**Goal**: Support external snapshot files while maintaining identical runtime semantics to inline literals.
-
-### Motivation
-- **Stable identifiers**: Path-based keys instead of (file, line, column)
-- **Better diffs**: Changes show in external file, not source code
-- **Large values**: Keep big snapshots out of source files
-- **Organization**: Group related snapshots in directory structure
-
-### API Design
-
-```rust
-// User writes this, and it stays this way (no source rewriting)
-let user = literal_in_path!("snapshots/user.snap");
-
-// Macro internally expands to something like:
-let user = {
-    const PATH: &str = "snapshots/user.snap";
-    // Include file at compile time (or use Default::default() if empty)
-    let value = include!(PATH);  // File contains: User { ... } or empty → Default::default()
-    Literal::from_guard(registry::get_or_create_external(value, PATH).lock())
-};
-
-// Usage is identical to inline literals:
-*user  // reads value
-user.set(updated_user);  // updates external file (NOT source code)
-```
-
-**Key insight**: The value comes FROM the path. No default parameter needed.
-
-### Macro Implementation
-
-```rust
-#[macro_export]
-macro_rules! literal_in_path {
-    ($path:literal) => {{
-        const PATH: &'static str = $path;
-        // Include the snapshot file at compile time
-        // If file is empty or contains only whitespace, defaults to Default::default()
-        let value = include!(PATH);
-        $crate::Literal::from_guard(
-            $crate::registry::get_or_create_external(value, PATH, file!(), line!(), column!())
-                .lock()
-        )
-    }};
-}
-```
-
-### Macro Expansion Order
-When the compiler sees:
-```rust
-literal_in_path!("snapshots/counter.snap")
-```
-
-1. `literal_in_path!()` expands to code containing `include!("snapshots/counter.snap")`
-2. `include!()` loads file contents: `42u32` (or empty → `Default::default()`)
-3. Registry code executes with the loaded value
-
-At compile time, the snapshot value is **baked into the binary**.
-
-### Build Script Integration
-
-To handle missing snapshot files on first compile:
-
-```rust
-// build.rs
-fn main() {
-    // Scan source for literal_in_path!() calls
-    // Create missing snapshot files with default values
-    // Or: create empty files that eval to Default::default()
-}
-```
-
-**Alternative**: Special compilation mode that accepts defaults on first build.
-
-### Implementation Challenges
-
-**Compile-time vs Runtime Dilemma:**
-- `include!()` needs the file to exist **at compile time**
-- But snapshot files are created **at runtime** (during test execution)
-- This creates a chicken-and-egg problem
-
-**Possible Solutions:**
-1. **Build script** - scan source, create missing files before compile
-2. **Procedural macro** - more control, but heavier dependency
-3. **Two-pass workflow** - first pass creates files, second compiles
-4. **Optional files** - use `include!(concat!(...))` with fallback logic
-
-**Complexity Assessment:**
-Medium-high complexity due to compile-time/runtime boundary. Deferring to future work.
-
-### Example Workflow (Conceptual)
-
-```rust
-#[test]
-fn test_user_creation() {
-    // Source stays this way - never rewritten
-    // Value loaded from snapshots/user.snap (or Default::default() if empty)
-    let expected = literal_in_path!("snapshots/user.snap");
-
-    let actual = create_user("Alice");
-    assert_eq!(actual, *expected);
-}
-```
-
-**First compile:**
-- Build script creates empty `snapshots/user.snap` if missing
-- Empty file evaluates to `Default::default()`
-- Test runs, `.set()` updates the snapshot file
-
-**Subsequent compiles:**
-- `include!("snapshots/user.snap")` loads the snapshot value
-- Baked into binary at compile time
-
-**On test failure:**
-```bash
-LITERAL_MODE=write cargo test  # Updates snapshots/user.snap
-git diff snapshots/user.snap   # Review changes in external file
-```
-
-### Challenges
-- **Two-phase setup**: Requires recompile after first run
-- **Mental model**: Two flavors of literals to understand
-- **Orphaned files**: Deleted source lines leave external files behind (needs cleanup tooling)
-
-### Future: Snapshot Directory Management
-```rust
-// In Cargo.toml or .literal-config
-[literal]
-snapshot_dir = "snapshots"
-cleanup_orphans = true  // Remove unreferenced snapshot files
-```
-
----
-
-## 3. DerefMut + Write-on-Drop (Not Recommended)
+## 2. DerefMut + Write-on-Drop (Not Recommended)
 
 **Goal**: Enable mutation through `&mut T` instead of explicit `.set()`.
 
@@ -214,7 +78,7 @@ Once you hand out `&mut T`, there's **no way to know if it was actually mutated*
 
 ---
 
-## 4. Serde Compatibility (Future Goal)
+## 3. Serde Compatibility (Future Goal)
 
 **Current**: Only types implementing `databake::Bake`
 **Goal**: Support any type with `Serialize + Deserialize`
@@ -246,7 +110,7 @@ Already documented as future goal:
 
 ---
 
-## 5. Line Number Stability (Current Limitation)
+## 4. Line Number Stability (Current Limitation)
 
 ### Problem
 Registry keys use `(file, line, column, TypeId)`:
@@ -269,7 +133,7 @@ let counter = literal!(0u32);  // Now at line 50, different registry entry!
 
 ---
 
-## 6. Concurrent Modification Detection
+## 5. Concurrent Modification Detection
 
 **Current**: Detects when external process modifies source file
 **Behavior**: Panics to prevent data loss
@@ -289,7 +153,7 @@ Not high priority - current panic-on-conflict is safe.
 
 ---
 
-## 7. Tooling Integration
+## 6. Tooling Integration
 
 ### cargo-literal (Future)
 CLI tool for managing snapshots:
@@ -321,11 +185,8 @@ cargo literal review
 ## Implementation Priority
 
 1. **Default values for empty macros** - Simple, high value
-2. **File-backed literals (Phase 1: Detection)** - Foundation
-3. **File-backed literals (Phase 2: literal_file! macro)** - Usability
-4. **Snapshot directory management** - Maintenance
-5. **cargo-literal tooling** - Developer experience
-6. **Serde compatibility** - Ecosystem integration
+2. **cargo-literal tooling** - Developer experience
+3. **Serde compatibility** - Ecosystem integration
 
 ---
 
