@@ -73,12 +73,12 @@ pub trait Value: Bake + Clone + PartialEq {}
 
 The library has **four modes** controlled by the `LITERAL_MODE` environment variable:
 
-| Mode | Behavior | Default When | Use Case |
-|------|----------|--------------|----------|
-| **Write** | Modifies source files | Outside tests, when run by `cargo` | Self-modifying code, interactive development |
-| **Verify** | Checks values match source, panics on mismatch | In tests (`#[cfg(test)]`) | Snapshot testing, CI verification |
-| **Memory** | Changes in-memory only, never writes | Outside tests, when not run by `cargo` (or explicit opt-in) | Running compiled binaries, read-only environments |
-| **Reject** | Always panics on write attempts | Explicit opt-in | Enforce no modifications |
+| Mode | Behavior | Default When |
+|------|----------|--------------|
+| **Write** | Modifies source files | Outside tests, when run by `cargo` |
+| **Verify** | Checks values match source, panics on mismatch | In tests (`#[cfg(test)]`) |
+| **Memory** | Changes in-memory only, never writes | Outside tests, when not run by `cargo` |
+| **Reject** | Always panics on write attempts | Never (explicit opt-in only) |
 
 ### 5. Write-on-Drop Pattern
 
