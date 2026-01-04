@@ -84,7 +84,7 @@ The library has **four modes** controlled by the `LITERAL_MODE` environment vari
 
 ### 5. Write-on-Drop Pattern
 
-Instead of explicit `.set()` calls, mutations are detected and written **on drop**:
+Mutations are detected and written **on drop**:
 
 ```rust
 {
