@@ -205,9 +205,9 @@ thread_local! {
 
 ### Layer 4: File System
 
-**Source files** are parsed to resolve literal indices and written to persist changes. The library:
-- Parses source files when resolving a literal's stable index (first time any literal in that file is accessed)
-- Verifies initial value matches source in Verify mode (when creating a new registry entry)
+**Source files** are only accessed when writing or verifying changes. The library:
+- Parses source files lazily when needed to write or verify (never during normal reads)
+- Verifies initial value matches source in Verify mode (when creating a new registry entry and mode requires verification)
 - Detects concurrent external modifications before writing (via `disk_source` comparison)
 - Preserves formatting via character-range splicing when writing
 - Only attempts writes when running under `cargo`
