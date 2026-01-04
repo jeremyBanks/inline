@@ -34,5 +34,19 @@ This file tracks changes we plan to make to the implementation based on design r
 
 **Impact:** Safer defaults, compiled binaries won't attempt file modification
 
+### 3. Add "write" Default Cargo Feature
+
+**Current:** No feature flag to disable write functionality
+**Planned:** Add a default cargo feature `"write"` that can be disabled to prevent all file writes
+
+**Rationale:** Allow users to compile out write functionality entirely for production builds
+
+**Changes needed:**
+- Add `[features]` section to `Cargo.toml` with `default = ["write"]` and `write = []`
+- Guard write code with `#[cfg(feature = "write")]`
+- Make Write mode behave like Memory mode when feature is disabled
+
+**Impact:** Users can use `default-features = false` to guarantee no file writes at compile time
+
 ---
 
