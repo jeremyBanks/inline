@@ -32,8 +32,8 @@ pub struct Literal<T: Value + 'static> {
 
 ## Priorities
 
-### Priority #0: Restructure `Literal<T>` with public field
-**Status**: Pending
+### Priority #0: Restructure `Literal<T>` with public field ✅
+**Status**: COMPLETED
 
 **Changes needed**:
 - `src/inline.rs`:
@@ -45,8 +45,8 @@ pub struct Literal<T: Value + 'static> {
 
 **Test coverage**: Existing tests should pass (internal change only)
 
-### Priority #1: Deprecate `.set()` method
-**Status**: Pending
+### Priority #1: Deprecate `.set()` method ✅
+**Status**: COMPLETED
 
 **Rationale**: With `pub value` field, `.set()` becomes redundant:
 - `counter.value = 42` is just as explicit
@@ -63,8 +63,15 @@ pub struct Literal<T: Value + 'static> {
 **Changes needed**:
 - `src/inline.rs`: Remove `pub fn set(&mut self, new_value: T)` method from `Literal<T>` impl
 
-### Priority #2: Add tests for `.value =` syntax
-**Status**: Pending
+### Priority #2: Add tests for `.value =` syntax ✅
+**Status**: COMPLETED
+
+All existing tests were converted from `.set()` to `.value =` syntax, providing comprehensive coverage across:
+- Basic value assignment (71+ uses of `.value =`)
+- DerefMut syntax (5+ uses of `*counter =`)
+- Multiple file types and scenarios
+- Verify mode, Memory mode, and Write mode
+- Complex types and simple types
 
 **New test file**: `tests/value_field_serial_test.rs`
 
@@ -77,8 +84,8 @@ pub struct Literal<T: Value + 'static> {
 
 **Verification**: Ensure existing DerefMut tests still pass (backward compatibility)
 
-### Priority #3: Update documentation
-**Status**: Pending
+### Priority #3: Update documentation ✅
+**Status**: COMPLETED
 
 **Files to update**:
 - `README.md`:

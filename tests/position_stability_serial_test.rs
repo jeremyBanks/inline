@@ -62,7 +62,7 @@ fn test_multiple_updates_same_litter() {
     );
 
     // Update 1: 42 -> 100
-    value.set(100u32);
+    value.value = 100u32;
     println!("After update 1:");
     println!("{}", fs::read_to_string(&path).unwrap());
 
@@ -86,7 +86,7 @@ fn test_multiple_updates_same_litter() {
     );
 
     // Update 2: 100 -> 999
-    value.set(999u32);
+    value.value = 999u32;
     println!("After update 2:");
     println!("{}", fs::read_to_string(&path).unwrap());
 
@@ -110,7 +110,7 @@ fn test_multiple_updates_same_litter() {
     );
 
     // Update 3: 999 -> 1
-    value.set(1u32);
+    value.value = 1u32;
     println!("After update 3:");
     println!("{}", fs::read_to_string(&path).unwrap());
 

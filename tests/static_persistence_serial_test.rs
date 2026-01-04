@@ -13,7 +13,7 @@ fn test_static_persistence_same_value() {
     let mut val1 = get_value();
     assert_eq!(*val1, 42);
 
-    val1.set(100);
+    val1.value = 100;
     drop(val1);  // Release lock
 
     // Get it again from same location - should see the updated value
@@ -34,7 +34,7 @@ fn test_static_persistence_value_mutation() {
     let mut val = get_counter();
     assert_eq!(*val, 1);
 
-    val.set(100);
+    val.value = 100;
     assert_eq!(*val, 100);
 
     drop(val);  // Release lock
@@ -75,7 +75,7 @@ fn test_static_persistence_across_function_calls() {
     fn increment_counter() -> u32 {
         let mut counter = literal!(0u32);
         let current = *counter;
-        counter.set(current + 1);
+        counter.value = current + 1;
         current + 1
     }
 
@@ -106,7 +106,7 @@ fn test_static_persistence_thread_safety() {
                 for _ in 0..100 {
                     let mut counter = get_counter();
                     let current = *counter;
-                    counter.set(current + 1);
+                    counter.value = current + 1;
                     // Lock is dropped here
                 }
             })

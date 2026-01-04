@@ -225,14 +225,14 @@ fn is_running_under_cargo() -> bool {
 /// Created via the [`literal!`](macro@crate::literal) macro. The lock is held
 /// for the entire lifetime of this value.
 ///
-/// # Example (explicit .set())
+/// # Example (write-on-drop with .value field)
 ///
 /// ```no_run
 /// use jeb_literal::literal;
 ///
 /// let mut counter = literal!(0u32);
 /// println!("Value: {}", *counter);  // Single deref
-/// counter.set(*counter + 1);
+/// counter.value = *counter + 1;
 /// ```
 ///
 /// # Example (write-on-drop with DerefMut)
@@ -244,10 +244,22 @@ fn is_running_under_cargo() -> bool {
 /// *counter += 1;  // Mutate directly
 /// // Value is automatically written on drop
 /// ```
+///
+/// # Example (public .value field)
+///
+/// ```no_run
+/// use jeb_literal::literal;
+///
+/// let mut counter = literal!(0u32);
+/// counter.value = 42;  // Direct field assignment, no * needed
+/// // Value is automatically written on drop
+/// ```
 pub struct Literal<T: Value + 'static> {
+    /// The current value. Mutating this field triggers write-on-drop.
+    pub value: T,
     guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
     /// Clone of the original value when this Literal was created.
-    /// Used in Drop to detect mutations made through DerefMut.
+    /// Used in Drop to detect mutations.
     original: T,
 }
 
@@ -255,9 +267,10 @@ impl<T: Value + 'static> Literal<T> {
     /// Create an Literal wrapper from a mutex guard
     #[doc(hidden)]
     pub fn from_guard(guard: parking_lot::MutexGuard<'static, LiteralInner<T>>) -> Self {
-        // Clone the current value to detect mutations later
+        // Clone the value twice: once for working copy, once for change detection
+        let value = guard.value.clone();
         let original = guard.value.clone();
-        Literal { guard, original }
+        Literal { value, guard, original }
     }
 
     /// Create a new Literal value for testing purposes
@@ -274,18 +287,11 @@ impl<T: Value + 'static> Literal<T> {
         Literal::from_guard(mutex_ref.lock())
     }
 
-    /// Update the value and possibly persist to source file
-    ///
-    /// Delegates to [`LiteralInner::set()`].
-    pub fn set(&mut self, new_value: T) {
-        self.guard.set(new_value);
-    }
-
     /// Get a reference to the current value
     ///
     /// Same as dereferencing, but explicit.
     pub fn get(&self) -> &T {
-        &self.guard
+        &self.value
     }
 }
 
@@ -293,30 +299,31 @@ impl<T: Value + 'static> Deref for Literal<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.guard  // Auto-deref from guard to LiteralInner to T
+        &self.value
     }
 }
 
 impl<T: Value + 'static> std::ops::DerefMut for Literal<T> {
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.guard.value
+        &mut self.value
     }
 }
 
 impl<T: Value + 'static> Drop for Literal<T> {
     fn drop(&mut self) {
-        // Check if the value was mutated through DerefMut
+        // Check if the value was mutated (via DerefMut or direct .value assignment)
         // Compare by baked tokens (same approach as set())
         let env = databake::CrateEnv::default();
         let original_tokens = self.original.bake(&env).to_string();
-        let current_tokens = self.guard.value.bake(&env).to_string();
+        let current_tokens = self.value.bake(&env).to_string();
 
         if original_tokens != current_tokens {
-            // Value was mutated through DerefMut, trigger write
+            // Value was mutated, trigger write
             let mode = crate::runtime::get_mode();
 
-            // Skip writes in Memory mode
+            // In Memory mode, update the guard but don't write to disk
             if mode == crate::runtime::Mode::Memory {
+                self.guard.value = self.value.clone();
                 return;
             }
 
@@ -333,9 +340,20 @@ impl<T: Value + 'static> Drop for Literal<T> {
                     return;
                 }
 
-                // In Verify mode, we don't write
-                // (In actual usage, verify mode shouldn't have mutations anyway)
+                // In Verify mode, verify that the value matches the source
                 if mode == crate::runtime::Mode::Verify {
+                    // Sync the public value back to guard for verification
+                    self.guard.value = self.value.clone();
+                    // Verify - this may panic if there's a mismatch
+                    if let Err(e) = self.guard.verify_source(&self.guard.value) {
+                        panic!(
+                            "Literal verification failed at {}:{}:{}\\n{}",
+                            self.guard.file.display(),
+                            self.guard.line,
+                            self.guard.column,
+                            e
+                        );
+                    }
                     return;
                 }
 
@@ -345,6 +363,9 @@ impl<T: Value + 'static> Drop for Literal<T> {
                     if !is_running_under_cargo() {
                         return;
                     }
+
+                    // Sync the public value back to the guard before writing
+                    self.guard.value = self.value.clone();
 
                     // Silently ignore errors in drop - we can't panic or return an error
                     let _ = self.guard.update_source(&self.guard.value);
@@ -357,7 +378,7 @@ impl<T: Value + 'static> Drop for Literal<T> {
 impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Literal")
-            .field("value", &**self)  // Double deref to get to T
+            .field("value", &self.value)
             .finish()
     }
 }
@@ -375,7 +396,7 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 ///
 /// let mut counter = literal!(0u32);
 /// let current = *counter;  // Single dereference
-/// counter.set(current + 1);
+/// counter.value = current + 1;
 /// // In Write mode, the source file is updated
 /// // Lock is released when counter goes out of scope
 /// ```

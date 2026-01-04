@@ -8,7 +8,7 @@ fn main() {
     println!("Counter value: {}", *counter);
 
     let current = *counter;
-    counter.set(current + 1);
+    counter.value = current + 1;
 
     println!("After increment: {}", *counter);
 

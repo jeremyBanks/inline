@@ -44,7 +44,7 @@ fn test_value_persists_across_line_insertions() {
     );
 
     println!("\n=== SETTING VALUE TO 42 ===");
-    counter.set(42u32);
+    counter.value = 42u32;
     drop(counter); // Release the lock
 
     // Verify the file was updated
@@ -155,9 +155,9 @@ fn test_multiple_literals_maintain_distinct_identities() {
     let mut lit_c = jeb_literal::Literal::__new(30u32, path.to_str().unwrap(), c_line, c_col);
 
     println!("\n=== SETTING UNIQUE VALUES ===");
-    lit_a.set(111u32);
-    lit_b.set(222u32);
-    lit_c.set(333u32);
+    lit_a.value = 111u32;
+    lit_b.value = 222u32;
+    lit_c.value = 333u32;
     drop(lit_a);
     drop(lit_b);
     drop(lit_c);

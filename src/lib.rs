@@ -11,7 +11,7 @@
 //! let mut counter = literal!(0u32);
 //! println!("Run #{}", *counter + 1);
 //! let current = *counter;
-//! counter.set(current + 1);
+//! counter.value = current + 1;
 //! // In Write mode, the source file is updated with the new value
 //! ```
 //!

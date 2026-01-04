@@ -15,7 +15,7 @@ fn main() {
     println!("This program has been run {} times", *counter.get() + 1);
 
     let current = *counter.get();
-    counter.set(current + 1);
+    counter.value = current + 1;
 
     println!("\nThe counter has been updated in the source code!");
     println!("Run this program again to see it increment.");

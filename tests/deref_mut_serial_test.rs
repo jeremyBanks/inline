@@ -174,8 +174,8 @@ fn test_deref_mut_with_vec() {
 }
 
 #[test]
-fn test_explicit_set_still_works_with_deref_mut() {
-    // Test that explicit .set() still works alongside DerefMut
+fn test_value_field_assignment_works_with_deref_mut() {
+    // Test that .value field assignment works alongside DerefMut
 
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("test.rs");
@@ -194,18 +194,19 @@ fn test_explicit_set_still_works_with_deref_mut() {
     {
         let mut counter = jeb_literal::Literal::__new(0u32, path.to_str().unwrap(), line, col);
 
-        // Use explicit .set()
-        counter.set(10u32);
+        // Use direct .value field assignment
+        counter.value = 10u32;
 
         assert_eq!(*counter, 10u32);
-        // Drop - should NOT trigger additional write (value already set)
+        assert_eq!(counter.value, 10u32);
+        // Drop - triggers write with new value
     }
 
-    // File should contain the value from .set()
+    // File should contain the new value
     let content = fs::read_to_string(&path).unwrap();
     assert!(
         content.contains("literal!(10u32)"),
-        "File should contain value from .set()"
+        "File should contain value from .value assignment"
     );
 
     env::remove_var("LITERAL_MODE");

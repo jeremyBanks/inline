@@ -51,11 +51,11 @@ let counter: Literal<u32> = literal!();  // Uses Default::default()
 Update it (two syntaxes):
 
 ```rust
-// Option 1: Write-on-drop (ergonomic)
+// Option 1: DerefMut syntax (most ergonomic)
 *value += 1;  // Automatically writes when dropped
 
-// Option 2: Explicit .set() (still available)
-value.set(100u32);
+// Option 2: Direct field assignment
+value.value = 100u32;
 
 // Both write to your source file in WRITE mode!
 ```
@@ -81,7 +81,7 @@ LITERAL_MODE=write cargo test         # Update all snapshots
 1. The `literal!()` macro captures the source location (file, line, column)
 2. Values implement the `Bake` trait from [databake](https://docs.rs/databake) for serialization
 3. The registry uses **index-based keys** (Nth literal in file) for stability across line insertions
-4. When mutated (via `.set()` or `DerefMut`), jeb-literal:
+4. When mutated (via `.value =` field or `DerefMut`), jeb-literal:
    - Detects the change (by comparing baked tokens)
    - Parses the source file
    - Finds the macro by its stable index
@@ -106,6 +106,8 @@ Note: `Clone` is required for write-on-drop functionality. Values are compared b
 **Tooling Integration**: A `cargo-literal` command for reviewing and accepting snapshot changes interactively, similar to `git add -p`.
 
 **File-Backed Literals**: Support external snapshot files for better organization and stability. This would provide stable identifiers independent of line numbers, but requires careful design around compile-time vs runtime tradeoffs.
+
+**Extension Trait for `.set()`**: Provide an opt-in `LiteralExt` trait with a `.set()` method for cases where direct field assignment isn't preferred. This would avoid polluting the method namespace via auto-deref while still offering explicit setter syntax when desired.
 
 ## Examples
 

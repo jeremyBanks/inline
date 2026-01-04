@@ -170,13 +170,16 @@ fn test() {
     let (line, column) = positions[0];
 
     // Create a Inline instance manually (simulating what the macro does)
-    let mut value = jeb_literal::Literal::__new(42u32, test_file.path.to_str().unwrap(), line, column);
+    {
+        let mut value = jeb_literal::Literal::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
-    // Update the value
-    value.set(100u32);
+        // Update the value
+        value.value = 100u32;
 
-    // Check that the value changed in memory
-    assert_eq!(*value.get(), 100u32);
+        // Check that the value changed in memory
+        assert_eq!(*value.get(), 100u32);
+        // Drop happens here - triggers write
+    }
 
     // Check that the file was updated
     test_file.assert_contains("literal!(100u32)");
@@ -203,7 +206,7 @@ fn test_litter_no_update_in_memory_mode() {
     let mut value = jeb_literal::Literal::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Update the value
-    value.set(100u32);
+    value.value = 100u32;
 
     // Value should change in memory
     assert_eq!(*value.get(), 100u32);
@@ -252,31 +255,34 @@ fn test_multiple_litters_in_same_file() {
     assert_eq!(positions.len(), 3, "Should find 3 macros");
 
     // Create inline instances for each
-    let mut litter_a = jeb_literal::Literal::__new(
-        1u32,
-        test_file.path.to_str().unwrap(),
-        positions[0].0,
-        positions[0].1,
-    );
+    {
+        let mut litter_a = jeb_literal::Literal::__new(
+            1u32,
+            test_file.path.to_str().unwrap(),
+            positions[0].0,
+            positions[0].1,
+        );
 
-    let mut litter_b = jeb_literal::Literal::__new(
-        2u32,
-        test_file.path.to_str().unwrap(),
-        positions[1].0,
-        positions[1].1,
-    );
+        let mut litter_b = jeb_literal::Literal::__new(
+            2u32,
+            test_file.path.to_str().unwrap(),
+            positions[1].0,
+            positions[1].1,
+        );
 
-    let mut litter_c = jeb_literal::Literal::__new(
-        3u32,
-        test_file.path.to_str().unwrap(),
-        positions[2].0,
-        positions[2].1,
-    );
+        let mut litter_c = jeb_literal::Literal::__new(
+            3u32,
+            test_file.path.to_str().unwrap(),
+            positions[2].0,
+            positions[2].1,
+        );
 
-    // Update them in different orders
-    litter_b.set(20u32);
-    litter_a.set(10u32);
-    litter_c.set(30u32);
+        // Update them in different orders
+        litter_b.value = 20u32;
+        litter_a.value = 10u32;
+        litter_c.value = 30u32;
+        // All values drop here - triggers writes
+    }
 
     // All updates should have persisted
     let content = test_file.read();
@@ -313,7 +319,7 @@ fn test_litter_no_change_optimization() {
     let mut value = jeb_literal::Literal::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Set to the same value
-    value.set(42u32);
+    value.value = 42u32;
 
     // Value should still be 42
     assert_eq!(*value.get(), 42u32);

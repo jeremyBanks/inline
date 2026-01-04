@@ -58,7 +58,7 @@ fn test_verify_mode_matching_value() {
     let mut value = jeb_literal::Literal::__new(42u32, path.to_str().unwrap(), line, column);
 
     // Setting to the same value should succeed in verify mode
-    value.set(42u32);
+    value.value = 42u32;
 
     env::remove_var("LITERAL_MODE");
 }
@@ -82,10 +82,13 @@ fn test_verify_mode_mismatched_value() {
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
 
-    let mut value = jeb_literal::Literal::__new(42u32, path.to_str().unwrap(), line, column);
+    {
+        let mut value = jeb_literal::Literal::__new(42u32, path.to_str().unwrap(), line, column);
 
-    // Setting to a different value should panic in verify mode
-    value.set(100u32);
+        // Setting to a different value should panic in verify mode
+        value.value = 100u32;
+        // Drop happens here - should panic due to verification failure
+    }
 
     env::remove_var("LITERAL_MODE");
 }
@@ -112,7 +115,7 @@ fn test_verify_mode_complex_value() {
         jeb_literal::Literal::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
 
     // Setting to the same value should succeed
-    value.set(vec![1u32, 2u32, 3u32]);
+    value.value = vec![1u32, 2u32, 3u32];
 
     env::remove_var("LITERAL_MODE");
 }
@@ -136,11 +139,14 @@ fn test_verify_mode_complex_value_mismatch() {
     let positions = find_litter_positions(&path);
     let (line, column) = positions[0];
 
-    let mut value =
-        jeb_literal::Literal::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
+    {
+        let mut value =
+            jeb_literal::Literal::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
 
-    // Setting to a different value should panic
-    value.set(vec![1u32, 2u32, 3u32, 4u32]);
+        // Setting to a different value should panic
+        value.value = vec![1u32, 2u32, 3u32, 4u32];
+        // Drop happens here - should panic due to verification failure
+    }
 
     env::remove_var("LITERAL_MODE");
 }

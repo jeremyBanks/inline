@@ -34,7 +34,7 @@ fn test_long_vec_causes_line_wrapping() {
     // Update to a REALLY LONG vector that will definitely wrap
     let long_vec: Vec<u32> = (0..100).collect();
     println!("\n=== UPDATING A TO LONG VECTOR (0..100) ===");
-    litter_a.set(long_vec);
+    litter_a.value = long_vec;
 
     let content = fs::read_to_string(&path).unwrap();
     println!("{}", content);
@@ -63,15 +63,18 @@ fn test_long_vec_causes_line_wrapping() {
         println!("This would break a position-based approach, but index-based should handle it!");
 
         // Try to update B using the OLD position - this tests the index-based approach
-        let mut litter_b = jeb_literal::Literal::__new(
-            100u32,
-            path.to_str().unwrap(),
-            b_line, // OLD position from initial parse
-            b_col,
-        );
+        {
+            let mut litter_b = jeb_literal::Literal::__new(
+                100u32,
+                path.to_str().unwrap(),
+                b_line, // OLD position from initial parse
+                b_col,
+            );
 
-        println!("\n=== UPDATING B USING ORIGINAL POSITION (index-based lookup) ===");
-        litter_b.set(999u32);
+            println!("\n=== UPDATING B USING ORIGINAL POSITION (index-based lookup) ===");
+            litter_b.value = 999u32;
+            // Drop happens here - triggers write
+        }
 
         // Check if it worked
         let final_content = fs::read_to_string(&path).unwrap();
@@ -96,9 +99,13 @@ fn test_long_vec_causes_line_wrapping() {
         println!("\n✓ B stayed at line {} (formatter didn't wrap)", b_line);
         println!("Let's still verify the index-based approach works by updating B");
 
-        let mut litter_b = jeb_literal::Literal::__new(100u32, path.to_str().unwrap(), b_line, b_col);
+        {
+            let mut litter_b = jeb_literal::Literal::__new(100u32, path.to_str().unwrap(), b_line, b_col);
 
-        litter_b.set(999u32);
+            litter_b.value = 999u32;
+            // Drop happens here - triggers write
+        }
+
         let final_content = fs::read_to_string(&path).unwrap();
         assert!(
             final_content.contains("literal!(999u32)"),

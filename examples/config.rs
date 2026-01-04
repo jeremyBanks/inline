@@ -23,17 +23,17 @@ fn main() {
 
     if *max_retries.get() < 5 {
         println!("  Increasing max_retries to 5");
-        max_retries.set(5);
+        max_retries.value = 5;
     }
 
     if *timeout_ms.get() < 2000 {
         println!("  Increasing timeout to 2000ms");
-        timeout_ms.set(2000);
+        timeout_ms.value = 2000;
     }
 
     if !*debug_mode.get() {
         println!("  Enabling debug mode");
-        debug_mode.set(true);
+        debug_mode.value = true;
     }
 
     println!("\nConfiguration updated! Check the source file to see the changes.");
