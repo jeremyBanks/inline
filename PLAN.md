@@ -118,137 +118,21 @@ Keep `.set()` method for explicit updates. DerefMut is additive - doesn't break 
 
 ---
 
-## 3. Serde Compatibility (Future Goal)
-
-**Current**: Only types implementing `databake::Bake`
-**Goal**: Support any type with `Serialize + Deserialize`
-
-### Challenge
-databake produces **Rust code tokens**, not serialized data:
-```rust
-// databake::Bake
-vec![1u32, 2u32, 3u32]  // Produces: vec![1u32, 2u32, 3u32]
-
-// serde::Serialize
-vec![1u32, 2u32, 3u32]  // Produces: [1, 2, 3] (JSON/bincode/etc)
-```
-
-### Approach
-Need a layer that converts serde output → Rust tokens:
-- Use `ron` (Rusty Object Notation) or similar
-- Parse serialized form back to TokenStream
-- Insert into source as Rust code
-
-### Benefits
-- Much wider type support (any serde type)
-- Community ecosystem (serde is ubiquitous)
-- Custom types don't need databake impls
-
-### Noted in README
-Already documented as future goal:
-> **Future Goal**: Add serde compatibility to support any type implementing `Serialize + Deserialize`, expanding beyond databake's current type coverage.
-
----
-
-## 4. Line Number Stability (Current Limitation)
-
-### Problem
-Registry keys use `(file, line, column, TypeId)`:
-```rust
-let counter = literal!(0u32);  // Registered at line 42
-// Add lines above...
-let counter = literal!(0u32);  // Now at line 50, different registry entry!
-```
-
-### Solutions
-
-**Short term**: File-backed literals solve this
-- External file path is stable
-- Survives refactoring
-
-**Long term**: Semantic anchoring
-- Use AST structure instead of line numbers
-- Example: "3rd literal! in function `test_user`"
-- More complex to implement
-
----
-
-## 5. Concurrent Modification Detection
-
-**Current**: Detects when external process modifies source file
-**Behavior**: Panics to prevent data loss
-
-### Working Well
-- File hash comparison
-- Clear panic message
-- Prevents silent corruption
-
-### Future Enhancement
-Could offer "merge" mode:
-- Parse both versions
-- Attempt automatic merge
-- Fall back to conflict markers
-
-Not high priority - current panic-on-conflict is safe.
-
----
-
-## 6. Tooling Integration
-
-### cargo-literal (Future)
-CLI tool for managing snapshots:
-
-```bash
-# Review all changed snapshots
-cargo literal diff
-
-# Accept all snapshot updates
-cargo literal accept
-
-# Reject and restore original
-cargo literal reject
-
-# Clean orphaned snapshot files
-cargo literal clean
-
-# Interactive review (like git add -p)
-cargo literal review
-```
-
-### IDE Integration
-- Inline diff preview for changed literals
-- "Accept snapshot" code action
-- Snapshot file navigation
-
----
-
 ## Implementation Priority
 
 1. **Default values for empty macros** - Simple, high value
 2. **DerefMut + write-on-drop** - Better ergonomics, natural Rust patterns
-3. **cargo-literal tooling** - Developer experience
-4. **Serde compatibility** - Ecosystem integration
 
 ---
 
 ## Design Principles
 
-1. **Explicit over implicit** - `.set()` is clear
+1. **Explicit over implicit** - `.set()` stays available for explicit updates
 2. **Fail fast** - Panic on conflicts, don't silently corrupt
 3. **No magic** - Behavior should be predictable
 4. **Lazy evaluation** - Only do work when needed
-5. **Minimal trait bounds** - Avoid Clone, PartialEq where possible
+5. **Minimal trait bounds** - Only add bounds when necessary (Clone for DerefMut is acceptable)
 6. **Compile-time correctness** - Leverage type system
-
----
-
-## Open Questions
-
-1. Should `literal_file!()` panic or return Result on first run?
-2. Path generation strategy for auto-generated snapshot paths?
-3. How to handle snapshot file encoding (UTF-8, escaping)?
-4. Should we support custom `Bake` implementations for format control?
-5. Multi-file snapshot support (split large values across files)?
 
 ---
 
