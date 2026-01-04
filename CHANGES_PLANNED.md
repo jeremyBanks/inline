@@ -19,5 +19,20 @@ This file tracks changes we plan to make to the implementation based on design r
 
 **Impact:** Simpler, more intuitive change detection
 
+### 2. Default to Memory Mode When Not Running Under Cargo
+
+**Current:** Write mode is default outside tests
+**Planned:** Memory mode is default when not run by `cargo`, Write mode only when run by `cargo`
+
+**Rationale:** Safety - don't try to modify source files when running a compiled binary directly
+
+**Detection:** Check for cargo environment variables (`CARGO`, `CARGO_MANIFEST_DIR`, `CARGO_PKG_NAME`)
+
+**Changes needed:**
+- Update `Mode::default_for_context()` logic
+- Check for cargo env vars before defaulting to Write
+
+**Impact:** Safer defaults, compiled binaries won't attempt file modification
+
 ---
 

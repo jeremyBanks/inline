@@ -75,9 +75,9 @@ The library has **four modes** controlled by the `LITERAL_MODE` environment vari
 
 | Mode | Behavior | Default When | Use Case |
 |------|----------|--------------|----------|
-| **Write** | Modifies source files | Outside tests | Self-modifying code, interactive development |
+| **Write** | Modifies source files | Outside tests, when run by `cargo` | Self-modifying code, interactive development |
 | **Verify** | Checks values match source, panics on mismatch | In tests (`#[cfg(test)]`) | Snapshot testing, CI verification |
-| **Memory** | Changes in-memory only, never writes | Explicit opt-in | Dry runs, read-only environments |
+| **Memory** | Changes in-memory only, never writes | Outside tests, when not run by `cargo` (or explicit opt-in) | Running compiled binaries, read-only environments |
 | **Reject** | Always panics on write attempts | Explicit opt-in | Enforce no modifications |
 
 ### 5. Write-on-Drop Pattern
