@@ -195,10 +195,10 @@ fn test_value_field_assignment_works_with_deref_mut() {
         let mut counter = jeb_literal::Literal::__new(0u32, path.to_str().unwrap(), line, col);
 
         // Use direct .value field assignment
-        counter.value = 10u32;
+        counter.literal = 10u32;
 
         assert_eq!(*counter, 10u32);
-        assert_eq!(counter.value, 10u32);
+        assert_eq!(counter.literal, 10u32);
         // Drop - triggers write with new value
     }
 

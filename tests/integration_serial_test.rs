@@ -174,7 +174,7 @@ fn test() {
         let mut value = jeb_literal::Literal::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
         // Update the value
-        value.value = 100u32;
+        value.literal = 100u32;
 
         // Check that the value changed in memory
         assert_eq!(*value.get(), 100u32);
@@ -206,7 +206,7 @@ fn test_litter_no_update_in_memory_mode() {
     let mut value = jeb_literal::Literal::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Update the value
-    value.value = 100u32;
+    value.literal = 100u32;
 
     // Value should change in memory
     assert_eq!(*value.get(), 100u32);
@@ -278,9 +278,9 @@ fn test_multiple_litters_in_same_file() {
         );
 
         // Update them in different orders
-        litter_b.value = 20u32;
-        litter_a.value = 10u32;
-        litter_c.value = 30u32;
+        litter_b.literal = 20u32;
+        litter_a.literal = 10u32;
+        litter_c.literal = 30u32;
         // All values drop here - triggers writes
     }
 
@@ -319,7 +319,7 @@ fn test_litter_no_change_optimization() {
     let mut value = jeb_literal::Literal::__new(42u32, test_file.path.to_str().unwrap(), line, column);
 
     // Set to the same value
-    value.value = 42u32;
+    value.literal = 42u32;
 
     // Value should still be 42
     assert_eq!(*value.get(), 42u32);

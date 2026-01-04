@@ -22,7 +22,7 @@ fn test_lazy_loading_write_fails_silently_for_missing_file() {
         let mut value = jeb_literal::Literal::__new(42u32, "/nonexistent/path.rs", 1, 1);
 
         // Assigning to .value works in memory
-        value.value = 100u32;
+        value.literal = 100u32;
         assert_eq!(*value, 100u32);
 
         // Drop will attempt to write but silently fail (can't panic in Drop)
@@ -41,7 +41,7 @@ fn test_lazy_loading_memory_mode_works_without_file() {
     let mut value = jeb_literal::Literal::__new(42u32, "/nonexistent/path.rs", 1, 1);
 
     // This should work because we're in Memory mode
-    value.value = 100u32;
+    value.literal = 100u32;
     assert_eq!(*value, 100u32);
 
     env::remove_var("LITERAL_MODE");
@@ -58,7 +58,7 @@ fn test_lazy_loading_verify_mode_fails_silently_for_missing_file() {
 
         // Assigning to .value works in memory
         // Use a different value so we don't hit the early return
-        value.value = 100u32;
+        value.literal = 100u32;
         assert_eq!(*value, 100u32);
 
         // Drop will attempt to verify but silently fail (can't panic in Drop)

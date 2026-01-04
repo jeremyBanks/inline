@@ -34,7 +34,7 @@ fn test_long_vec_causes_line_wrapping() {
     // Update to a REALLY LONG vector that will definitely wrap
     let long_vec: Vec<u32> = (0..100).collect();
     println!("\n=== UPDATING A TO LONG VECTOR (0..100) ===");
-    litter_a.value = long_vec;
+    litter_a.literal = long_vec;
 
     let content = fs::read_to_string(&path).unwrap();
     println!("{}", content);
@@ -72,7 +72,7 @@ fn test_long_vec_causes_line_wrapping() {
             );
 
             println!("\n=== UPDATING B USING ORIGINAL POSITION (index-based lookup) ===");
-            litter_b.value = 999u32;
+            litter_b.literal = 999u32;
             // Drop happens here - triggers write
         }
 
@@ -102,7 +102,7 @@ fn test_long_vec_causes_line_wrapping() {
         {
             let mut litter_b = jeb_literal::Literal::__new(100u32, path.to_str().unwrap(), b_line, b_col);
 
-            litter_b.value = 999u32;
+            litter_b.literal = 999u32;
             // Drop happens here - triggers write
         }
 

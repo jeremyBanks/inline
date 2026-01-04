@@ -31,7 +31,7 @@ fn test_very_long_value_formatting() {
     let mut litter_a = jeb_literal::Literal::__new(1u32, path.to_str().unwrap(), a_line, a_col);
 
     // Update to maximum u32 value
-    litter_a.value = 4294967295u32;
+    litter_a.literal = 4294967295u32;
 
     println!("\n=== AFTER UPDATING A TO MAX U32 ===");
     let content = fs::read_to_string(&path).unwrap();
@@ -86,7 +86,7 @@ fn test_tuple_value_formatting() {
         jeb_literal::Literal::__new((1u32, 2u32, 3u32), path.to_str().unwrap(), a_line, a_col);
 
     // Update to different tuple
-    litter_a.value = (999u32, 888u32, 777u32);
+    litter_a.literal = (999u32, 888u32, 777u32);
 
     println!("\n=== AFTER UPDATING TUPLE ===");
     let content = fs::read_to_string(&path).unwrap();

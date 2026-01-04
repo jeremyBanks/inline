@@ -58,7 +58,7 @@ fn test_verify_mode_matching_value() {
     let mut value = jeb_literal::Literal::__new(42u32, path.to_str().unwrap(), line, column);
 
     // Setting to the same value should succeed in verify mode
-    value.value = 42u32;
+    value.literal = 42u32;
 
     env::remove_var("LITERAL_MODE");
 }
@@ -86,7 +86,7 @@ fn test_verify_mode_mismatched_value() {
         let mut value = jeb_literal::Literal::__new(42u32, path.to_str().unwrap(), line, column);
 
         // Setting to a different value should panic in verify mode
-        value.value = 100u32;
+        value.literal = 100u32;
         // Drop happens here - should panic due to verification failure
     }
 
@@ -115,7 +115,7 @@ fn test_verify_mode_complex_value() {
         jeb_literal::Literal::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
 
     // Setting to the same value should succeed
-    value.value = vec![1u32, 2u32, 3u32];
+    value.literal = vec![1u32, 2u32, 3u32];
 
     env::remove_var("LITERAL_MODE");
 }
@@ -144,7 +144,7 @@ fn test_verify_mode_complex_value_mismatch() {
             jeb_literal::Literal::__new(vec![1u32, 2u32, 3u32], path.to_str().unwrap(), line, column);
 
         // Setting to a different value should panic
-        value.value = vec![1u32, 2u32, 3u32, 4u32];
+        value.literal = vec![1u32, 2u32, 3u32, 4u32];
         // Drop happens here - should panic due to verification failure
     }
 

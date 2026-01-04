@@ -55,7 +55,7 @@ Update it (two syntaxes):
 *value += 1;  // Automatically writes when dropped
 
 // Option 2: Direct field assignment
-value.value = 100u32;
+value.literal = 100u32;
 
 // Both write to your source file in WRITE mode!
 ```
@@ -81,7 +81,7 @@ LITERAL_MODE=write cargo test         # Update all snapshots
 1. The `literal!()` macro captures the source location (file, line, column)
 2. Values implement the `Bake` trait from [databake](https://docs.rs/databake) for serialization
 3. The registry uses **index-based keys** (Nth literal in file) for stability across line insertions
-4. When mutated (via `.value =` field or `DerefMut`), jeb-literal:
+4. When mutated (via `.literal =` field or `DerefMut`), jeb-literal:
    - Detects the change (by comparing baked tokens)
    - Parses the source file
    - Finds the macro by its stable index

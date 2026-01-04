@@ -22,7 +22,7 @@ fn test_counter_a_modification() {
     {
         let mut value = fixtures::counter_a::get();
         let test_val = 42u32;
-        value.value = test_val;
+        value.literal = test_val;
         // Drop triggers write
     }
 
@@ -37,7 +37,7 @@ fn test_counter_a_modification() {
     // Restore to default
     {
         let mut value = fixtures::counter_a::get();
-        value.value = 0u32;
+        value.literal = 0u32;
         // Drop triggers write
     }
 
@@ -66,7 +66,7 @@ fn test_counter_b_modification() {
     {
         let mut value = fixtures::counter_b::get();
         let test_val = 999u32;
-        value.value = test_val;
+        value.literal = test_val;
         // Drop triggers write
     }
 
@@ -81,7 +81,7 @@ fn test_counter_b_modification() {
     // Restore to default
     {
         let mut value = fixtures::counter_b::get();
-        value.value = 0u32;
+        value.literal = 0u32;
         // Drop triggers write
     }
 
@@ -110,7 +110,7 @@ fn test_counter_c_modification() {
     {
         let mut value = fixtures::counter_c::get();
         let test_val = 12345u32;
-        value.value = test_val;
+        value.literal = test_val;
         // Drop triggers write
     }
 
@@ -125,7 +125,7 @@ fn test_counter_c_modification() {
     // Restore to default
     {
         let mut value = fixtures::counter_c::get();
-        value.value = 0u32;
+        value.literal = 0u32;
         // Drop triggers write
     }
 
@@ -154,7 +154,7 @@ fn test_config_a_modification() {
     {
         let mut value = fixtures::config_a::get();
         let test_val = "test_config_value".to_string();
-        value.value = test_val;
+        value.literal = test_val;
         // Drop triggers write
     }
 
@@ -169,7 +169,7 @@ fn test_config_a_modification() {
     // Restore to default
     {
         let mut value = fixtures::config_a::get();
-        value.value = "default".to_string();
+        value.literal = "default".to_string();
         // Drop triggers write
     }
 
@@ -191,7 +191,7 @@ fn test_multiple_modifications_same_value() {
     // Do multiple modifications
     {
         let mut value = fixtures::counter_d::get();
-        value.value = 100u32;
+        value.literal = 100u32;
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
@@ -199,7 +199,7 @@ fn test_multiple_modifications_same_value() {
 
     {
         let mut value = fixtures::counter_d::get();
-        value.value = 200u32;
+        value.literal = 200u32;
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
@@ -207,7 +207,7 @@ fn test_multiple_modifications_same_value() {
 
     {
         let mut value = fixtures::counter_d::get();
-        value.value = 300u32;
+        value.literal = 300u32;
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
@@ -216,7 +216,7 @@ fn test_multiple_modifications_same_value() {
     // Restore
     {
         let mut value = fixtures::counter_d::get();
-        value.value = 0u32;
+        value.literal = 0u32;
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
@@ -237,8 +237,8 @@ fn test_concurrent_modification_detection() {
 
     // Force the file to be loaded by doing a set operation
     // This establishes the baseline for concurrent modification detection
-    value.value = 1u32;
-    value.value = 0u32; // Set back to default
+    value.literal = 1u32;
+    value.literal = 0u32; // Set back to default
 
     // NOW simulate external modification to the file
     // This mimics what would happen if another process modified the file
@@ -256,7 +256,7 @@ pub fn get() -> jeb_literal::Literal<u32> {
 
     // Now try to modify with our Inline value - this should panic!
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        value.value = 100u32;
+        value.literal = 100u32;
     }));
 
     // Verify we got the expected panic
@@ -313,7 +313,7 @@ fn test_formatting_preservation() {
 
     // Now modify the value
     let mut value = fixtures::counter_f::get();
-    value.value = 42u32;
+    value.literal = 42u32;
 
     // Read back the file and see what happened to formatting
     let modified_content = fs::read_to_string("tests/fixtures/counter_f.rs").unwrap();
@@ -325,7 +325,7 @@ fn test_formatting_preservation() {
     println!("Line count: {}", modified_line_count);
 
     // Restore to default
-    value.value = 0u32;
+    value.literal = 0u32;
     let restored_content = fs::read_to_string("tests/fixtures/counter_f.rs").unwrap();
 
     env::remove_var("LITERAL_MODE");
@@ -363,46 +363,46 @@ fn test_multiple_macros_same_file() {
     assert_eq!(*third.get(), 30u32);
 
     // Modify first macro
-    first.value = 100u32;
+    first.literal = 100u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("literal!(100u32)"));
     assert!(disk.contains("literal!(20u32)"));
     assert!(disk.contains("literal!(30u32)"));
 
     // Modify second macro
-    second.value = 200u32;
+    second.literal = 200u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("literal!(100u32)"));
     assert!(disk.contains("literal!(200u32)"));
     assert!(disk.contains("literal!(30u32)"));
 
     // Modify third macro
-    third.value = 300u32;
+    third.literal = 300u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("literal!(100u32)"));
     assert!(disk.contains("literal!(200u32)"));
     assert!(disk.contains("literal!(300u32)"));
 
     // Modify first again
-    first.value = 111u32;
+    first.literal = 111u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("literal!(111u32)"));
     assert!(disk.contains("literal!(200u32)"));
     assert!(disk.contains("literal!(300u32)"));
 
     // Modify in reverse order
-    third.value = 333u32;
-    second.value = 222u32;
-    first.value = 11u32;
+    third.literal = 333u32;
+    second.literal = 222u32;
+    first.literal = 11u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("literal!(11u32)"));
     assert!(disk.contains("literal!(222u32)"));
     assert!(disk.contains("literal!(333u32)"));
 
     // Restore all to defaults
-    first.value = 10u32;
-    second.value = 20u32;
-    third.value = 30u32;
+    first.literal = 10u32;
+    second.literal = 20u32;
+    third.literal = 30u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
     assert!(disk.contains("literal!(10u32)"));
     assert!(disk.contains("literal!(20u32)"));
@@ -429,37 +429,37 @@ fn test_multiple_files_interleaved() {
     assert_eq!(*counter_d.get(), 0u32);
 
     // Modify in arbitrary interleaved order
-    counter_a.value = 1u32;
+    counter_a.literal = 1u32;
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
         .contains("literal!(1u32)"));
 
-    counter_b.value = 2u32;
+    counter_b.literal = 2u32;
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
         .contains("literal!(2u32)"));
 
-    counter_a.value = 11u32; // Modify counter_a again
+    counter_a.literal = 11u32; // Modify counter_a again
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
         .contains("literal!(11u32)"));
 
-    config_a.value = "test_value".to_string();
+    config_a.literal = "test_value".to_string();
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
         .unwrap()
         .contains(r#""test_value""#));
 
-    counter_d.value = 4u32;
+    counter_d.literal = 4u32;
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
         .contains("literal!(4u32)"));
 
-    counter_b.value = 22u32; // Modify counter_b again
+    counter_b.literal = 22u32; // Modify counter_b again
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
         .contains("literal!(22u32)"));
 
-    counter_a.value = 111u32; // Modify counter_a third time
+    counter_a.literal = 111u32; // Modify counter_a third time
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
         .contains("literal!(111u32)"));
@@ -479,10 +479,10 @@ fn test_multiple_files_interleaved() {
         .contains("literal!(4u32)"));
 
     // Restore all to defaults
-    counter_a.value = 0u32;
-    counter_b.value = 0u32;
-    config_a.value = "default".to_string();
-    counter_d.value = 0u32;
+    counter_a.literal = 0u32;
+    counter_b.literal = 0u32;
+    config_a.literal = "default".to_string();
+    counter_d.literal = 0u32;
 
     // Verify restoration
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")

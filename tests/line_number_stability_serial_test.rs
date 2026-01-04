@@ -41,7 +41,7 @@ fn test_line_number_stability_with_multiple_litters() {
 
     // Update A
     println!("\n=== UPDATING A (1 -> 999) ===");
-    litter_a.value = 999u32;
+    litter_a.literal = 999u32;
     println!("{}", fs::read_to_string(&path).unwrap());
 
     // Check positions after updating A
@@ -63,7 +63,7 @@ fn test_line_number_stability_with_multiple_litters() {
 
     // Now update B
     println!("\n=== UPDATING B (2 -> 888) ===");
-    litter_b.value = 888u32;
+    litter_b.literal = 888u32;
     println!("{}", fs::read_to_string(&path).unwrap());
 
     let positions_after_b = find_all_positions(&path);
@@ -80,7 +80,7 @@ fn test_line_number_stability_with_multiple_litters() {
 
     // Finally update C
     println!("\n=== UPDATING C (3 -> 777) ===");
-    litter_c.value = 777u32;
+    litter_c.literal = 777u32;
     println!("{}", fs::read_to_string(&path).unwrap());
 
     let positions_final = find_all_positions(&path);

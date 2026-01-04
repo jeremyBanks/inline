@@ -1,6 +1,6 @@
-# Implementation Plan: Public `.value` Field
+# Implementation Plan: Public `.literal` Field
 
-**Goal**: Enable ergonomic `counter.value = 42` syntax by exposing a public field, eliminating the need for `*` dereference or `.set()` method calls.
+**Goal**: Enable ergonomic `counter.literal = 42` syntax by exposing a public field, eliminating the need for `*` dereference or `.set()` method calls.
 
 ## Overview
 
@@ -24,7 +24,7 @@ pub struct Literal<T: Value + 'static> {
 ### New Structure
 ```rust
 pub struct Literal<T: Value + 'static> {
-    pub value: T,  // ← PUBLIC working copy
+    pub literal: T,  // ← PUBLIC working copy
     guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,  // For file operations
     original: T,  // For mutation detection
 }
@@ -37,19 +37,19 @@ pub struct Literal<T: Value + 'static> {
 
 **Changes needed**:
 - `src/inline.rs`:
-  - Add `pub value: T` field to `Literal<T>`
-  - Update `from_guard()` to clone value twice (once for `value`, once for `original`)
-  - Update `Deref` impl to return `&self.value` instead of `&self.guard`
-  - Update `DerefMut` impl to return `&mut self.value` instead of `&mut self.guard.value`
-  - Update `Drop` impl to sync `self.value` back to `self.guard.value` before calling `update_source()`
+  - Add `pub literal: T` field to `Literal<T>`
+  - Update `from_guard()` to clone value twice (once for `literal`, once for `original`)
+  - Update `Deref` impl to return `&self.literal` instead of `&self.guard`
+  - Update `DerefMut` impl to return `&mut self.literal` instead of `&mut self.guard.value`
+  - Update `Drop` impl to sync `self.literal` back to `self.guard.value` before calling `update_source()`
 
 **Test coverage**: Existing tests should pass (internal change only)
 
 ### Priority #1: Deprecate `.set()` method ✅
 **Status**: COMPLETED
 
-**Rationale**: With `pub value` field, `.set()` becomes redundant:
-- `counter.value = 42` is just as explicit
+**Rationale**: With `pub literal` field, `.set()` becomes redundant:
+- `counter.literal = 42` is just as explicit
 - `*counter = 42` still works via DerefMut
 - Both trigger write-on-drop automatically
 
@@ -63,11 +63,11 @@ pub struct Literal<T: Value + 'static> {
 **Changes needed**:
 - `src/inline.rs`: Remove `pub fn set(&mut self, new_value: T)` method from `Literal<T>` impl
 
-### Priority #2: Add tests for `.value =` syntax ✅
+### Priority #2: Add tests for `.literal =` syntax ✅
 **Status**: COMPLETED
 
-All existing tests were converted from `.set()` to `.value =` syntax, providing comprehensive coverage across:
-- Basic value assignment (71+ uses of `.value =`)
+All existing tests were converted from `.set()` to `.literal =` syntax, providing comprehensive coverage across:
+- Basic value assignment (71+ uses of `.literal =`)
 - DerefMut syntax (5+ uses of `*counter =`)
 - Multiple file types and scenarios
 - Verify mode, Memory mode, and Write mode
@@ -76,11 +76,11 @@ All existing tests were converted from `.set()` to `.value =` syntax, providing 
 **New test file**: `tests/value_field_serial_test.rs`
 
 **Test cases**:
-1. `test_value_field_assignment_writes_on_drop` - Basic `counter.value = 42` works
+1. `test_value_field_assignment_writes_on_drop` - Basic `counter.literal = 42` works
 2. `test_value_field_with_complex_types` - String, Vec, etc.
 3. `test_value_field_no_write_if_unchanged` - Assigning same value doesn't write
 4. `test_value_field_multiple_mutations` - Multiple assignments before drop
-5. `test_all_three_syntaxes_equivalent` - Show `counter.value = `, `*counter = `, and method calls all work
+5. `test_all_three_syntaxes_equivalent` - Show `counter.literal = `, `*counter = `, and method calls all work
 
 **Verification**: Ensure existing DerefMut tests still pass (backward compatibility)
 
@@ -89,9 +89,9 @@ All existing tests were converted from `.set()` to `.value =` syntax, providing 
 
 **Files to update**:
 - `README.md`:
-  - Main example: Show `counter.value = 42` as primary syntax
+  - Main example: Show `counter.literal = 42` as primary syntax
   - Update "Update it" section to show three syntaxes:
-    1. `counter.value = 42` (most explicit, no `*`)
+    1. `counter.literal = 42` (most explicit, no `*`)
     2. `*counter = 42` (DerefMut shorthand)
     3. `counter.push(3)` (auto-deref for methods)
   - Remove references to `.set()` method
@@ -99,7 +99,7 @@ All existing tests were converted from `.set()` to `.value =` syntax, providing 
 
 - `src/inline.rs`:
   - Update `Literal<T>` doc comments with new examples
-  - Add note about public `value` field
+  - Add note about public `literal` field
   - Update macro doc comments
 
 ## Tradeoffs
@@ -111,19 +111,19 @@ All existing tests were converted from `.set()` to `.value =` syntax, providing 
 
 ### API Design
 - **Removed**: `.set()` method (explicit but verbose)
-- **Added**: Public `.value` field (explicit and ergonomic)
+- **Added**: Public `.literal` field (explicit and ergonomic)
 - **Kept**: `*counter =` via DerefMut (shorthand for primitives)
 - **Result**: Users have natural choices for different situations
 
 ### Migration
 - Breaking change for any code using `.set()`
 - But: Pre-1.0 version (0.0.1-dev.1) allows breaking changes
-- Alternative syntax exists: `.value =` is direct replacement
+- Alternative syntax exists: `.literal =` is direct replacement
 
 ## Success Criteria
 
 1. ✅ All existing tests pass
-2. ✅ New tests demonstrate `.value =` syntax works
+2. ✅ New tests demonstrate `.literal =` syntax works
 3. ✅ Documentation shows all three syntaxes clearly
 4. ✅ No performance regression (acceptable to have 1 extra clone)
 5. ✅ API feels natural and Rust-idiomatic
@@ -135,6 +135,6 @@ None - investigation confirmed this approach is sound.
 ## Notes
 
 - This is the most ergonomic API possible in Rust without macros
-- The `.value` field approach is used by other Rust libraries (e.g., `RefCell::borrow_mut().value`)
+- The `.literal` field approach avoids collision with inner type attributes
 - Auto-deref for method calls already works and will continue to work
 - The only case requiring syntax choice is direct assignment (primitive values)

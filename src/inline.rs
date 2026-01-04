@@ -232,7 +232,7 @@ fn is_running_under_cargo() -> bool {
 ///
 /// let mut counter = literal!(0u32);
 /// println!("Value: {}", *counter);  // Single deref
-/// counter.value = *counter + 1;
+/// counter.literal = *counter + 1;
 /// ```
 ///
 /// # Example (write-on-drop with DerefMut)
@@ -251,12 +251,12 @@ fn is_running_under_cargo() -> bool {
 /// use jeb_literal::literal;
 ///
 /// let mut counter = literal!(0u32);
-/// counter.value = 42;  // Direct field assignment, no * needed
+/// counter.literal = 42;  // Direct field assignment, no * needed
 /// // Value is automatically written on drop
 /// ```
 pub struct Literal<T: Value + 'static> {
-    /// The current value. Mutating this field triggers write-on-drop.
-    pub value: T,
+    /// The current literal value. Mutating this field triggers write-on-drop.
+    pub literal: T,
     guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
     /// Clone of the original value when this Literal was created.
     /// Used in Drop to detect mutations.
@@ -268,9 +268,9 @@ impl<T: Value + 'static> Literal<T> {
     #[doc(hidden)]
     pub fn from_guard(guard: parking_lot::MutexGuard<'static, LiteralInner<T>>) -> Self {
         // Clone the value twice: once for working copy, once for change detection
-        let value = guard.value.clone();
+        let literal = guard.value.clone();
         let original = guard.value.clone();
-        Literal { value, guard, original }
+        Literal { literal, guard, original }
     }
 
     /// Create a new Literal value for testing purposes
@@ -291,7 +291,7 @@ impl<T: Value + 'static> Literal<T> {
     ///
     /// Same as dereferencing, but explicit.
     pub fn get(&self) -> &T {
-        &self.value
+        &self.literal
     }
 }
 
@@ -299,23 +299,23 @@ impl<T: Value + 'static> Deref for Literal<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.value
+        &self.literal
     }
 }
 
 impl<T: Value + 'static> std::ops::DerefMut for Literal<T> {
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.value
+        &mut self.literal
     }
 }
 
 impl<T: Value + 'static> Drop for Literal<T> {
     fn drop(&mut self) {
-        // Check if the value was mutated (via DerefMut or direct .value assignment)
+        // Check if the value was mutated (via DerefMut or direct .literal assignment)
         // Compare by baked tokens (same approach as set())
         let env = databake::CrateEnv::default();
         let original_tokens = self.original.bake(&env).to_string();
-        let current_tokens = self.value.bake(&env).to_string();
+        let current_tokens = self.literal.bake(&env).to_string();
 
         if original_tokens != current_tokens {
             // Value was mutated, trigger write
@@ -323,7 +323,7 @@ impl<T: Value + 'static> Drop for Literal<T> {
 
             // In Memory mode, update the guard but don't write to disk
             if mode == crate::runtime::Mode::Memory {
-                self.guard.value = self.value.clone();
+                self.guard.value = self.literal.clone();
                 return;
             }
 
@@ -342,8 +342,8 @@ impl<T: Value + 'static> Drop for Literal<T> {
 
                 // In Verify mode, verify that the value matches the source
                 if mode == crate::runtime::Mode::Verify {
-                    // Sync the public value back to guard for verification
-                    self.guard.value = self.value.clone();
+                    // Sync the public literal field back to guard for verification
+                    self.guard.value = self.literal.clone();
                     // Verify - this may panic if there's a mismatch
                     if let Err(e) = self.guard.verify_source(&self.guard.value) {
                         panic!(
@@ -364,8 +364,8 @@ impl<T: Value + 'static> Drop for Literal<T> {
                         return;
                     }
 
-                    // Sync the public value back to the guard before writing
-                    self.guard.value = self.value.clone();
+                    // Sync the public literal field back to the guard before writing
+                    self.guard.value = self.literal.clone();
 
                     // Silently ignore errors in drop - we can't panic or return an error
                     let _ = self.guard.update_source(&self.guard.value);
@@ -378,7 +378,7 @@ impl<T: Value + 'static> Drop for Literal<T> {
 impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Literal")
-            .field("value", &self.value)
+            .field("literal", &self.literal)
             .finish()
     }
 }
@@ -396,7 +396,7 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 ///
 /// let mut counter = literal!(0u32);
 /// let current = *counter;  // Single dereference
-/// counter.value = current + 1;
+/// counter.literal = current + 1;
 /// // In Write mode, the source file is updated
 /// // Lock is released when counter goes out of scope
 /// ```
