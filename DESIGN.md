@@ -201,7 +201,7 @@ thread_local! {
 **Locking strategy:**
 - `RwLock` for `SharedState` - allows concurrent readers
 - `Mutex` for `VALUE_REGISTRY` - simpler, write-heavy
-- Thread-local caching avoids lock contention on AST access
+- Thread-local caching required because AST types aren't `Send`
 
 ### Layer 4: File System
 
