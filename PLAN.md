@@ -52,107 +52,112 @@ let value = literal!(include!("snapshots/empty.snap"));  // File is empty
 ### API Design
 
 ```rust
-// Option A: Auto-generated path
-let user = literal_file!(User::default());
-// After first write, source becomes:
-// let user = literal!(include!("snapshots/tests_rs/L42_C5.snap"));
+// User writes this, and it stays this way (no source rewriting)
+let user = literal_in_path!("snapshots/user.snap");
 
-// Option B: Custom path
-let user = literal_file!("snapshots/user.snap", User::default());
-// After first write:
-// let user = literal!(include!("snapshots/user.snap"));
+// Macro internally expands to something like:
+let user = {
+    const PATH: &str = "snapshots/user.snap";
+    // Include file at compile time (or use Default::default() if empty)
+    let value = include!(PATH);  // File contains: User { ... } or empty → Default::default()
+    Literal::from_guard(registry::get_or_create_external(value, PATH).lock())
+};
 
-// Then both work identically:
+// Usage is identical to inline literals:
 *user  // reads value
-user.set(updated_user);  // updates external file
+user.set(updated_user);  // updates external file (NOT source code)
+```
+
+**Key insight**: The value comes FROM the path. No default parameter needed.
+
+### Macro Implementation
+
+```rust
+#[macro_export]
+macro_rules! literal_in_path {
+    ($path:literal) => {{
+        const PATH: &'static str = $path;
+        // Include the snapshot file at compile time
+        // If file is empty or contains only whitespace, defaults to Default::default()
+        let value = include!(PATH);
+        $crate::Literal::from_guard(
+            $crate::registry::get_or_create_external(value, PATH, file!(), line!(), column!())
+                .lock()
+        )
+    }};
+}
 ```
 
 ### Macro Expansion Order
-Rust expands macros **outside-in**:
+When the compiler sees:
 ```rust
-literal!(include!("snapshots/counter.snap"))
+literal_in_path!("snapshots/counter.snap")
 ```
-1. `include!()` expands to file contents: `42u32`
-2. `literal!(42u32)` expands to registry code
 
-At compile time, behaves identically to `literal!(42u32)`.
+1. `literal_in_path!()` expands to code containing `include!("snapshots/counter.snap")`
+2. `include!()` loads file contents: `42u32` (or empty → `Default::default()`)
+3. Registry code executes with the loaded value
 
-### Implementation Phases
+At compile time, the snapshot value is **baked into the binary**.
 
-**Phase 1: Detection**
-- Parse tokens inside `literal!(...)` macro call
-- Detect pattern: `include!("path")` or `include!(concat!(...))`
-- Extract external file path from token stream
+### Build Script Integration
+
+To handle missing snapshot files on first compile:
 
 ```rust
-// In LiteralInner::set()
-let tokens = /* parse from source */;
-if is_include_macro(&tokens) {
-    let path = extract_include_path(&tokens);
-    update_external_file(&path, new_value)?;
-} else {
-    update_source_file(new_value)?;
+// build.rs
+fn main() {
+    // Scan source for literal_in_path!() calls
+    // Create missing snapshot files with default values
+    // Or: create empty files that eval to Default::default()
 }
 ```
 
-**Phase 2: literal_file!() macro**
-- New macro that generates file path
-- Writes initial value to external file
-- Rewrites source to use `literal!(include!(...))`
-- Panics with "Recompile required" message
+**Alternative**: Special compilation mode that accepts defaults on first build.
 
-**Phase 3: Registry key stability**
-```rust
-enum RegistryKey {
-    Inline {
-        file: PathBuf,
-        line: u32,
-        column: u32,
-        type_id: TypeId,
-    },
-    External {
-        snapshot_path: PathBuf,
-        type_id: TypeId,
-    },
-}
-```
+### Implementation Challenges
 
-External keys are **stable across refactoring** - don't break when lines shift.
+**Compile-time vs Runtime Dilemma:**
+- `include!()` needs the file to exist **at compile time**
+- But snapshot files are created **at runtime** (during test execution)
+- This creates a chicken-and-egg problem
 
-### Example Workflow
+**Possible Solutions:**
+1. **Build script** - scan source, create missing files before compile
+2. **Procedural macro** - more control, but heavier dependency
+3. **Two-pass workflow** - first pass creates files, second compiles
+4. **Optional files** - use `include!(concat!(...))` with fallback logic
 
-**Initial code:**
+**Complexity Assessment:**
+Medium-high complexity due to compile-time/runtime boundary. Deferring to future work.
+
+### Example Workflow (Conceptual)
+
 ```rust
 #[test]
 fn test_user_creation() {
-    let expected = literal_file!("snapshots/user.snap", User {
-        id: 1,
-        name: "Alice",
-    });
+    // Source stays this way - never rewritten
+    // Value loaded from snapshots/user.snap (or Default::default() if empty)
+    let expected = literal_in_path!("snapshots/user.snap");
 
     let actual = create_user("Alice");
     assert_eq!(actual, *expected);
 }
 ```
 
-**First run:**
-1. Creates `snapshots/user.snap` with serialized User
-2. Rewrites source to: `literal!(include!("snapshots/user.snap"))`
-3. Exits with "Recompile required"
+**First compile:**
+- Build script creates empty `snapshots/user.snap` if missing
+- Empty file evaluates to `Default::default()`
+- Test runs, `.set()` updates the snapshot file
 
-**After recompile:**
-```rust
-#[test]
-fn test_user_creation() {
-    let expected = literal!(include!("snapshots/user.snap"));
-    // Rest unchanged
-}
-```
+**Subsequent compiles:**
+- `include!("snapshots/user.snap")` loads the snapshot value
+- Baked into binary at compile time
 
 **On test failure:**
 ```bash
-LITERAL_MODE=write cargo test  # Updates external file
-git diff snapshots/user.snap   # Review changes
+LITERAL_MODE=write cargo test  # Updates snapshots/user.snap
+git diff snapshots/user.snap   # Review changes in external file
 ```
 
 ### Challenges

@@ -87,7 +87,16 @@ Any type implementing `Bake + PartialEq + Clone` works with jeb-literal:
 - Collections: `Vec<T>`, arrays, tuples
 - And more via databake's built-in implementations
 
-**Future Goal**: Add serde compatibility to support any type implementing `Serialize + Deserialize`, expanding beyond databake's current type coverage.
+### Future Goals
+
+**Serde Compatibility**: Add support for any type implementing `Serialize + Deserialize`, expanding beyond databake's current type coverage.
+
+**File-Backed Literals**: Support external snapshot files for better organization and stability:
+```rust
+let expected = literal_in_path!("snapshots/user.snap");
+// Value loaded from external file, updates write to file (not source code)
+// Provides stable identifiers independent of line numbers
+```
 
 ## Examples
 
