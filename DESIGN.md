@@ -205,12 +205,12 @@ thread_local! {
 
 ### Layer 4: File System
 
-**Source files** are the ultimate source of truth. The library:
-- Reads source files lazily (on first access)
-- Verifies initial value matches source in Verify mode (on first access)
-- Detects external modifications (via `disk_source` comparison)
-- Preserves formatting via character-range splicing
-- Requires running under `cargo` for write access
+**Source files** are parsed to resolve literal indices and written to persist changes. The library:
+- Parses source files when resolving a literal's stable index (first time any literal in that file is accessed)
+- Verifies initial value matches source in Verify mode (when creating a new registry entry)
+- Detects concurrent external modifications before writing (via `disk_source` comparison)
+- Preserves formatting via character-range splicing when writing
+- Only attempts writes when running under `cargo`
 
 <!-- END SECTION: Architecture Layers -->
 
