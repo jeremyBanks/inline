@@ -192,10 +192,12 @@ thread_local! {
 **Responsibilities:**
 - Parse source files to AST (`syn::File`)
 - Build position-to-index mapping
-- Detect and handle external file modifications
+- Detect concurrent external modifications via `disk_source` comparison
 - Perform character-range splicing for updates
 - Cache parsed ASTs per-thread
 - Write modified source to disk
+
+**Planned:** Verify initial value matches source on first access in Verify mode (see CHANGES_PLANNED.md #4)
 
 **Locking strategy:**
 - `RwLock` for `SharedState` - allows concurrent readers
