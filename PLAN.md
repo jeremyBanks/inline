@@ -4,6 +4,73 @@ This document outlines planned features and design decisions for future developm
 
 ---
 
+## 0. Registry Key Stability (CRITICAL FIX)
+
+**Problem**: Current registry uses `(file, line, column, TypeId)` as keys. When lines shift above a `literal!()` call, the key changes, creating a NEW registry entry and **losing the stored value**.
+
+### Current Broken Behavior
+```rust
+// First run
+let counter = literal!(0u32);  // line 42 → key: (file, 42, col, TypeId)
+counter.set(5);                 // Saves 5 to registry
+
+// Insert 10 lines above the literal...
+
+// Second run
+let counter = literal!(0u32);  // line 52 → NEW key: (file, 52, col, TypeId)
+// Starts at 0 again! Lost value 5!
+```
+
+### Solution: Index-Based Keys
+
+Use `(file, index, TypeId)` where `index` is the position of the literal in the file ("Nth `literal!()` macro"). This is **stable across line insertions**.
+
+```rust
+// Registry key type
+type RegistryKey = (PathBuf, usize, TypeId);  // Changed from (PathBuf, u32, u32, TypeId)
+
+// On first access at (file, line, column):
+// 1. Call get_macro_index(file, line, column) → finds index (Nth literal in file)
+// 2. Use (file, index, TypeId) as registry key
+// 3. Store index in LiteralInner.macro_index
+
+// On subsequent accesses (even if line changed):
+// 1. Resolve new (line, column) → same index
+// 2. Lookup by (file, index, TypeId) → finds same registry entry ✓
+```
+
+### Implementation Notes
+
+- The infrastructure already exists: `get_macro_index()` function and `macro_index` field in `LiteralInner`
+- Just need to use index for registry keys instead of line/column
+- Modify `registry::get_or_create()` to resolve index on first access
+
+### Testing Requirements
+
+**CRITICAL**: Add tests to verify line-shift stability:
+
+1. **Test: Value persists across line insertions**
+   ```rust
+   // Set a literal to value X
+   // Insert lines above it in the source
+   // Verify it still has value X (not reset to initial)
+   ```
+
+2. **Test: Multiple literals maintain distinct identities**
+   ```rust
+   // Create literals A and B
+   // Insert lines between them
+   // Verify each keeps its own value
+   ```
+
+3. **Test: Index resolution is consistent**
+   ```rust
+   // Verify same literal resolves to same index
+   // even when accessed at different line numbers
+   ```
+
+---
+
 ## 1. Default Values for Empty Macros
 
 **Goal**: Allow `literal!()` with no argument to use `Default::default()`.
@@ -120,6 +187,7 @@ Keep `.set()` method for explicit updates. DerefMut is additive - doesn't break 
 
 ## Implementation Priority
 
+0. **Registry key stability** - CRITICAL: Fix value loss when lines shift
 1. **Default values for empty macros** - Simple, high value
 2. **DerefMut + write-on-drop** - Better ergonomics, natural Rust patterns
 
