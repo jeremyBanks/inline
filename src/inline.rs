@@ -316,8 +316,25 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 ///
 /// An [`Literal<T>`] that holds the lock and derefs to `&T`.
 /// The same underlying value is returned for all calls from the same source location.
+///
+/// # Default Values
+///
+/// When called without arguments, uses `Default::default()`:
+/// ```no_run
+/// use jeb_literal::literal;
+///
+/// let counter: jeb_literal::Literal<u32> = literal!();  // Uses 0u32 (default)
+/// ```
 #[macro_export]
 macro_rules! literal {
+    () => {{
+        $crate::Literal::from_guard($crate::registry::get_or_create(
+            ::std::default::Default::default(),
+            file!(),
+            line!(),
+            column!()
+        ).lock())
+    }};
     ($value:expr) => {{
         $crate::Literal::from_guard($crate::registry::get_or_create($value, file!(), line!(), column!()).lock())
     }};

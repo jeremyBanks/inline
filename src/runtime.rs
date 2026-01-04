@@ -361,11 +361,20 @@ impl FileState {
                     if self.current_index == self.target_index {
                         // Found our target! Extract the line/column span of the tokens
                         if !mac.tokens.is_empty() {
-                            // Get the span from the first to last token
+                            // Non-empty macro: Get the span from the first to last token
                             let first_span = mac.tokens.clone().into_iter().next().unwrap().span();
                             let last_span = mac.tokens.clone().into_iter().last().unwrap().span();
 
                             self.span = Some((first_span.start(), last_span.end()));
+                        } else {
+                            // Empty macro like literal!()
+                            // Use the delimiter span - this gives us the position inside the parens
+                            // For literal!(), the delimiter span is between ( and )
+                            let delimiter_span = mac.delimiter.span();
+                            let open_span = delimiter_span.open();
+                            // For empty macros, we want to insert at the position right after '('
+                            // which is the same as the open span's end position
+                            self.span = Some((open_span.end(), open_span.end()));
                         }
                     }
                     self.current_index += 1;

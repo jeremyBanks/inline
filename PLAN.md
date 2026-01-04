@@ -73,7 +73,9 @@ type RegistryKey = (PathBuf, usize, TypeId);  // Changed from (PathBuf, u32, u32
 
 ---
 
-## 1. Default Values for Empty Macros
+## 1. Default Values for Empty Macros ✓
+
+**Status**: ✅ **IMPLEMENTED** - `literal!()` with no arguments now uses `Default::default()`.
 
 **Goal**: Allow `literal!()` with no argument to use `Default::default()`.
 
@@ -190,7 +192,7 @@ Keep `.set()` method for explicit updates. DerefMut is additive - doesn't break 
 ## Implementation Priority
 
 0. ✅ **Registry key stability** - CRITICAL: Fix value loss when lines shift
-1. **Default values for empty macros** - Simple, high value
+1. ✅ **Default values for empty macros** - Simple, high value
 2. **DerefMut + write-on-drop** - Better ergonomics, natural Rust patterns
 
 ---
