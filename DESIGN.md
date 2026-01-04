@@ -60,18 +60,14 @@ This is **more stable** than line/column positions because inserting lines above
 Values must implement the `Bake` trait from the [databake](https://docs.rs/databake) crate:
 
 ```rust
-pub trait Value: Bake + Clone {}
+pub trait Value: Bake + Clone + PartialEq {}
 ```
 
-`Bake` serializes Rust values to Rust source code (token streams), enabling:
-- Round-trip serialization: `value → tokens → value`
-- Change detection: Compare token representations
-- Source code generation: Write values back as valid Rust code
+**Bake** serializes Rust values to Rust source code (token streams) for writing to source files.
 
-**Why Clone?** The `Clone` bound enables:
-- Creating a working copy in the public `literal` field
-- Storing an `original` value for change detection on drop
-- Detecting mutations without `PartialEq` (compare baked tokens instead)
+**Clone** enables creating a working copy in the public `literal` field and storing an `original` value for change detection.
+
+**PartialEq** enables detecting mutations by comparing `original == literal` on drop.
 
 ### 4. Operational Modes
 
