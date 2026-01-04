@@ -141,9 +141,8 @@ pub struct Literal<T: Value + 'static> {
 **API Surface:**
 - `literal!(expr)` - Create/access a literal value
 - `literal!()` - Create with `Default::default()`
-- `counter.literal = value` - Direct field assignment
-- `*counter = value` - Via `DerefMut`
-- `*counter` - Via `Deref`
+- `example.literal = value` or `*example = value` - Write via field or `DerefMut`
+- `example.literal` or `*example` - Read via field or `Deref`
 
 ### Layer 2: Registry (`src/registry.rs`)
 
