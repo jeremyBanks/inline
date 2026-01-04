@@ -39,42 +39,82 @@ let value = literal!(include!("snapshots/empty.snap"));  // File is empty
 
 ---
 
-## 2. DerefMut + Write-on-Drop (Not Recommended)
+## 2. DerefMut + Write-on-Drop
 
-**Goal**: Enable mutation through `&mut T` instead of explicit `.set()`.
+**Goal**: Enable mutation through `&mut T` with automatic write-on-drop for better ergonomics.
 
 ### Proposed API
 ```rust
 let mut counter = literal!(0u32);
 *counter += 1;  // Mutate through DerefMut
-// On drop: detect change and write to source
+// On drop: detects change and writes to source automatically
 ```
 
-### Why Current Design is Better
+### Benefits
+- **Better ergonomics**: Natural Rust mutation syntax
+- **Less boilerplate**: No explicit `.set()` calls needed
+- **Familiar**: Matches normal variable semantics
 
-**Current design:**
-- ✅ No Clone requirement (moves values)
-- ✅ Explicit mutation points (clear intent)
-- ✅ Lazy evaluation (only bakes on `.set()`)
-- ✅ Token-based comparison (semantic equality)
-- ✅ No overhead for read-only uses
+### Implementation Options
 
-**DerefMut + write-on-drop would require:**
-- ❌ Clone trait bound OR immediate baking overhead
-- ❌ Baking on every creation and drop (even unchanged values)
-- ❌ Less explicit mutation points
-- ⚠️ Tolerable: Immediate baking on creation (acceptable if needed)
+**Option 1: Clone Bound (Preferred)**
+```rust
+pub trait Value: Bake + Clone {}
 
-### Detection Challenge
-Once you hand out `&mut T`, there's **no way to know if it was actually mutated** without comparing old vs new values.
+impl<T: Value + 'static> Literal<T> {
+    // Store clone of original on creation
+    original: T,
+}
 
-**Options:**
-1. Store original value (requires Clone) - **rejected**
-2. Bake on creation + bake on drop, compare tokens - **tolerable but expensive**
-3. Use dirty flag with Cell - **doesn't work**, can't track field-level mutations
+impl<T: Value + 'static> Drop for Literal<T> {
+    fn drop(&mut self) {
+        // Compare current value to original
+        if self.value != self.original {
+            // Bake and write to source
+        }
+    }
+}
+```
+
+**Pros:**
+- Only bakes on actual change
+- Clean implementation
+- Most types already implement Clone
+
+**Cons:**
+- Adds Clone trait bound
+- Storage overhead (keeps original)
+
+**Option 2: Immediate Baking (Alternative)**
+```rust
+pub struct Literal<T: Value + 'static> {
+    guard: MutexGuard<'static, LiteralInner<T>>,
+    original_tokens: String,  // Baked on creation
+}
+
+impl<T: Value + 'static> Drop for Literal<T> {
+    fn drop(&mut self) {
+        let new_tokens = self.guard.value.bake(&env).to_string();
+        if new_tokens != self.original_tokens {
+            // Write to source
+        }
+    }
+}
+```
+
+**Pros:**
+- No Clone bound
+- Token comparison (semantic equality)
+
+**Cons:**
+- Baking overhead on every creation (even for read-only uses)
+- More expensive for large values
 
 ### Decision
-**Not implementing** for now. Current explicit `.set()` API is better for the snapshot testing use case. Could reconsider if strong user demand emerges.
+**Prefer Clone bound** for better performance. If Clone proves problematic for important types, fall back to immediate baking.
+
+### Migration Path
+Keep `.set()` method for explicit updates. DerefMut is additive - doesn't break existing code.
 
 ---
 
@@ -185,8 +225,9 @@ cargo literal review
 ## Implementation Priority
 
 1. **Default values for empty macros** - Simple, high value
-2. **cargo-literal tooling** - Developer experience
-3. **Serde compatibility** - Ecosystem integration
+2. **DerefMut + write-on-drop** - Better ergonomics, natural Rust patterns
+3. **cargo-literal tooling** - Developer experience
+4. **Serde compatibility** - Ecosystem integration
 
 ---
 
