@@ -48,5 +48,19 @@ This file tracks changes we plan to make to the implementation based on design r
 
 **Impact:** Users can use `default-features = false` to guarantee no file writes at compile time
 
+### 4. Verify Initial Value on First Access
+
+**Current:** We only verify values when they're written/modified
+**Planned:** In Verify mode, also verify that the initial value provided to `literal!()` matches what's in the source file
+
+**Rationale:** Catch cases where the code says `literal!(42)` but the file actually contains `literal!(100)`
+
+**Changes needed:**
+- In `get_or_create`, after resolving index, verify initial value matches source in Verify mode
+- Only on first access (when creating new registry entry)
+- Panic with helpful message if mismatch detected
+
+**Impact:** Earlier detection of snapshot mismatches, catches stale hardcoded values in tests
+
 ---
 
