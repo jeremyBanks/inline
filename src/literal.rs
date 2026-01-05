@@ -1,20 +1,13 @@
-pub trait Literal: ::core::fmt::Debug + Clone + Copy + PartialEq + Default {}
+// Re-export databake's Bake trait as our "Value" concept
+// This allows any type implementing Bake to be used with literal values
 
-impl Literal for &str {}
-impl Literal for &[u8] {}
-impl Literal for bool {}
-impl Literal for char {}
-impl Literal for u8 {}
-impl Literal for u16 {}
-impl Literal for u32 {}
-impl Literal for u64 {}
-impl Literal for u128 {}
-impl Literal for usize {}
-impl Literal for i8 {}
-impl Literal for i16 {}
-impl Literal for i32 {}
-impl Literal for i64 {}
-impl Literal for i128 {}
-impl Literal for isize {}
-impl Literal for f32 {}
-impl Literal for f64 {}
+pub use databake::Bake;
+
+// We define a Value trait that requires Bake + Clone + PartialEq
+// Clone is needed for the write-on-drop functionality
+// PartialEq is used for change detection
+// Bake is used for serialization to source code
+pub trait Value: Bake + Clone + PartialEq {}
+
+// Blanket implementation: any type that is Bake + Clone + PartialEq is a Value
+impl<T> Value for T where T: Bake + Clone + PartialEq {}

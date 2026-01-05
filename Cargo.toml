@@ -1,8 +1,34 @@
 [package]
-name = "litter"
-license = "MIT OR Apache-2.0"
-version = "0.20220713.0"
+name = "jeb-literal"
+version = "0.0.1-dev.1"
 edition = "2021"
+authors = ["Jeremy Banks"]
+license = "MIT OR Apache-2.0"
+description = "Self-modifying literal values that update their source code at runtime"
+repository = "https://github.com/jeremyBanks/inline"
+homepage = "https://github.com/jeremyBanks/inline"
+documentation = "https://docs.rs/jeb-literal"
+readme = "README.md"
+keywords = ["snapshot", "testing", "self-modifying", "codegen"]
+categories = ["development-tools::testing", "development-tools"]
+
+[features]
+default = ["write"]
+write = []
+no-write = []
+
+[[bin]]
+name = "cargo-regenerate-test-literals"
+path = "src/bin/cargo-regenerate-test-literals.rs"
 
 [dependencies]
 once_cell = "1.13.0"
+databake = "0.1"
+syn = { version = "2", features = ["full", "visit-mut", "visit", "extra-traits"] }
+proc-macro2 = { version = "1", features = ["span-locations"] }
+quote = "1"
+prettyplease = "0.2"
+parking_lot = "0.12"
+
+[dev-dependencies]
+tempfile = "3"
