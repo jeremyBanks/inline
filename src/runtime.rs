@@ -8,6 +8,13 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// Check if we're running under cargo by looking for cargo-specific env vars
+fn is_running_under_cargo() -> bool {
+    env::var("CARGO").is_ok()
+        || env::var("CARGO_MANIFEST_DIR").is_ok()
+        || env::var("CARGO_PKG_NAME").is_ok()
+}
+
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum Mode {
     /// Reads source files and verifies set() values match what's written
@@ -41,12 +48,20 @@ impl Mode {
 
     fn default_for_context() -> Self {
         // In tests: default to Verify (snapshot testing)
-        // Outside tests: default to Write (self-modifying code)
         #[cfg(test)]
         return Mode::Verify;
 
+        // Outside tests: default based on cargo detection
         #[cfg(not(test))]
-        return Mode::Write;
+        {
+            // If running under cargo, default to Write mode
+            // Otherwise default to Memory mode for safety
+            if is_running_under_cargo() {
+                Mode::Write
+            } else {
+                Mode::Memory
+            }
+        }
     }
 }
 

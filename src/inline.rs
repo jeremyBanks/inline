@@ -67,14 +67,9 @@ impl<T: Value> LiteralInner<T> {
     /// - Write: Writes the new value back to the source file
     /// - Reject: Always panics when trying to write
     pub fn set(&mut self, new_value: T) {
-        // Compare by baked tokens, not by PartialEq
-        // This way we only depend on Bake trait and detect actual semantic changes
-        let env = databake::CrateEnv::default();
-        let old_tokens = self.value.bake(&env).to_string();
-        let new_tokens = new_value.bake(&env).to_string();
-
-        if old_tokens == new_tokens {
-            return; // No change needed - baked representation is identical
+        // Compare using PartialEq to detect changes
+        if self.value == new_value {
+            return; // No change needed
         }
 
         let mode = crate::runtime::get_mode();
@@ -312,12 +307,8 @@ impl<T: Value + 'static> std::ops::DerefMut for Literal<T> {
 impl<T: Value + 'static> Drop for Literal<T> {
     fn drop(&mut self) {
         // Check if the value was mutated (via DerefMut or direct .literal assignment)
-        // Compare by baked tokens (same approach as set())
-        let env = databake::CrateEnv::default();
-        let original_tokens = self.original.bake(&env).to_string();
-        let current_tokens = self.literal.bake(&env).to_string();
-
-        if original_tokens != current_tokens {
+        // Compare using PartialEq
+        if self.original != self.literal {
             // Value was mutated, trigger write
             let mode = crate::runtime::get_mode();
 

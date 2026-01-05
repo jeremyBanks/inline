@@ -3,10 +3,11 @@
 
 pub use databake::Bake;
 
-// We define a Value trait that requires Bake + Clone
-// Clone is needed for the write-on-drop functionality (Priority #2)
-// We compare values by comparing their baked tokens, not by PartialEq
-pub trait Value: Bake + Clone {}
+// We define a Value trait that requires Bake + Clone + PartialEq
+// Clone is needed for the write-on-drop functionality
+// PartialEq is used for change detection
+// Bake is used for serialization to source code
+pub trait Value: Bake + Clone + PartialEq {}
 
-// Blanket implementation: any type that is Bake + Clone is a Value
-impl<T> Value for T where T: Bake + Clone {}
+// Blanket implementation: any type that is Bake + Clone + PartialEq is a Value
+impl<T> Value for T where T: Bake + Clone + PartialEq {}
