@@ -76,6 +76,20 @@ cargo test                            # Verify mode (default in tests)
 LITERAL_MODE=write cargo test         # Update all snapshots
 ```
 
+### Cargo Subcommand
+
+For convenience, install the `cargo regenerate-test-literals` subcommand:
+
+```bash
+cargo install --path . --bin cargo-regenerate-test-literals
+
+# Now you can regenerate all test snapshots easily:
+cargo regenerate-test-literals
+cargo regenerate-test-literals -- --test-threads=1
+```
+
+This is equivalent to `LITERAL_MODE=write cargo test` but easier to remember and type.
+
 ## How It Works
 
 1. The `literal!()` macro captures the source location (file, line, column)

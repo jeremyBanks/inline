@@ -22,6 +22,27 @@ cargo test
 - `static_persistence_serial_test::test_static_persistence_same_value` may fail due to file modification conflicts
 - Tests that modify the same source files concurrently can interfere with each other
 
+## Regenerating Test Snapshots
+
+The `cargo regenerate-test-literals` subcommand makes it easy to update all literal snapshots:
+
+```bash
+# Install the subcommand (one-time setup)
+cargo install --path . --bin cargo-regenerate-test-literals
+
+# Regenerate all test snapshots
+cargo regenerate-test-literals
+
+# Pass additional arguments to cargo test
+cargo regenerate-test-literals -- --test-threads=1
+cargo regenerate-test-literals test_name
+cargo regenerate-test-literals -- --nocapture
+```
+
+This is equivalent to running `LITERAL_MODE=write cargo test` but more convenient.
+
+**Note:** The subcommand is installed to `~/.cargo/bin/` and can be used from any directory once installed.
+
 ## Test Categories
 
 ### Serial Tests (Suffix: `_serial_test.rs`)
