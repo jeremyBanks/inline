@@ -97,7 +97,7 @@ Mutations are detected and written **on drop**:
 This is enabled by:
 - A public `literal: T` field for ergonomic assignment
 - An `original: T` field storing the initial value
-- A `Drop` impl that compares baked tokens and writes if changed
+- A `Drop` impl that compares with `PartialEq` and writes if changed
 
 <!-- END SECTION: Core Concepts -->
 
@@ -300,18 +300,20 @@ Return stable index
 
 ## Key Design Decisions
 
-### 1. Index-Based Stability (Not Line/Column)
+### 1. Registry Key Uses (line, column), Index Resolved Lazily
 
-**Decision:** Use the Nth literal in a file as identity, not (line, column).
+**Decision:** Use compile-time (file, line, column) as registry key identity. Resolve stable index only when writing/verifying.
 
 **Rationale:**
-- Line numbers change when code is inserted above
-- Index (0th, 1st, 2nd literal) remains stable
-- Enables adding code above without breaking persistence
+- Compile-time (line, column) from `file!()`, `line!()`, `column!()` never changes
+- Eliminates file parsing on reads - just hash map lookup
+- Index only needed when actually modifying source files
+- Index resolution can be lazy and cached per-file
 
 **Trade-off:**
-- Requires parsing the file to resolve index
-- Adding/removing literals shifts later indices (acceptable for snapshot testing)
+- Index still needed for writing (to find Nth literal in file after edits)
+- But reads are faster with no file I/O
+- Adding/removing literals still shifts later indices (acceptable for snapshot testing)
 
 ### 2. Intentional Memory Leaks for `'static`
 
@@ -328,7 +330,7 @@ Return stable index
 
 ### 3. Write-on-Drop Instead of Explicit `.set()`
 
-**Decision:** Detect mutations in `Drop` by comparing baked tokens.
+**Decision:** Detect mutations in `Drop` by comparing with `PartialEq`.
 
 **Rationale:**
 - More ergonomic: `counter.literal = 42` vs `counter.set(42)`
@@ -337,6 +339,7 @@ Return stable index
 
 **Trade-off:**
 - Requires `Clone` bound (to store `original` value)
+- Requires `PartialEq` bound (to detect changes)
 - One extra clone per literal creation
 - Writes happen at drop time (requires explicit scopes in some tests)
 
@@ -353,32 +356,32 @@ Return stable index
 - Slightly more verbose: `counter.literal` vs `counter.value`
 - But avoids subtle bugs from name collisions
 
-### 5. Bake-Based Comparison (Not `PartialEq`)
+### 5. PartialEq-Based Comparison for Change Detection
 
-**Decision:** Compare values by their baked token representation, not `==`.
+**Decision:** Compare values with `PartialEq` to detect changes, use `Bake` only for serialization.
 
 **Rationale:**
-- Only requires `Bake` trait, not `PartialEq`
-- Detects semantic changes (e.g., `Vec![1, 2]` vs `vec![1, 2]`)
-- Aligns with the serialization-based approach
+- More intuitive: standard Rust equality semantics
+- Most types already implement `PartialEq`
+- Clear separation: `PartialEq` for change detection, `Bake` for serialization
 
 **Trade-off:**
-- False positives possible (semantically equal but different tokens)
-- Example: `0.0` vs `0.0f64` might differ as tokens
-- In practice, databake normalizes well
+- Requires both `PartialEq` and `Bake` bounds
+- Types without `PartialEq` cannot be used (rare)
 
-### 6. Mode-Based Behavior (Not Compile-Time Feature Flags)
+### 6. Mode-Based Behavior with Cargo Detection and Feature Flag
 
-**Decision:** Use runtime `LITERAL_MODE` env var instead of Cargo features.
+**Decision:** Use runtime `LITERAL_MODE` env var, default based on cargo detection, with optional compile-time feature flag.
 
 **Rationale:**
-- Same binary can verify or update snapshots
+- Same binary can verify or update snapshots via env var
 - Easier for users: `LITERAL_MODE=write cargo test`
-- Supports different modes in different tests
+- Safe defaults: Memory mode when not run by `cargo`, Write mode when run by `cargo`
+- Optional "write" feature can be disabled to compile out write functionality
 
 **Trade-off:**
 - Runtime overhead (mode check on every mutation)
-- Can't dead-code eliminate write logic in verify-only builds
+- Can't dead-code eliminate write logic unless feature disabled
 - Acceptable: mode check is trivial compared to file I/O
 
 ### 7. Character-Range Splicing (Not Pretty-Printing)
@@ -412,9 +415,8 @@ Return stable index
 **Decision:** Each thread caches its own parsed AST.
 
 **Rationale:**
-- Avoid locking overhead on every index lookup
-- `syn::File` is not `Send` (or expensive to share)
-- Version-based invalidation ensures consistency
+- AST types (`syn::File`) aren't `Send`, cannot be shared across threads
+- Version-based invalidation ensures consistency across threads
 
 **Trade-off:**
 - Memory usage scales with thread count
@@ -533,18 +535,15 @@ fn test_parse_response() {
 - **Total: Fast** for small values, scales with value size
 
 **Detecting no-op writes:**
-- Bake original: `O(n)` in value size
-- Bake current: `O(n)` in value size
-- String comparison: `O(n)` in token length
-- **Total: ~2x clone cost**, but avoids file I/O
+- Compare with `PartialEq`: `O(n)` in value size (depends on type)
+- **Total: Fast for most types**, avoids unnecessary file I/O
 
 ### Cold Paths
 
 **First access to a literal (not in registry):**
-- Parse file: `O(n)` in file size (expensive)
-- Walk AST: `O(m)` in number of macros
-- Cache result in thread-local
-- **Total: Expensive first time, amortized**
+- Create registry entry: `O(1)`
+- No file I/O on reads
+- **Total: Fast**, just hash map insertion
 
 **Writing to source:**
 - Resolve index (may parse): See above
@@ -623,8 +622,9 @@ fn test_parse_response() {
 - File must be parseable Rust code
 
 **2. Type System**
-- `T: Bake + Clone + 'static` bound
+- `T: Bake + Clone + PartialEq + 'static` bound
 - Not all types implement `Bake` (most primitives and std types do)
+- Types without `PartialEq` cannot be used
 - Custom types need manual `Bake` impl or derive
 
 **3. Concurrency**
