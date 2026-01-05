@@ -61,82 +61,6 @@ impl<T: Value> LiteralInner<T> {
         &self.value
     }
 
-    /// Update the value and possibly persist to source file (depending on mode)
-    ///
-    /// Behavior depends on current mode:
-    /// - Memory: Just updates the in-memory value (no file I/O)
-    /// - Verify: Checks that new value matches what's in the source file, panics if not
-    /// - Write: Writes the new value back to the source file
-    /// - Reject: Always panics when trying to write
-    pub fn set(&mut self, new_value: T) {
-        // Compare using PartialEq to detect changes
-        if self.value == new_value {
-            return; // No change needed
-        }
-
-        let mode = crate::runtime::get_mode();
-
-        // In Memory mode, just change the value in memory (no file I/O)
-        if mode == crate::runtime::Mode::Memory {
-            self.value = new_value; // Move directly, no clone needed
-            return;
-        }
-
-        // In Reject mode, fail immediately
-        if mode.should_reject_write() {
-            panic!(
-                "Attempted to write in Reject mode at {}:{}:{}",
-                self.file.display(),
-                self.line,
-                self.column
-            );
-        }
-
-        // For Verify or Write modes, we need file access
-        // Resolve the index (lazily loads the file)
-        // This is where we'll fail if the file doesn't exist or position is invalid
-        if let Err(e) = self.resolve_index() {
-            panic!("Failed to access source file: {}", e);
-        }
-
-        // In Verify mode: check that the new value matches the source file
-        if mode == crate::runtime::Mode::Verify {
-            if let Err(e) = self.verify_source(&new_value) {
-                panic!(
-                    "Literal verification failed at {}:{}:{}\n{}",
-                    self.file.display(),
-                    self.line,
-                    self.column,
-                    e
-                );
-            }
-            self.value = new_value; // Move after verification succeeds
-            return;
-        }
-
-        // In Write mode: write changes to disk
-        if mode.can_write() {
-            // Check if we're running under cargo
-            if !crate::runtime::is_running_under_cargo() {
-                panic!(
-                    "Cannot write to source files outside of cargo environment!\n\
-                     File: {}:{}:{}\n\
-                     Hint: Run with 'cargo run' or 'cargo test', or use LITERAL_MODE=memory",
-                    self.file.display(),
-                    self.line,
-                    self.column
-                );
-            }
-
-            if let Err(e) = self.update_source(&new_value) {
-                panic!("Failed to write to source file: {}", e);
-            }
-
-            // Only update in-memory value after successful write
-            self.value = new_value;
-        }
-    }
-
     /// Internal: verify that the new value matches what's in the source file
     pub(crate) fn verify_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
         // Index must be resolved by now
@@ -392,23 +316,6 @@ impl<T: Value + 'static> std::borrow::Borrow<T> for Literal<T> {
 impl<T: Value + std::fmt::Display + 'static> std::fmt::Display for Literal<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.literal, f)
-    }
-}
-
-impl<T: Value + 'static> Clone for Literal<T> {
-    /// Clone returns a new `Literal<T>` pointing to the SAME registry entry.
-    ///
-    /// **Note:** Both the original and cloned `Literal` will attempt to write
-    /// on drop if mutated. If both are mutated independently, the last one to
-    /// drop will overwrite the other's changes.
-    fn clone(&self) -> Self {
-        use crate::LiteralPrivate;
-        Literal::__new(
-            self.guard.value.clone(),
-            self.guard.file.to_str().unwrap(),
-            self.guard.line,
-            self.guard.column,
-        )
     }
 }
 
