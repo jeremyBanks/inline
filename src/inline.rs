@@ -167,6 +167,14 @@ impl<T: Value + std::fmt::Debug> std::fmt::Debug for LiteralInner<T> {
 /// *counter += 1;  // Mutate directly via DerefMut
 /// // Value is automatically written on drop
 /// ```
+pub struct Literal<T: Value + 'static> {
+    /// The current literal value. Mutating this field triggers write-on-drop.
+    pub literal: T,
+    pub(crate) guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
+    /// Clone of the original value when this Literal was created.
+    /// Used in Drop to detect mutations.
+    original: T,
+}
 
 /// Private trait for internal methods that shouldn't pollute the namespace.
 ///
@@ -181,17 +189,8 @@ pub trait LiteralPrivate<T: Value + 'static> {
     fn __new(value: T, file: &str, line: u32, column: u32) -> Self;
 }
 
-pub struct Literal<T: Value + 'static> {
-    /// The current literal value. Mutating this field triggers write-on-drop.
-    pub literal: T,
-    pub(crate) guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
-    /// Clone of the original value when this Literal was created.
-    /// Used in Drop to detect mutations.
-    original: T,
-}
-
 impl<T: Value + 'static> Literal<T> {
-    /// Create an Literal wrapper from a mutex guard
+    /// Create a Literal wrapper from a mutex guard
     #[doc(hidden)]
     pub fn from_guard(guard: parking_lot::MutexGuard<'static, LiteralInner<T>>) -> Self {
         // Clone the value twice: once for working copy, once for change detection
@@ -233,6 +232,11 @@ impl<T: Value + 'static> std::ops::DerefMut for Literal<T> {
 
 impl<T: Value + 'static> Drop for Literal<T> {
     fn drop(&mut self) {
+        // DESIGN NOTE: Drop implementations cannot return errors or panic reliably,
+        // so we silently ignore failures during index resolution and source updates.
+        // The background flush thread and explicit flush() calls provide recovery paths.
+        // Values are always updated in memory even if disk writes fail.
+
         // Check if the value was mutated (via DerefMut or direct .literal assignment)
         // Compare using PartialEq
         if self.original != self.literal {
@@ -268,7 +272,7 @@ impl<T: Value + 'static> Drop for Literal<T> {
                     // Verify - this may panic if there's a mismatch
                     if let Err(e) = self.guard.verify_source(&self.guard.value) {
                         panic!(
-                            "Literal verification failed at {}:{}:{}\\n{}",
+                            "Literal verification failed at {}:{}:{}\n{}",
                             self.guard.file.display(),
                             self.guard.line,
                             self.guard.column,

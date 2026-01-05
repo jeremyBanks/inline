@@ -58,15 +58,9 @@ pub fn flush_all() -> Result<(), Box<dyn std::error::Error>> {
         by_file.entry(file).or_insert_with(Vec::new).push((line, column));
     }
 
-    // Flush each file's literals
-    // Note: We can't actually flush individual literals from here because we don't
-    // have access to the registry. The background thread will handle the actual
-    // flushing through the normal Drop mechanism or by triggering writes.
-    //
-    // For now, this is more of a "force write to disk" for already-updated values.
-    // The real flushing happens in Drop or through LiteralExt::flush().
-
-    // Actually, we should write the files to disk if they have pending changes
+    // Write each file's in-memory state to disk.
+    // This flushes values that were updated via Drop (which updates in-memory state)
+    // but whose disk write may have been deferred or failed silently.
     for (file, _positions) in by_file {
         // Write the current state of the file to disk
         if let Err(e) = crate::runtime::write_to_disk(&file) {

@@ -65,13 +65,22 @@ impl Mode {
     }
 
     fn default_for_context() -> Self {
-        // In tests: default to Verify (snapshot testing)
+        // NOTE: #[cfg(test)] is evaluated at library compile time, not when users
+        // run their own tests. For users' tests, we detect the test harness via
+        // environment variables that cargo sets when running `cargo test`.
+        // This #[cfg(test)] branch is only active for this library's own tests.
         #[cfg(test)]
         return Mode::Verify;
 
-        // Outside tests: default based on cargo detection
         #[cfg(not(test))]
         {
+            // Detect if we're in a test context by checking for cargo test env vars
+            // CARGO_TARGET_TMPDIR is set by cargo during test runs
+            if env::var("CARGO_TARGET_TMPDIR").is_ok() {
+                return Mode::Verify;
+            }
+
+            // Outside tests: default based on cargo detection
             // If running under cargo, default to Write mode
             // Otherwise default to Memory mode for safety
             if is_running_under_cargo() {

@@ -1,12 +1,15 @@
-// Re-export databake's Bake trait as our "Value" concept
-// This allows any type implementing Bake to be used with literal values
-
+// Re-export databake's Bake trait for serializing values to Rust source code
 pub use databake::Bake;
 
-// We define a Value trait that requires Bake + Clone + PartialEq
-// Clone is needed for the write-on-drop functionality
-// PartialEq is used for change detection
-// Bake is used for serialization to source code
+/// Trait alias for types that can be used with `literal!()`.
+///
+/// This trait combines three requirements:
+/// - `Bake`: Serialize to Rust source code (from databake crate)
+/// - `Clone`: Copy values for change detection (write-on-drop)
+/// - `PartialEq`: Detect mutations by comparing original vs current
+///
+/// All types implementing these three traits automatically implement `Value`
+/// via the blanket implementation below.
 pub trait Value: Bake + Clone + PartialEq {}
 
 // Blanket implementation: any type that is Bake + Clone + PartialEq is a Value

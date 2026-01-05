@@ -86,6 +86,11 @@ pub fn get_or_create<T: Value + 'static>(
     // Try to resolve the stable index from (line, column)
     // This parses the file once per file and caches the (line, column) → index mapping
     // If the file doesn't exist (e.g., in tests or compiled binaries), fall back to (line, column)
+    //
+    // DESIGN NOTE: The fallback behavior means that if a file is temporarily unavailable
+    // during initial access (e.g., race condition during file regeneration), the literal
+    // will use position-based keys that won't benefit from stable indexing. This is
+    // acceptable since such scenarios are rare in practice and the literal still works.
     let path = PathBuf::from(file);
     let index_or_position = match crate::runtime::get_macro_index(&path, line, column) {
         Ok(index) => IndexOrPosition::Index(index),
