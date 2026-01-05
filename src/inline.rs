@@ -34,7 +34,7 @@ impl<T: Value> LiteralInner<T> {
     }
 
     /// Lazily resolve the macro index from the source file
-    fn resolve_index(&mut self) -> Result<usize, Box<dyn std::error::Error>> {
+    pub(crate) fn resolve_index(&mut self) -> Result<usize, Box<dyn std::error::Error>> {
         if let Some(index) = self.macro_index {
             return Ok(index);
         }
@@ -136,7 +136,7 @@ impl<T: Value> LiteralInner<T> {
     }
 
     /// Internal: verify that the new value matches what's in the source file
-    fn verify_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
+    pub(crate) fn verify_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
         // Index must be resolved by now
         let index = self
             .macro_index

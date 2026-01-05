@@ -39,7 +39,15 @@ impl Mode {
     }
 
     pub fn can_write(self) -> bool {
-        matches!(self, Mode::Write)
+        // If write feature is disabled, Write mode behaves like Memory mode
+        #[cfg(feature = "write")]
+        {
+            matches!(self, Mode::Write)
+        }
+        #[cfg(not(feature = "write"))]
+        {
+            false
+        }
     }
 
     pub fn should_reject_write(self) -> bool {

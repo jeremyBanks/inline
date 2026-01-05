@@ -12,6 +12,10 @@ readme = "README.md"
 keywords = ["snapshot", "testing", "self-modifying", "codegen"]
 categories = ["development-tools::testing", "development-tools"]
 
+[features]
+default = ["write"]
+write = []
+
 [dependencies]
 once_cell = "1.13.0"
 databake = "0.1"

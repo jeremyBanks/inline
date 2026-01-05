@@ -79,7 +79,25 @@ pub fn get_or_create<T: Value + 'static>(
         let mut registry = VALUE_REGISTRY.lock();
         *registry.entry(key).or_insert_with(|| {
             // Create a new boxed value and leak it for 'static lifetime
-            let boxed = Box::new(Mutex::new(LiteralInner::new(initial, file, line, column)));
+            let mut inner = LiteralInner::new(initial.clone(), file, line, column);
+
+            // In Verify mode, verify the initial value matches source on first access
+            if crate::runtime::get_mode() == crate::runtime::Mode::Verify {
+                // Try to resolve index and verify
+                if inner.resolve_index().is_ok() {
+                    if let Err(e) = inner.verify_source(&initial) {
+                        panic!(
+                            "Initial literal value verification failed at {}:{}:{}\n\
+                             The value provided to literal!() doesn't match the source file.\n\
+                             {}",
+                            file, line, column, e
+                        );
+                    }
+                }
+                // If index resolution fails, we can't verify - this is ok for Memory mode fallback
+            }
+
+            let boxed = Box::new(Mutex::new(inner));
             Box::into_raw(boxed) as usize
         })
     };
