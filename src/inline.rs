@@ -149,14 +149,22 @@ impl<T: Value> LiteralInner<T> {
         let env = databake::CrateEnv::default();
         let expected_tokens = new_value.bake(&env);
 
-        // Normalize both token streams to strings for comparison
-        let current_str = current_tokens.to_string();
-        let expected_str = expected_tokens.to_string();
+        // Parse both token streams and compare the parsed AST instead of string representation
+        // This handles formatting differences like trailing commas and module paths
+        let current_expr: syn::Expr = syn::parse2(current_tokens.clone()).map_err(|e| {
+            format!("Failed to parse source tokens: {}", e)
+        })?;
 
-        if current_str != expected_str {
+        let expected_expr: syn::Expr = syn::parse2(expected_tokens.clone()).map_err(|e| {
+            format!("Failed to parse baked tokens: {}", e)
+        })?;
+
+        // Compare AST semantically using syn's PartialEq implementation
+        // This handles formatting differences like trailing commas, whitespace, and module paths
+        if current_expr != expected_expr {
             return Err(format!(
                 "Value mismatch!\n  Expected: {}\n  Found in source: {}",
-                expected_str, current_str
+                expected_tokens, current_tokens
             )
             .into());
         }

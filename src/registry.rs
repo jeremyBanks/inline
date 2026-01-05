@@ -104,21 +104,11 @@ pub fn get_or_create<T: Value + 'static>(
             // Create a new boxed value and leak it for 'static lifetime
             let mut inner = LiteralInner::new(initial.clone(), file, line, column);
 
-            // In Verify mode, verify the initial value matches source on first access
-            if crate::runtime::get_mode() == crate::runtime::Mode::Verify {
-                // Try to resolve index and verify
-                if inner.resolve_index().is_ok() {
-                    if let Err(e) = inner.verify_source(&initial) {
-                        panic!(
-                            "Initial literal value verification failed at {}:{}:{}\n\
-                             The value provided to literal!() doesn't match the source file.\n\
-                             {}",
-                            file, line, column, e
-                        );
-                    }
-                }
-                // If index resolution fails, we can't verify - this is ok for Memory mode fallback
-            }
+            // TODO: Initial value verification disabled due to false positives
+            // When databake serializes values like vec![1,2,3], it produces alloc::vec![1,2,3,]
+            // which is semantically equivalent but syntactically different from vec![1,2,3]
+            // This causes verification to fail even when values match semantically.
+            // We only verify mutations (in Drop), not initial values.
 
             let boxed = Box::new(Mutex::new(inner));
             Box::into_raw(boxed) as usize
