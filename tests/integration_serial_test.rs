@@ -136,7 +136,7 @@ fn test_update_source_file() {
     env::set_var("LITERAL_MODE", "write");
 
     // Find the actual position of the macro
-    let positions = find_litter_positions(&test_file.path);
+    let positions = find_literal_positions(&test_file.path);
     assert_eq!(positions.len(), 1, "Should find exactly one literal macro");
     let (line, column) = positions[0];
 
@@ -166,7 +166,7 @@ fn test() {
     env::set_var("LITERAL_MODE", "write");
 
     // Find the actual position
-    let positions = find_litter_positions(&test_file.path);
+    let positions = find_literal_positions(&test_file.path);
     assert_eq!(positions.len(), 1, "Should find exactly one literal macro");
     let (line, column) = positions[0];
 
@@ -200,7 +200,7 @@ fn test_litter_no_update_in_memory_mode() {
     // Explicitly set memory mode (changes in memory only, no disk writes)
     env::set_var("LITERAL_MODE", "memory");
 
-    let positions = find_litter_positions(&test_file.path);
+    let positions = find_literal_positions(&test_file.path);
     assert_eq!(positions.len(), 1);
     let (line, column) = positions[0];
 
@@ -252,7 +252,7 @@ fn test_multiple_litters_in_same_file() {
     env::set_var("LITERAL_MODE", "write");
 
     // Find all positions
-    let positions = find_litter_positions(&test_file.path);
+    let positions = find_literal_positions(&test_file.path);
     assert_eq!(positions.len(), 3, "Should find 3 macros");
 
     // Create inline instances for each
@@ -314,7 +314,7 @@ fn test_litter_no_change_optimization() {
 
     env::set_var("LITERAL_MODE", "write");
 
-    let positions = find_litter_positions(&test_file.path);
+    let positions = find_literal_positions(&test_file.path);
     let (line, column) = positions[0];
 
     let mut value = jeb_literal::Literal::__new(42u32, test_file.path.to_str().unwrap(), line, column);
