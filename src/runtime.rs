@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Check if we're running under cargo by looking for cargo-specific env vars
-fn is_running_under_cargo() -> bool {
+///
+/// This is used to determine the default mode and whether writes should be allowed.
+/// Returns true if any of the standard cargo environment variables are set.
+pub(crate) fn is_running_under_cargo() -> bool {
     env::var("CARGO").is_ok()
         || env::var("CARGO_MANIFEST_DIR").is_ok()
         || env::var("CARGO_PKG_NAME").is_ok()

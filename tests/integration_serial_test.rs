@@ -50,7 +50,7 @@ impl TestFile {
 }
 
 /// Helper to find all literal! macro positions in a file
-fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
+fn find_literal_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
     let source = fs::read_to_string(file_path).unwrap();
     let ast = syn::parse_file(&source).unwrap();
 
@@ -62,13 +62,13 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
     impl<'ast> Visit<'ast> for MacroCollector {
         fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
             // Check if this is a literal macro (might be just "inline" or "inline::inline")
-            let is_litter = if let Some(segments) = node.mac.path.segments.iter().last() {
+            let is_literal = if let Some(segments) = node.mac.path.segments.iter().last() {
                 segments.ident == "literal"
             } else {
                 false
             };
 
-            if is_litter {
+            if is_literal {
                 let span = node.mac.path.segments.last().unwrap().ident.span();
                 let start = span.start();
                 self.positions

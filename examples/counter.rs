@@ -12,9 +12,9 @@ use jeb_literal::literal;
 fn main() {
     let mut counter = literal!(0u32);
 
-    println!("This program has been run {} times", *counter.get() + 1);
+    println!("This program has been run {} times", *counter + 1);
 
-    let current = *counter.get();
+    let current = *counter;
     counter.literal = current + 1;
 
     println!("\nThe counter has been updated in the source code!");

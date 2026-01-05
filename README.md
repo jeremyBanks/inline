@@ -48,33 +48,88 @@ let mut value = literal!(42u32);
 let counter: Literal<u32> = literal!();  // Uses Default::default()
 ```
 
-Update it (two syntaxes):
+### Reading Values
+
+There are multiple equivalent ways to read a literal value:
 
 ```rust
-// Option 1: DerefMut syntax (most ergonomic)
-*value += 1;  // Automatically writes when dropped
+let counter = literal!(42u32);
 
-// Option 2: Direct field assignment
+// Preferred: use the dereference operator
+let x = *counter;           // Most idiomatic
+let x = &*counter;          // When you need a reference
+
+// Alternative: direct field access
+let x = counter.literal;
+
+// Alternative: explicit method (less common)
+let x = *counter.get();
+```
+
+### Writing Values
+
+Update it using either field assignment or `DerefMut`:
+
+```rust
+// Option 1: Direct field assignment (explicit)
 value.literal = 100u32;
 
-// Both write to your source file in WRITE mode!
+// Option 2: DerefMut syntax (works for compound operations)
+*value = 100u32;
+*value += 1;
+
+// Both syntaxes write to your source file on drop (in Write mode)!
+```
+
+**When to use which:**
+- Use `*counter` for simple reads and writes
+- Use `counter.literal` when you want to emphasize mutation
+- For nested field access: `counter.literal.nested_field = x`
+
+### Old Style (Deprecated Pattern)
+
+Some examples may use `.get()` which is redundant with `Deref`:
+
+```rust
+// Old style (verbose)
+let x = *counter.get();
+
+// New style (preferred)
+let x = *counter;
 ```
 
 ## Modes
 
 jeb-literal has four modes, controlled by the `LITERAL_MODE` environment variable:
 
-- **Write** (default outside tests when running under cargo): Changes are written back to source files
-- **Verify** (default in tests): Validates that values round-trip correctly
-- **Memory** (`LITERAL_MODE=memory`): Changes in memory only, no file writes
-- **Reject** (`LITERAL_MODE=reject`): Rejects any write attempts, always fails
+| Mode | Behavior | Default When |
+|------|----------|--------------|
+| **Write** | Changes are written back to source files | Outside tests, when running under `cargo` |
+| **Verify** | Validates that values round-trip correctly, panics on mismatch | In tests (`#[cfg(test)]`) |
+| **Memory** | Changes in memory only, no file writes | Outside tests, NOT running under `cargo` |
+| **Reject** | Rejects any write attempts, always fails | Never (explicit opt-in via env var) |
+
+### Default Mode Logic
+
+The default mode is **context-dependent** for safety:
+
+1. **In `#[test]` functions**: Defaults to **Verify** mode (for snapshot testing)
+2. **Outside tests, under cargo**: Defaults to **Write** mode (checks for `CARGO` env vars)
+3. **Outside tests, NOT under cargo**: Defaults to **Memory** mode (safeguard against accidental writes)
+
+This means compiled binaries default to Memory mode unless explicitly set to Write.
+
+### Usage Examples
 
 ```bash
 LITERAL_MODE=write cargo run          # Enable self-modifying mode
 LITERAL_MODE=memory cargo run         # Run without file writes
 cargo test                            # Verify mode (default in tests)
 LITERAL_MODE=write cargo test         # Update all snapshots
+LITERAL_MODE=reject cargo test        # Ensure no writes attempted
 ```
+
+**Note:** If the `"write"` Cargo feature is disabled, Write mode behaves the same as Memory mode (writes are compiled out).
 
 ### Cargo Subcommand
 
@@ -82,10 +137,16 @@ For convenience, install the `cargo regenerate-test-literals` subcommand:
 
 ```bash
 cargo install --path . --bin cargo-regenerate-test-literals
+```
 
-# Now you can regenerate all test snapshots easily:
-cargo regenerate-test-literals
-cargo regenerate-test-literals -- --test-threads=1
+This installs a cargo extension located in `src/bin/cargo-regenerate-test-literals.rs` that wraps `LITERAL_MODE=write cargo test` for convenience.
+
+Once installed, regenerate all test snapshots easily:
+
+```bash
+cargo regenerate-test-literals                  # Update all snapshots
+cargo regenerate-test-literals -- --test-threads=1  # Run serially
+cargo regenerate-test-literals test_name        # Update specific test
 ```
 
 This is equivalent to `LITERAL_MODE=write cargo test` but easier to remember and type.
@@ -106,12 +167,43 @@ This is equivalent to `LITERAL_MODE=write cargo test` but easier to remember and
 
 Any type implementing `Bake + Clone + PartialEq` works with jeb-literal:
 
-- Primitives: `u32`, `i64`, `f32`, `bool`, etc.
-- Strings: `String`, `&str`
-- Collections: `Vec<T>`, arrays, tuples
-- And more via databake's built-in implementations
+### What is Bake?
 
-Note: `Clone` is required for write-on-drop functionality. Values are compared using `PartialEq` to detect changes; `Bake` is only used for serialization.
+[`Bake`](https://docs.rs/databake) is a trait from the `databake` crate that serializes Rust values to Rust source code (token streams), not runtime formats like JSON. It's specifically designed for code generation.
+
+### Built-in Support
+
+Most primitive types and standard library types already implement `Bake`:
+
+- **Primitives**: `u32`, `i64`, `f32`, `f64`, `bool`, `char`, etc.
+- **Strings**: `String`, `&'static str`
+- **Collections**: `Vec<T>`, arrays `[T; N]`, tuples, `Option<T>`, `Result<T, E>`
+- **Other std types**: See [databake's documentation](https://docs.rs/databake) for the full list
+
+**Requirements explained:**
+- **`Clone`**: Required for write-on-drop functionality (we store both working and original copies)
+- **`PartialEq`**: Used for change detection (comparing `original == literal` on drop)
+- **`Bake`**: Used for serialization to Rust source code
+
+### Custom Types
+
+For custom types, use databake's derive macro:
+
+```rust
+use databake::*;
+
+#[derive(Clone, PartialEq, Bake)]
+#[databake(path = my_crate)]  // Specify the import path for generated code
+pub struct Config {
+    pub port: u16,
+    pub host: String,
+}
+
+// Now Config can be used with literal!()
+let config = literal!(Config { port: 8080, host: "localhost".to_string() });
+```
+
+**Note**: `Bake` generates Rust code, not runtime serialization. The value `42u32` becomes the token stream `42u32`, and `vec![1,2,3]` becomes `vec![1i32, 2i32, 3i32]` (or `alloc::vec![...]` depending on context).
 
 ### Future Ideas
 
@@ -137,6 +229,22 @@ See the `examples/` directory for complete examples:
 - Self-updating configuration values during development
 - Experimental self-modifying code patterns
 
+## When Not to Use
+
+This library is **experimental** and not suitable for:
+
+- ❌ **Production applications** - Modifying source code at runtime is unconventional and fragile
+- ❌ **Security-sensitive contexts** - Values are written to source files in plain text
+- ❌ **Large-scale code generation** - Memory usage scales with unique literal locations (intentional leaks)
+- ❌ **Distributed systems** - No synchronization across processes or machines
+- ❌ **CI/CD without care** - Requires write permissions to source files
+
+**Instead, consider:**
+- For snapshot testing: Use [`insta`](https://docs.rs/insta) crate (external .snap files)
+- For configuration: Use proper config files (TOML, JSON, etc.)
+- For state persistence: Use databases or proper state management
+- For test fixtures: Use data files or embedded resources
+
 Note: This is an experimental library. Production use is not recommended.
 
 ## Implementation Details
@@ -156,12 +264,50 @@ Note: This is an experimental library. Production use is not recommended.
 - Literal count remains stable (adding/removing literals changes indices)
 - Only value content changes (the literal's position in file remains the same)
 
+### Memory Considerations
+
+Each unique `literal!()` source location permanently allocates memory:
+- ~32 bytes overhead per literal (Box + Mutex + metadata)
+- Plus `sizeof::<T>()` for the stored value
+
+**Memory usage examples:**
+- 100 literals with u32 values: ~4 KB (negligible)
+- 1,000 literals with small structs (~100 bytes each): ~132 KB (acceptable)
+- 100,000 literals (generated code): ~3-10 MB (may be concerning)
+
+**Why permanent allocation?**
+The registry intentionally leaks memory to provide `'static` lifetime guarantees.
+This is by design and necessary for the architecture.
+
+**For large-scale generated code**, consider:
+- Using external snapshot files instead (see `insta` crate)
+- Limiting literals to test code only
+- Using runtime configuration for generated code
+
 ## Testing
 
-Tests are organized into two categories:
+Tests are organized into two categories based on their concurrency safety:
 
-- **Parallel-safe tests**: `concurrent_process_detection`, `multi_threaded` (don't use environment variables)
-- **Serial tests**: All tests with `_serial` in the filename (use environment variables)
+### Parallel-Safe Tests
+
+These tests don't use environment variables and can run concurrently:
+- `concurrent_process_detection.rs` - Tests file locking across processes
+- `multi_threaded.rs` - Tests thread-safe access to literals
+
+Run with:
+
+```bash
+cargo test --test concurrent_process_detection --test multi_threaded
+```
+
+### Serial Tests
+
+Tests with `_serial` in their filename use the `LITERAL_MODE` environment variable and must run serially to avoid race conditions. These include:
+- `default_values_serial_test.rs`
+- `deref_mut_serial_test.rs`
+- `index_stability_serial_test.rs`
+- `integration_serial_test.rs`
+- And all other `*_serial_test.rs` files
 
 Run all tests serially (recommended):
 
@@ -169,17 +315,22 @@ Run all tests serially (recommended):
 cargo test -- --test-threads=1
 ```
 
-Run only parallel-safe tests:
-
-```bash
-cargo test --test concurrent_process_detection --test multi_threaded
-```
-
 Run a specific serial test:
 
 ```bash
 cargo test --test integration_serial_test -- --test-threads=1
 ```
+
+### Why Serial?
+
+Environment variables like `LITERAL_MODE` are process-global, not thread-local. If multiple tests running in parallel both set `LITERAL_MODE`, they would interfere with each other, causing flaky failures. Running with `--test-threads=1` ensures tests execute one at a time.
+
+### Test Fixtures
+
+The `tests/fixtures/` directory contains Rust source files used by integration tests:
+- These files contain `literal!()` macros at known positions
+- Used to test source file parsing and modification
+- Should not be modified by tests (read-only test data)
 
 ## License
 

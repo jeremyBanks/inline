@@ -22,12 +22,36 @@
 //! The boxes are intentionally leaked to provide true `'static` lifetime.
 //! Type safety is ensured by including `TypeId` in the registry key.
 //!
-//! # Safety
+//! # Safety Invariants
 //!
-//! The unsafe pointer casting is safe because:
-//! - Pointers are stored in a static registry and never freed (intentional leak)
-//! - `TypeId` in the key guarantees we only cast to the correct type
-//! - Boxes are allocated by this module, pointers are valid for `'static`
+//! This module maintains the following invariants for soundness:
+//!
+//! 1. **Pointer Validity**: All pointers in `VALUE_REGISTRY` are valid for `'static`
+//!    because they come from leaked `Box` allocations.
+//!
+//! 2. **Type Safety**: `TypeId` in registry keys ensures we only cast pointers back
+//!    to their original type `T`. Attempting to access with wrong type fails at lookup.
+//!
+//! 3. **No Use-After-Free**: Pointers are never freed (intentional leak), preventing
+//!    use-after-free bugs.
+//!
+//! 4. **Thread Safety**: `Mutex` provides interior mutability and synchronization,
+//!    preventing data races.
+//!
+//! These invariants are maintained by:
+//! - Never calling `Box::from_raw` (preventing deallocation)
+//! - Always including `TypeId` in lookups (preventing type confusion)
+//! - Using `Mutex` for synchronized access (preventing data races)
+//!
+//! # Memory Considerations
+//!
+//! Each unique `literal!()` source location permanently allocates:
+//! - ~32 bytes for `Box<Mutex<LiteralInner<T>>>`
+//! - Plus `sizeof::<T>()` for the stored value
+//!
+//! For typical usage (10-1000 literals), this is negligible (~10-100 KB).
+//! For generated code with 100,000 literals, this could be ~3-10 MB.
+//!
 
 use crate::inline::LiteralInner;
 use crate::literal::Value;
@@ -37,7 +61,31 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-/// Registry key that can represent either a stable index or a (line, column) position
+/// Registry key that can represent either a stable index or a (line, column) position.
+///
+/// # Index vs Position: Two Modes for Different Scenarios
+///
+/// When a source file exists and can be parsed:
+/// - Uses `Index(n)` - the Nth literal in the file (0, 1, 2, ...)
+/// - **Stable** across line insertions/deletions above the literal
+/// - Resolved once per file on first access, then cached
+/// - Preferred for normal development workflow
+///
+/// When a source file doesn't exist (testing, compiled binaries):
+/// - Uses `Position(line, column)` - compile-time coordinates from `line!()` and `column!()`
+/// - **Less stable** but allows literals to work in test scenarios
+/// - Falls back automatically when index resolution fails
+/// - Useful for unit tests with mock files
+///
+/// # Example
+///
+/// ```text
+/// // In development: file exists
+/// literal!(42)  // → Index(0)  ← stable even if lines added above
+///
+/// // In unit test: temp file may not exist on disk
+/// literal!(42)  // → Position(10, 15)  ← fallback mode
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum IndexOrPosition {
     /// Stable index (Nth literal in file) - preferred when file exists

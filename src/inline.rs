@@ -215,9 +215,7 @@ impl<T: Value + std::fmt::Debug> std::fmt::Debug for LiteralInner<T> {
 
 /// Check if we're running under cargo by looking for cargo-specific env vars
 fn is_running_under_cargo() -> bool {
-    std::env::var("CARGO").is_ok()
-        || std::env::var("CARGO_MANIFEST_DIR").is_ok()
-        || std::env::var("CARGO_PKG_NAME").is_ok()
+    crate::runtime::is_running_under_cargo()
 }
 
 /// A self-modifying value that holds a lock and can update its source code.
@@ -290,9 +288,23 @@ impl<T: Value + 'static> Literal<T> {
         Literal { literal, guard, original }
     }
 
-    /// Get a reference to the current value
+    /// Get a reference to the current value.
     ///
-    /// Same as dereferencing, but explicit.
+    /// This is equivalent to using the `Deref` implementation (`&*literal`).
+    /// The `Deref` implementation is generally preferred for more idiomatic code.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use jeb_literal::literal;
+    ///
+    /// let counter = literal!(42u32);
+    ///
+    /// // These are all equivalent:
+    /// let x = counter.get();  // Explicit method call
+    /// let x = &*counter;      // Deref (most common)
+    /// let x = counter.as_ref(); // AsRef trait
+    /// ```
     pub fn get(&self) -> &T {
         &self.literal
     }
@@ -322,6 +334,27 @@ impl<T: Value + 'static> std::ops::DerefMut for Literal<T> {
 }
 
 impl<T: Value + 'static> Drop for Literal<T> {
+    /// Write changes to source file when the literal is dropped.
+    ///
+    /// # Error Handling Policy
+    ///
+    /// Since `Drop` cannot return errors, we use the following policy:
+    ///
+    /// 1. **Verification failures** (Verify mode): **Panic** - These are test failures
+    ///    and should halt execution immediately to prevent false passing tests.
+    ///
+    /// 2. **Index resolution failures**: **Silent** - May occur with non-existent files
+    ///    in test scenarios. We can't panic here as it would break legitimate use cases.
+    ///
+    /// 3. **Write failures** (Write mode): **Silent** - File I/O errors in Drop must be
+    ///    silent to avoid panics. The background flush thread will retry. Users can also
+    ///    call `.flush()` explicitly for error handling.
+    ///
+    /// 4. **Not running under cargo**: **Silent** - Safety measure to prevent accidental
+    ///    writes outside of development environment.
+    ///
+    /// For explicit error handling, use [`LiteralExt::flush()`](crate::LiteralExt::flush)
+    /// which returns `Result` instead of silently ignoring errors.
     fn drop(&mut self) {
         // Check if the value was mutated (via DerefMut or direct .literal assignment)
         // Compare using PartialEq
@@ -346,6 +379,7 @@ impl<T: Value + 'static> Drop for Literal<T> {
             // For Verify or Write modes, we need file access
             if mode.needs_file_access() {
                 // Resolve the index (if not already resolved)
+                // Silent failure: May occur with non-existent files in tests
                 if let Err(_) = self.guard.resolve_index() {
                     // Silently skip if we can't resolve the index
                     return;
@@ -355,7 +389,7 @@ impl<T: Value + 'static> Drop for Literal<T> {
                 if mode == crate::runtime::Mode::Verify {
                     // Sync the public literal field back to guard for verification
                     self.guard.value = self.literal.clone();
-                    // Verify - this may panic if there's a mismatch
+                    // Verify - this WILL panic if there's a mismatch (intentional for test failures)
                     if let Err(e) = self.guard.verify_source(&self.guard.value) {
                         panic!(
                             "Literal verification failed at {}:{}:{}\\n{}",
@@ -370,15 +404,17 @@ impl<T: Value + 'static> Drop for Literal<T> {
 
                 // In Write mode, update the source
                 if mode.can_write() {
-                    // Check if we're running under cargo
+                    // Check if we're running under cargo (safety measure)
                     if !is_running_under_cargo() {
+                        // Silent failure: prevents writes outside development environment
                         return;
                     }
 
                     // Sync the public literal field back to the guard before writing
                     self.guard.value = self.literal.clone();
 
-                    // Silently ignore errors in drop - we can't panic or return an error
+                    // Silent failure: Drop cannot return errors
+                    // Background flush thread will retry failed writes
                     if self.guard.update_source(&self.guard.value).is_ok() {
                         // Clear dirty flag after successful write
                         crate::dirty::clear_dirty(&self.guard.file, self.guard.line, self.guard.column);

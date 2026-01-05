@@ -14,24 +14,24 @@ fn main() {
     let mut debug_mode = literal!(false);
 
     println!("Current configuration:");
-    println!("  Max retries: {}", *max_retries.get());
-    println!("  Timeout: {}ms", *timeout_ms.get());
-    println!("  Debug mode: {}", *debug_mode.get());
+    println!("  Max retries: {}", *max_retries);
+    println!("  Timeout: {}ms", *timeout_ms);
+    println!("  Debug mode: {}", *debug_mode);
 
     // Simulate configuration changes
     println!("\nAdjusting configuration based on runtime conditions...");
 
-    if *max_retries.get() < 5 {
+    if *max_retries < 5 {
         println!("  Increasing max_retries to 5");
         max_retries.literal = 5;
     }
 
-    if *timeout_ms.get() < 2000 {
+    if *timeout_ms < 2000 {
         println!("  Increasing timeout to 2000ms");
         timeout_ms.literal = 2000;
     }
 
-    if !*debug_mode.get() {
+    if !*debug_mode {
         println!("  Enabling debug mode");
         debug_mode.literal = true;
     }
