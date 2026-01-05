@@ -21,8 +21,10 @@ pub struct LiteralInner<T: Value> {
 }
 
 impl<T: Value> LiteralInner<T> {
-    /// Create a new LiteralInner instance (called by the registry)
-    /// Does NOT fail if the source file doesn't exist - that's only an error if you call set()
+    /// Create a new LiteralInner instance (called by the registry).
+    ///
+    /// Does NOT fail if the source file doesn't exist - that's only an error
+    /// when writing (on drop or explicit flush).
     pub(crate) fn new(value: T, file: &str, line: u32, column: u32) -> Self {
         LiteralInner {
             value,
@@ -57,82 +59,6 @@ impl<T: Value> LiteralInner<T> {
     /// Get a reference to the current value
     pub fn get(&self) -> &T {
         &self.value
-    }
-
-    /// Update the value and possibly persist to source file (depending on mode)
-    ///
-    /// Behavior depends on current mode:
-    /// - Memory: Just updates the in-memory value (no file I/O)
-    /// - Verify: Checks that new value matches what's in the source file, panics if not
-    /// - Write: Writes the new value back to the source file
-    /// - Reject: Always panics when trying to write
-    pub fn set(&mut self, new_value: T) {
-        // Compare using PartialEq to detect changes
-        if self.value == new_value {
-            return; // No change needed
-        }
-
-        let mode = crate::runtime::get_mode();
-
-        // In Memory mode, just change the value in memory (no file I/O)
-        if mode == crate::runtime::Mode::Memory {
-            self.value = new_value; // Move directly, no clone needed
-            return;
-        }
-
-        // In Reject mode, fail immediately
-        if mode.should_reject_write() {
-            panic!(
-                "Attempted to write in Reject mode at {}:{}:{}",
-                self.file.display(),
-                self.line,
-                self.column
-            );
-        }
-
-        // For Verify or Write modes, we need file access
-        // Resolve the index (lazily loads the file)
-        // This is where we'll fail if the file doesn't exist or position is invalid
-        if let Err(e) = self.resolve_index() {
-            panic!("Failed to access source file: {}", e);
-        }
-
-        // In Verify mode: check that the new value matches the source file
-        if mode == crate::runtime::Mode::Verify {
-            if let Err(e) = self.verify_source(&new_value) {
-                panic!(
-                    "Literal verification failed at {}:{}:{}\n{}",
-                    self.file.display(),
-                    self.line,
-                    self.column,
-                    e
-                );
-            }
-            self.value = new_value; // Move after verification succeeds
-            return;
-        }
-
-        // In Write mode: write changes to disk
-        if mode.can_write() {
-            // Check if we're running under cargo
-            if !is_running_under_cargo() {
-                panic!(
-                    "Cannot write to source files outside of cargo environment!\n\
-                     File: {}:{}:{}\n\
-                     Hint: Run with 'cargo run' or 'cargo test', or use LITERAL_MODE=memory",
-                    self.file.display(),
-                    self.line,
-                    self.column
-                );
-            }
-
-            if let Err(e) = self.update_source(&new_value) {
-                panic!("Failed to write to source file: {}", e);
-            }
-
-            // Only update in-memory value after successful write
-            self.value = new_value;
-        }
     }
 
     /// Internal: verify that the new value matches what's in the source file
@@ -213,13 +139,6 @@ impl<T: Value + std::fmt::Debug> std::fmt::Debug for LiteralInner<T> {
     }
 }
 
-/// Check if we're running under cargo by looking for cargo-specific env vars
-fn is_running_under_cargo() -> bool {
-    std::env::var("CARGO").is_ok()
-        || std::env::var("CARGO_MANIFEST_DIR").is_ok()
-        || std::env::var("CARGO_PKG_NAME").is_ok()
-}
-
 /// A self-modifying value that holds a lock and can update its source code.
 ///
 /// This type wraps a `MutexGuard` to an [`LiteralInner<T>`] and provides
@@ -228,33 +147,24 @@ fn is_running_under_cargo() -> bool {
 /// Created via the [`literal!`](macro@crate::literal) macro. The lock is held
 /// for the entire lifetime of this value.
 ///
-/// # Example (write-on-drop with .value field)
+/// # Example (write-on-drop with `.literal` field)
 ///
 /// ```no_run
 /// use jeb_literal::literal;
 ///
 /// let mut counter = literal!(0u32);
-/// println!("Value: {}", *counter);  // Single deref
-/// counter.literal = *counter + 1;
-/// ```
-///
-/// # Example (write-on-drop with DerefMut)
-///
-/// ```no_run
-/// use jeb_literal::literal;
-///
-/// let mut counter = literal!(0u32);
-/// *counter += 1;  // Mutate directly
+/// println!("Value: {}", *counter);  // Single deref to read
+/// counter.literal = *counter + 1;   // Assign to public field
 /// // Value is automatically written on drop
 /// ```
 ///
-/// # Example (public .value field)
+/// # Example (write-on-drop with `DerefMut`)
 ///
 /// ```no_run
 /// use jeb_literal::literal;
 ///
 /// let mut counter = literal!(0u32);
-/// counter.literal = 42;  // Direct field assignment, no * needed
+/// *counter += 1;  // Mutate directly via DerefMut
 /// // Value is automatically written on drop
 /// ```
 
@@ -371,7 +281,7 @@ impl<T: Value + 'static> Drop for Literal<T> {
                 // In Write mode, update the source
                 if mode.can_write() {
                     // Check if we're running under cargo
-                    if !is_running_under_cargo() {
+                    if !crate::runtime::is_running_under_cargo() {
                         return;
                     }
 
@@ -406,19 +316,6 @@ impl<T: Value + 'static> std::borrow::Borrow<T> for Literal<T> {
 impl<T: Value + std::fmt::Display + 'static> std::fmt::Display for Literal<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.literal, f)
-    }
-}
-
-impl<T: Value + 'static> Clone for Literal<T> {
-    fn clone(&self) -> Self {
-        // Return another smart pointer to the SAME registry entry
-        use crate::LiteralPrivate;
-        Literal::__new(
-            self.guard.value.clone(),
-            self.guard.file.to_str().unwrap(),
-            self.guard.line,
-            self.guard.column,
-        )
     }
 }
 

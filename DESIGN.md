@@ -681,29 +681,32 @@ fn test_parse_response() {
 
 ## Future Directions
 
+### Implemented Features
+
+**1. Extension Trait (`LiteralExt`)** ✅
+- Provides `flush()` for immediate writes (vs waiting for drop)
+- Provides `path()`, `line()`, `column()`, `index()` for source location info
+- Opt-in via `use jeb_literal::LiteralExt;`
+- Also available as free functions: `jeb_literal::flush(&mut x)`
+
 ### Planned Features
 
-**1. Extension Trait for `.set()`**
-- Optional `LiteralExt` trait with explicit `.set()` method
-- Avoid auto-deref pollution while offering alternative syntax
-- Use case: Prefer `counter.set(42)` over `counter.literal = 42`
-
-**2. Serde Compatibility**
+**1. Serde Compatibility**
 - Support any `Serialize + Deserialize` type (beyond `Bake`)
 - Serialize to `ron` or `json`, embed in source as string literal
 - Broader type support at cost of less idiomatic Rust
 
-**3. File-Backed Literals**
+**2. File-Backed Literals**
 - Store snapshots in separate `.snap` files (like `insta` crate)
 - Stable identifiers independent of line numbers
 - Better for very large snapshots
 
-**4. Tooling Integration**
+**3. Tooling Integration**
 - `cargo-literal` command for reviewing snapshot changes
 - Interactive mode like `git add -p`
 - Diff viewer for changed snapshots
 
-**5. Incremental Parsing**
+**4. Incremental Parsing**
 - Track changed regions, reparse only affected spans
 - Avoid full file parse on every write
 - Significant perf win for large files

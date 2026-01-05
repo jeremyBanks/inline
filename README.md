@@ -113,6 +113,20 @@ Any type implementing `Bake + Clone + PartialEq` works with jeb-literal:
 
 Note: `Clone` is required for write-on-drop functionality. Values are compared using `PartialEq` to detect changes; `Bake` is only used for serialization.
 
+### Extension Trait
+
+The `LiteralExt` trait provides additional methods without polluting the inner type's namespace:
+
+```rust
+use jeb_literal::{literal, LiteralExt};
+
+let mut x = literal!(42);
+x.literal = 100;
+x.flush()?;  // Write immediately, don't wait for drop
+```
+
+Methods: `flush()`, `path()`, `line()`, `column()`, `index()`.
+
 ### Future Ideas
 
 **Serde Compatibility**: Add support for any type implementing `Serialize + Deserialize`, expanding beyond databake's current type coverage.
@@ -120,8 +134,6 @@ Note: `Clone` is required for write-on-drop functionality. Values are compared u
 **Tooling Integration**: A `cargo-literal` command for reviewing and accepting snapshot changes interactively, similar to `git add -p`.
 
 **File-Backed Literals**: Support external snapshot files for better organization and stability. This would provide stable identifiers independent of line numbers, but requires careful design around compile-time vs runtime tradeoffs.
-
-**Extension Trait for `.set()`**: Provide an opt-in `LiteralExt` trait with a `.set()` method for cases where direct field assignment isn't preferred. This would avoid polluting the method namespace via auto-deref while still offering explicit setter syntax when desired.
 
 ## Examples
 

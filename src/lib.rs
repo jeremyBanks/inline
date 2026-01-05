@@ -44,9 +44,10 @@
 //! # How It Works
 //!
 //! 1. The `literal!()` macro captures the source location
-//! 2. When `.set()` is called, the source file is parsed
-//! 3. Character-range splicing replaces only the macro's value
-//! 4. Original formatting is preserved
+//! 2. Mutations are detected on drop (comparing original vs current value)
+//! 3. The source file is parsed and the macro is located by stable index
+//! 4. Character-range splicing replaces only the macro's value
+//! 5. Original formatting is preserved
 
 // Compile-time check: write and no-write features are mutually exclusive
 #[cfg(all(feature = "write", feature = "no-write"))]
