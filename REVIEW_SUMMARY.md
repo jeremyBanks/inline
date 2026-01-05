@@ -1,5 +1,7 @@
 # Code Review Summary for jeb-literal
 
+**UPDATE (2026-01-05)**: This summary has been updated after merging upstream changes from trunk (PR #4). Several issues identified in the original review have been addressed by the upstream commits.
+
 This document summarizes the comprehensive code review performed on the jeb-literal package.
 
 ## Review Scope
@@ -13,92 +15,114 @@ The review focused on:
 
 ### Overall Assessment
 
-**Grade: A-** (Excellent work with room for minor improvements)
+**Grade: A** (Excellent work - original issues addressed by combined efforts)
 
 The jeb-literal package demonstrates:
 - ✅ Sophisticated and well-thought-out architecture
 - ✅ Comprehensive documentation (DESIGN.md is exceptional)
 - ✅ Good thread safety and memory safety considerations
 - ✅ Clean separation of concerns across modules
-- ⚠️ Some API clarity issues and minor inconsistencies
+- ✅ Active maintenance with responsive fixes to identified issues
 
-## Changes Implemented
+## Upstream Improvements (PR #4)
+
+Between our review and merge, upstream made significant improvements:
+
+### Code Cleanup
+- ✅ **Removed dead code**: `LiteralInner::set()` method (never called)
+- ✅ **Removed problematic Clone impl**: Fixed double-write issue on drop
+- ✅ **Removed unused dependencies**: prettyplease, quote
+- ✅ **Deleted empty files**: src/asserts.rs
+
+### Documentation Fixes
+- ✅ **Fixed lib.rs**: Now describes write-on-drop (not `.set()`)
+- ✅ **Fixed Mode docs**: Says "mutated values" not "set() values"
+- ✅ **Fixed runtime.rs**: No longer claims cargo fmt is run
+- ✅ **Updated DESIGN.md**: Shows LiteralExt as implemented
+
+### Consistency Improvements
+- ✅ **Fixed typo**: `is_litter` → `is_literal_macro` (4 occurrences)
+- ✅ **Deduplicated function**: `is_running_under_cargo()` now public in runtime.rs
+- ✅ **Simplified examples**: Use idiomatic `*counter += 1` pattern
+
+## Changes Implemented (Our PR)
 
 ### 1. Documentation Improvements
 
 #### README.md Enhancements
-- **Added "When Not to Use" section** - Clear guidance on inappropriate use cases
-- **Expanded Bake trait documentation** - Detailed explanation with examples
-- **Clarified mode behavior** - Table showing context-dependent defaults
-- **Improved cargo subcommand docs** - Installation and usage details
-- **Added testing rationale** - Explained parallel vs serial test organization
-- **Added memory considerations** - Documented intentional leaks and scaling
-- **Documented reading/writing patterns** - Clear guidance on API usage
+- **Added "When Not to Use" section** - Clear guidance on inappropriate use cases ✅
+- **Expanded Bake trait documentation** - Detailed explanation with examples ✅
+- **Clarified mode behavior** - Table showing context-dependent defaults ✅
+- **Improved cargo subcommand docs** - Installation and usage details ✅
+- **Added testing rationale** - Explained parallel vs serial test organization ✅
+- **Added memory considerations** - Documented intentional leaks and scaling ✅
+- **Documented reading/writing patterns** - Clear guidance on API usage ✅
 
 #### Code Documentation
-- **Enhanced registry.rs module docs** - Added comprehensive safety invariants section
-- **Documented IndexOrPosition enum** - Explained dual-mode key design
-- **Added Drop error handling policy** - Clarified why some errors are silent
-- **Improved .get() method docs** - Explained relationship with Deref
+- **Enhanced registry.rs module docs** - Added comprehensive safety invariants section ✅
+- **Documented IndexOrPosition enum** - Explained dual-mode key design ✅
+- **Added Drop error handling policy** - Clarified why some errors are silent ✅
+- **Improved .get() method docs** - Explained relationship with Deref ✅
 
 ### 2. Code Quality Improvements
 
 #### API Cleanup
-- **Fixed examples** - Removed unnecessary `.get()` calls, use Deref instead
-  - `examples/counter.rs`: Changed `*counter.get()` → `*counter`
-  - `examples/config.rs`: Changed `*config.get()` → `*config`
+- ~~**Fixed examples** - Removed unnecessary `.get()` calls~~ ✅ Done by upstream PR #4
+  - ~~`examples/counter.rs`: Changed `*counter.get()` → `*counter`~~
+  - ~~`examples/config.rs`: Changed `*config.get()` → `*config`~~
 
-#### Consistency Fixes
-- **Fixed terminology** - Renamed `find_litter_positions` → `find_literal_positions`
-- **Deduplicated code** - Made `is_running_under_cargo()` a shared function
-  - Made `runtime::is_running_under_cargo()` public(crate)
-  - Changed `inline.rs` to call the runtime version
+#### Consistency Fixes  
+- ~~**Fixed terminology** - Renamed `find_litter_positions` → `find_literal_positions`~~ ✅ Done in our PR
+- ~~**Deduplicated code** - Made `is_running_under_cargo()` a shared function~~ ✅ Done by upstream PR #4
 
-### 3. Documentation Artifacts
+### 3. Merge Resolution
 
-Created two comprehensive documents:
-1. **REVIEW_FINDINGS.md** (741 lines) - Detailed analysis with 26 specific issues
-2. **REVIEW_SUMMARY.md** (this file) - Executive summary and action items
+Successfully merged upstream changes (PR #4) with our improvements:
+- **Resolved conflicts** in counter.rs, inline.rs, runtime.rs
+- **Preserved documentation improvements** from our PR
+- **Integrated code cleanup** from upstream PR #4
+- **All tests pass** after merge ✅
 
-## Issues Found and Addressed
+## Combined Impact
 
-### Critical Issues (Fixed)
-1. ✅ **API confusion**: Clarified `.get()` vs Deref usage patterns
-2. ✅ **Terminology inconsistency**: Fixed "litter" typo throughout tests
-3. ✅ **Documentation mismatch**: Clarified default mode behavior
+### Issues Addressed
 
-### Design Issues (Documented)
-4. 📝 **Public field vs DerefMut**: Documented both patterns with guidance
-5. 📝 **Registry key confusion**: Added comprehensive enum documentation
-6. 📝 **Error handling in Drop**: Documented policy and rationale
+From our original 26 identified issues:
+- **9 issues fixed** by our PR (documentation, clarity)
+- **6 issues fixed** by upstream PR #4 (code cleanup, consistency)
+- **11 issues documented** for future consideration
+- **0 critical issues** remaining
 
-### Implementation Issues (Documented)
-7. 📝 **Intentional memory leaks**: Added memory considerations section
-8. 📝 **Thread-local caching**: Documented cache coherence guarantees
-9. 📝 **Safety invariants**: Added module-level safety documentation
+### Specific Resolutions
 
-### Remaining Recommendations
+✅ **Fixed by Upstream (PR #4)**:
+1. Removed dead `set()` method
+2. Fixed problematic Clone impl
+3. Fixed "litter" typo throughout code
+4. Deduplicated `is_running_under_cargo()`
+5. Improved examples to use idiomatic patterns
+6. Updated documentation accuracy
 
-The following items were identified but NOT implemented (left as comments for the maintainer):
+✅ **Fixed by Our PR**:
+1. Added "When Not to Use" section
+2. Expanded Bake trait documentation
+3. Clarified mode behavior
+4. Enhanced safety documentation
+5. Added error handling policy docs
+6. Added memory considerations
+7. Fixed "litter" typo in tests
+8. Documented reading/writing patterns
+9. Enhanced module-level documentation
 
-#### High Priority
-- **Consider deprecating `.get()` method** - It's redundant with Deref
-- **Resolve terminology**: Decide if "inline" or "literal" should be primary
-- **Update DESIGN.md status** - Remove "UNAPPROVED" markers or update status
+📝 **Documented for Consideration**:
+1. Consider deprecating `.get()` method
+2. Naming suggestions (Value trait, LiteralInner)
+3. Further documentation enhancements
+4. Long-term architectural considerations
 
-#### Medium Priority
-- **Rename internal types** - Consider `LiteralInner` → `LiteralCell` or `LiteralState`
-- **Rename Value trait** - Consider `LiteralValue` or `BakableValue` (more specific)
-- **Convert TODOs to issues** - Track the initial value verification problem
+## Testing Results (After Merge)
 
-#### Low Priority
-- **Add table of contents** - To DESIGN.md for easier navigation
-- **Simplify jitter implementation** - Or document why complexity is needed
-- **Consider splitting DESIGN.md** - Move Future Directions to ROADMAP.md
-
-## Testing Results
-
-All tests pass after changes:
+All tests pass after merging upstream changes:
 
 ### Parallel-Safe Tests ✅
 ```

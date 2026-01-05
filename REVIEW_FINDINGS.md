@@ -1,5 +1,7 @@
 # Code Review Findings for jeb-literal
 
+**UPDATE (2026-01-05)**: This document has been updated after merging upstream changes from trunk. Several issues identified in the original review have been addressed by upstream commits (PR #4), particularly around code cleanup and documentation improvements.
+
 This document contains a comprehensive review of the jeb-literal package, focusing on clarity of design, documentation, and implementation.
 
 ## Executive Summary
@@ -14,10 +16,18 @@ This document contains a comprehensive review of the jeb-literal package, focusi
 
 **Key Areas for Improvement**:
 - API confusion around `.get()` method usage
-- Inconsistent terminology (literal vs inline)
+- ~~Inconsistent terminology (literal vs inline)~~ ✅ **FIXED by upstream**
 - Some documentation/implementation mismatches
 - Error handling could be more consistent
 - Some naming choices could be clearer
+
+**Upstream Improvements (PR #4)**:
+- ✅ Removed dead code: `LiteralInner::set()` method
+- ✅ Removed problematic `Clone` impl for `Literal<T>`
+- ✅ Fixed "litter" → "literal_macro" typo in runtime.rs
+- ✅ Deduplicated `is_running_under_cargo()` function
+- ✅ Improved documentation accuracy throughout
+- ✅ Simplified examples to use idiomatic patterns
 
 ---
 
@@ -51,24 +61,27 @@ let current = *counter;
 
 ---
 
-### 2. Terminology Inconsistency: "inline" vs "literal"
+### 2. ~~Terminology Inconsistency: "inline" vs "literal"~~ ✅ **PARTIALLY FIXED**
 
 **Location**: Throughout codebase
 
-**Issue**: The repository is named "inline", but the crate is "jeb-literal". Internal files use "inline" (inline.rs, LiteralInner), but the public API uses "literal" (literal! macro, Literal<T>). Some test helper functions use "litter" instead of "literal".
+**Status**: The "litter" typo has been fixed by upstream (PR #4). The broader "inline" vs "literal" naming remains.
+
+**Issue**: The repository is named "inline", but the crate is "jeb-literal". Internal files use "inline" (inline.rs, LiteralInner), but the public API uses "literal" (literal! macro, Literal<T>).
 
 **Evidence**:
 - Repository: `jeremyBanks/inline`
 - Crate name: `jeb-literal`
 - Main struct: `Literal<T>` in `src/inline.rs`
-- Test function: `find_litter_positions` (typo for "literal"?)
+- ~~Test function: `find_litter_positions`~~ ✅ Fixed to `find_literal_positions` in tests (by our PR)
+- ~~Runtime: `is_litter` variable~~ ✅ Fixed to `is_literal_macro` (by upstream PR #4)
 
-**Impact**: MEDIUM - Causes confusion when navigating code and documentation.
+**Impact**: LOW - The typos are fixed. Remaining inconsistency (inline vs literal) is mostly cosmetic.
 
 **Recommendation**: 
-1. Choose one primary term and use consistently
-2. If "literal" is the public-facing term, consider renaming internal files
-3. Fix the typo "litter" → "literal" in tests
+1. ~~Fix the typo "litter" → "literal" in tests~~ ✅ DONE
+2. The "inline" vs "literal" split is less critical - it's reasonable to have internal vs external naming
+3. Document the naming convention if asked
 
 ---
 
@@ -576,18 +589,15 @@ tests. These files:
 
 ## Code Quality Issues
 
-### 21. Magic Numbers in Flush Configuration
+### 21. ~~Magic Numbers in Flush Configuration~~ 📝 **ADDRESSED**
 
 **Location**: src/flush.rs:10-11
 
-**Issue**: The exponential backoff parameters are defined as constants without explanation.
+**Status**: Documentation has been added in this PR explaining the choices.
 
-```rust
-const MIN_INTERVAL_MS: u64 = 64;
-const MAX_INTERVAL_MS: u64 = 2_097_152; // ~35 minutes (2^21 ms)
-```
+**Previous Issue**: The exponential backoff parameters were defined as constants without explanation.
 
-**Recommendation**: Add documentation explaining the choice:
+**Now Documented**:
 ```rust
 /// Minimum flush interval: 64ms
 ///
@@ -603,9 +613,11 @@ const MIN_INTERVAL_MS: u64 = 64;
 const MAX_INTERVAL_MS: u64 = 2_097_152;
 ```
 
+**Resolution**: Documentation added in this PR.
+
 ---
 
-### 22. Jitter Implementation Complexity
+### 22. ~~Jitter Implementation Complexity~~ ⚠️ **LOW PRIORITY**
 
 **Location**: src/flush.rs:127-161
 
@@ -620,22 +632,20 @@ const MAX_INTERVAL_MS: u64 = 2_097_152;
 
 ---
 
-### 23. Cargo Detection Duplication
+### 23. ~~Cargo Detection Duplication~~ ✅ **FIXED**
 
-**Location**: src/runtime.rs:12-16, src/inline.rs:217-221
+**Location**: ~~src/runtime.rs:12-16, src/inline.rs:217-221~~ 
 
-**Issue**: The `is_running_under_cargo()` function is duplicated in two places.
+**Status**: Fixed by both upstream PR #4 and our PR.
 
-**Recommendation**: Move to a common location or make one call the other:
-```rust
-// In runtime.rs, make it public(crate)
-pub(crate) fn is_running_under_cargo() -> bool {
-    // ... implementation
-}
+**Previous Issue**: The `is_running_under_cargo()` function was duplicated in two places.
 
-// In inline.rs, use the one from runtime
-use crate::runtime::is_running_under_cargo;
-```
+**Resolution**: 
+- Upstream PR #4 made the function public in runtime.rs
+- Our PR initially did the same (made it `pub(crate)`)
+- After merge: Function is now `pub` in runtime.rs and called from inline.rs
+
+✅ **COMPLETE**
 
 ---
 
