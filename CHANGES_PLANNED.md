@@ -62,5 +62,24 @@ This file tracks changes we plan to make to the implementation based on design r
 
 **Impact:** Earlier detection of snapshot mismatches, catches stale hardcoded values in tests
 
+### 5. Change Registry Key to Use (line, column) Instead of Index
+
+**Current:** Registry key is `(PathBuf, usize, TypeId)` where `usize` is the stable index
+**Planned:** Registry key is `(PathBuf, u32, u32, TypeId)` where the `u32`s are line and column
+
+**Rationale:**
+- Compile-time (line, column) from `file!()`, `line!()`, `column!()` never changes
+- Eliminates file parsing on reads - just hash map lookup
+- Stable index only needed when actually writing/verifying, resolved lazily
+
+**Changes needed:**
+- Update `RegistryKey` type definition
+- Remove index resolution from `get_or_create`
+- Lazy index resolution on first write/verify for a file
+- Build and cache (line, column) → stable index mapping per file
+- Use cached mapping for subsequent writes in the same file
+
+**Impact:** No file I/O on reads, faster literal access
+
 ---
 

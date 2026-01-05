@@ -152,7 +152,7 @@ pub struct Literal<T: Value + 'static> {
 ```rust
 static VALUE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, RegistryValue>>>
 
-type RegistryKey = (PathBuf, usize, TypeId);  // (file, index, type)
+type RegistryKey = (PathBuf, u32, u32, TypeId);  // (file, line, column, type)
 type RegistryValue = usize;  // Raw pointer to Box<Mutex<LiteralInner<T>>>
 ```
 
@@ -160,7 +160,9 @@ type RegistryValue = usize;  // Raw pointer to Box<Mutex<LiteralInner<T>>>
 - De-duplicate literals at the same source location
 - Provide `'static` lifetime through intentional memory leaks
 - Ensure type safety via `TypeId` in keys
-- Resolve (file, line, column) → stable index
+- Use compile-time (line, column) as identity (never changes)
+
+**Note:** Stable index resolution happens lazily on first write/verify, not during registry lookup.
 
 **Safety invariants:**
 - Pointers are never freed (intentional leak for `'static` lifetime)
@@ -227,11 +229,10 @@ User code: literal!(42u32)
     ↓
 Macro expansion: registry::get_or_create(42, file!(), line!(), column!())
     ↓
-Registry: Check for existing (file, index, TypeId) → found?
+Registry: Check for existing (file, line, column, TypeId) → found?
     ├─ YES → Return &'static Mutex<LiteralInner<T>>
-    └─ NO  → Runtime: resolve (line, col) → index via file parsing
-             Registry: Create Box<Mutex<LiteralInner<T>>>, leak for 'static
-             Registry: Insert into global map
+    └─ NO  → Create Box<Mutex<LiteralInner<T>>>, leak for 'static
+             Insert into global map with key (file, line, column, TypeId)
              Return &'static Mutex<LiteralInner<T>>
     ↓
 Macro: Call .lock() → MutexGuard<LiteralInner<T>>
@@ -240,6 +241,8 @@ Literal::from_guard(): Clone value twice (working + original)
     ↓
 Return Literal<T> to user
 ```
+
+**Note:** No file I/O occurs during reads. The registry uses compile-time (line, column) as identity.
 
 ### Write Path (Modifying a Literal)
 
