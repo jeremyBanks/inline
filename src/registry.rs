@@ -2,17 +2,19 @@
 //!
 //! This module provides a global registry that allows literal values to persist
 //! across function calls within the same execution. Each unique source location
-//! (file, line, column) and type gets exactly one shared value that lives for
+//! (file, stable_index) and type gets exactly one shared value that lives for
 //! the entire program lifetime.
 //!
 //! # Registry Key Stability
 //!
-//! The registry uses **(line, column)-based keys** `(file, line, column, TypeId)` where
-//! (line, column) come from compile-time `file!()`, `line!()`, `column!()` macros.
-//! These coordinates never change even when code is edited elsewhere.
+//! The registry uses **index-based keys** `(file, stable_index, TypeId)` where
+//! `stable_index` is the Nth literal in the file (0, 1, 2, ...). This index
+//! remains constant even when lines are inserted above the literal, enabling
+//! values to persist across source code edits.
 //!
-//! The stable index (Nth literal in file) is resolved lazily only when writing/verifying,
-//! not during registry lookup. This eliminates file I/O on reads.
+//! The stable index is resolved from compile-time `(line, column)` coordinates
+//! on first access to each file, with efficient caching to avoid repeated parsing.
+//! Within a single execution, this resolution happens at most once per file.
 //!
 //! # Implementation
 //!
@@ -35,26 +37,39 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-/// Type alias for the registry key: (file, line, column, type_id)
+/// Registry key that can represent either a stable index or a (line, column) position
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum IndexOrPosition {
+    /// Stable index (Nth literal in file) - preferred when file exists
+    Index(usize),
+    /// Fallback (line, column) position - used when file doesn't exist
+    Position(u32, u32),
+}
+
+/// Type alias for the registry key: (file, index_or_position, type_id)
 ///
-/// Uses compile-time (line, column) from file!(), line!(), column!() which never change.
-/// The stable index is resolved lazily only when writing/verifying.
-type RegistryKey = (PathBuf, u32, u32, TypeId);
+/// Prefers stable index when the file exists, which remains constant even when
+/// lines are inserted above the literal. Falls back to (line, column) position
+/// when the file doesn't exist (e.g., for testing or compiled binaries).
+type RegistryKey = (PathBuf, IndexOrPosition, TypeId);
 
 /// Type alias for the registry value: raw pointer as usize
 type RegistryValue = usize;
 
-/// Global registry mapping (file, line, column, type) to raw pointers.
+/// Global registry mapping (file, index_or_position, type) to raw pointers.
 ///
 /// Each entry is a `Box<Mutex<LiteralInner<T>>>` cast to `usize` for type erasure.
 /// The TypeId in the key ensures type safety when casting back.
+/// Uses stable index when file exists (values persist across line insertions),
+/// or (line, column) as fallback when file doesn't exist (for testing).
 static VALUE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, RegistryValue>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Get or create a static literal value at the given source location.
 ///
-/// Uses compile-time (file, line, column) as the registry key. No file I/O occurs
-/// during this call - the stable index is resolved lazily only when writing/verifying.
+/// Resolves the stable index from (line, column) on first access to a file,
+/// with efficient caching to avoid repeated parsing. The stable index ensures
+/// values persist even when lines are inserted above the literal.
 ///
 /// **Note:** This is an internal function called by the `literal!` macro.
 /// Users should use the macro instead.
@@ -65,14 +80,22 @@ pub fn get_or_create<T: Value + 'static>(
     line: u32,
     column: u32,
 ) -> &'static Mutex<LiteralInner<T>> {
-    // Build the registry key using compile-time (line, column)
-    // No file parsing needed - these coordinates never change
-    let key = (
-        PathBuf::from(file),
-        line,
-        column,
-        TypeId::of::<LiteralInner<T>>(),
-    );
+    // Try to resolve the stable index from (line, column)
+    // This parses the file once per file and caches the (line, column) → index mapping
+    // If the file doesn't exist (e.g., in tests or compiled binaries), fall back to (line, column)
+    let path = PathBuf::from(file);
+    let index_or_position = match crate::runtime::get_macro_index(&path, line, column) {
+        Ok(index) => IndexOrPosition::Index(index),
+        Err(_) => {
+            // File doesn't exist or can't be parsed - use (line, column) as fallback
+            // This allows literals to work in test scenarios with non-existent files
+            IndexOrPosition::Position(line, column)
+        }
+    };
+
+    // Build the registry key
+    // Prefers stable index for files that exist, falls back to (line, column) otherwise
+    let key = (path, index_or_position, TypeId::of::<LiteralInner<T>>());
 
     // Get or create the raw pointer in the registry
     let ptr_as_usize = {
