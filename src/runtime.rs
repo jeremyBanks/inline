@@ -39,12 +39,19 @@ impl Mode {
     }
 
     pub fn can_write(self) -> bool {
+        // If no-write feature is enabled, never allow writes
+        #[cfg(feature = "no-write")]
+        {
+            false
+        }
+
         // If write feature is disabled, Write mode behaves like Memory mode
-        #[cfg(feature = "write")]
+        #[cfg(all(not(feature = "no-write"), feature = "write"))]
         {
             matches!(self, Mode::Write)
         }
-        #[cfg(not(feature = "write"))]
+
+        #[cfg(all(not(feature = "no-write"), not(feature = "write")))]
         {
             false
         }
@@ -173,14 +180,18 @@ impl FileState {
     }
 
     /// Get a thread-local cached AST, re-parsing if the shared version has changed
+    ///
+    /// IMPORTANT: Always parses from disk_source (the original file content), not from
+    /// the modified source. This ensures compile-time (line, column) coordinates always
+    /// resolve against the original source, even after runtime modifications.
     fn get_cached_ast(&self) -> CachedAstResult {
         CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
 
-            // Get current version from shared state
+            // Get current version and DISK source from shared state
             let shared = self.shared.read();
             let current_version = shared.version;
-            let source = shared.source.clone();
+            let disk_source = shared.disk_source.clone();  // Parse from original, not modified source
             drop(shared); // Release read lock immediately
 
             // Check if we have a valid cached version
@@ -191,8 +202,9 @@ impl FileState {
                 }
             }
 
-            // Cache miss or stale - need to re-parse
-            let ast = syn::parse_file(&source).map_err(|e| {
+            // Cache miss or stale - need to re-parse from ORIGINAL disk source
+            // This ensures (line, column) coordinates always match the original file
+            let ast = syn::parse_file(&disk_source).map_err(|e| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("Failed to parse Rust file: {}", e),

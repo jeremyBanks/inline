@@ -48,6 +48,10 @@
 //! 3. Character-range splicing replaces only the macro's value
 //! 4. Original formatting is preserved
 
+// Compile-time check: write and no-write features are mutually exclusive
+#[cfg(all(feature = "write", feature = "no-write"))]
+compile_error!("Features 'write' and 'no-write' are mutually exclusive. Enable only one.");
+
 mod literal;
 mod inline;
 pub mod runtime;

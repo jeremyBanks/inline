@@ -7,7 +7,7 @@ fn test_static_persistence_same_value() {
 
     // Calling the macro from the same line should give the same underlying value
     fn get_value() -> jeb_literal::Literal<u32> {
-        literal!(100u32)  // Always the same source location
+        literal!(42u32)  // Always the same source location
     }
 
     let mut val1 = get_value();
@@ -28,7 +28,7 @@ fn test_static_persistence_value_mutation() {
     env::set_var("LITERAL_MODE", "memory");
 
     fn get_counter() -> jeb_literal::Literal<u32> {
-        literal!(100u32)  // Always same source location
+        literal!(1u32)  // Always same source location
     }
 
     let mut val = get_counter();
@@ -96,7 +96,7 @@ fn test_static_persistence_thread_safety() {
 
     // Helper function to ensure all threads access the same source location
     fn get_counter() -> jeb_literal::Literal<u32> {
-        literal!(1000u32)
+        literal!(0u32)
     }
 
     // Spawn multiple threads that all access the same static value

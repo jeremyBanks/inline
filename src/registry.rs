@@ -102,7 +102,7 @@ pub fn get_or_create<T: Value + 'static>(
         let mut registry = VALUE_REGISTRY.lock();
         *registry.entry(key).or_insert_with(|| {
             // Create a new boxed value and leak it for 'static lifetime
-            let mut inner = LiteralInner::new(initial.clone(), file, line, column);
+            let inner = LiteralInner::new(initial.clone(), file, line, column);
 
             // TODO: Initial value verification disabled due to false positives
             // When databake serializes values like vec![1,2,3], it produces alloc::vec![1,2,3,]
