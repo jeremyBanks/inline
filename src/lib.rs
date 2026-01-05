@@ -31,8 +31,8 @@
 //!
 //! # Supported Types
 //!
-//! Any type implementing `Bake` from the [`databake`](https://docs.rs/databake) crate
-//! can be used with literal values.
+//! Any type implementing `Bake + Clone + PartialEq` can be used with literal values.
+//! See the [`databake`](https://docs.rs/databake) crate for types that implement `Bake`.
 //!
 //! # Safety and Limitations
 //!

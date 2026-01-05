@@ -64,7 +64,7 @@ value.literal = 100u32;
 
 jeb-literal has four modes, controlled by the `LITERAL_MODE` environment variable:
 
-- **Write** (default outside tests): Changes are written back to source files
+- **Write** (default outside tests when running under cargo): Changes are written back to source files
 - **Verify** (default in tests): Validates that values round-trip correctly
 - **Memory** (`LITERAL_MODE=memory`): Changes in memory only, no file writes
 - **Reject** (`LITERAL_MODE=reject`): Rejects any write attempts, always fails
@@ -96,7 +96,7 @@ This is equivalent to `LITERAL_MODE=write cargo test` but easier to remember and
 2. Values implement the `Bake` trait from [databake](https://docs.rs/databake) for serialization
 3. The registry uses **index-based keys** (Nth literal in file) for stability across line insertions
 4. When mutated (via `.literal =` field or `DerefMut`), jeb-literal:
-   - Detects the change (by comparing baked tokens)
+   - Detects the change (using `PartialEq`)
    - Parses the source file
    - Finds the macro by its stable index
    - Uses character-range splicing to replace only the macro's value
@@ -104,14 +104,14 @@ This is equivalent to `LITERAL_MODE=write cargo test` but easier to remember and
 
 ## Supported Types
 
-Any type implementing `Bake + Clone` works with jeb-literal:
+Any type implementing `Bake + Clone + PartialEq` works with jeb-literal:
 
 - Primitives: `u32`, `i64`, `f32`, `bool`, etc.
 - Strings: `String`, `&str`
 - Collections: `Vec<T>`, arrays, tuples
 - And more via databake's built-in implementations
 
-Note: `Clone` is required for write-on-drop functionality. Values are compared by their baked representation (tokens), not by `PartialEq`.
+Note: `Clone` is required for write-on-drop functionality. Values are compared using `PartialEq` to detect changes; `Bake` is only used for serialization.
 
 ### Future Ideas
 
