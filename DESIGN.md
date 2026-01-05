@@ -257,7 +257,7 @@ Field assignment: self.literal = 42 (in-memory only)
     ↓
 Drop::drop(&mut self)
     ↓
-Compare: original.bake() == literal.bake()?
+Compare: original == literal?
     ├─ YES → No-op, return early
     └─ NO  → Continue to write logic
         ↓
