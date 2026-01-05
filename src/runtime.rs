@@ -8,11 +8,11 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Check if we're running under cargo by looking for cargo-specific env vars
+/// Check if we're running under cargo by looking for cargo-specific env vars.
 ///
-/// This is used to determine the default mode and whether writes should be allowed.
-/// Returns true if any of the standard cargo environment variables are set.
-pub(crate) fn is_running_under_cargo() -> bool {
+/// Returns `true` if any of CARGO, CARGO_MANIFEST_DIR, or CARGO_PKG_NAME
+/// environment variables are set, indicating the program was launched via cargo.
+pub fn is_running_under_cargo() -> bool {
     env::var("CARGO").is_ok()
         || env::var("CARGO_MANIFEST_DIR").is_ok()
         || env::var("CARGO_PKG_NAME").is_ok()
@@ -20,8 +20,8 @@ pub(crate) fn is_running_under_cargo() -> bool {
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum Mode {
-    /// Reads source files and verifies set() values match what's written
-    /// Panics if there's a mismatch (snapshot testing behavior)
+    /// Reads source files and verifies mutated values match what's in source.
+    /// Panics if there's a mismatch (snapshot testing behavior).
     /// DEFAULT IN TESTS
     Verify,
     /// Actually writes changes to source files
@@ -241,13 +241,13 @@ impl FileState {
 
         impl<'ast> Visit<'ast> for IndexBuilder {
             fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-                let is_litter = if let Some(segment) = node.mac.path.segments.last() {
+                let is_literal_macro = if let Some(segment) = node.mac.path.segments.last() {
                     segment.ident == "literal"
                 } else {
                     false
                 };
 
-                if is_litter {
+                if is_literal_macro {
                     let span = node.mac.path.segments.last().unwrap().ident.span();
                     let start = span.start();
                     let pos = (start.line as u32, start.column as u32);
@@ -259,13 +259,13 @@ impl FileState {
             }
 
             fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
-                let is_litter = if let Some(segment) = node.mac.path.segments.last() {
+                let is_literal_macro = if let Some(segment) = node.mac.path.segments.last() {
                     segment.ident == "literal"
                 } else {
                     false
                 };
 
-                if is_litter {
+                if is_literal_macro {
                     let span = node.mac.path.segments.last().unwrap().ident.span();
                     let start = span.start();
                     let pos = (start.line as u32, start.column as u32);
@@ -389,13 +389,13 @@ impl FileState {
 
         impl SpanFinder {
             fn try_find_span(&mut self, mac: &syn::Macro) {
-                let is_litter = if let Some(segment) = mac.path.segments.last() {
+                let is_literal_macro = if let Some(segment) = mac.path.segments.last() {
                     segment.ident == "literal"
                 } else {
                     false
                 };
 
-                if is_litter {
+                if is_literal_macro {
                     if self.current_index == self.target_index {
                         // Found our target! Extract the line/column span of the tokens
                         if !mac.tokens.is_empty() {
@@ -519,8 +519,9 @@ impl FileState {
             .ok_or_else(|| format!("Could not find literal! macro at index {}", index))
     }
 
-    /// Write the current shared source to disk
-    /// Then runs cargo fmt on the file to match project's rustfmt.toml
+    /// Write the current shared source to disk.
+    ///
+    /// Character-range splicing preserves the original formatting, so no reformatting is needed.
     ///
     /// IMPORTANT: Before writing, this verifies the file hasn't been modified by another process.
     /// If the file on disk differs from our expected state, this panics to prevent data loss.
@@ -587,13 +588,13 @@ impl IndexedMacroReader {
             return;
         }
 
-        let is_litter = if let Some(segment) = mac.path.segments.last() {
+        let is_literal_macro = if let Some(segment) = mac.path.segments.last() {
             segment.ident == "literal"
         } else {
             false
         };
 
-        if is_litter {
+        if is_literal_macro {
             if self.current_index == self.target_index {
                 // Found our target!
                 self.tokens = Some(mac.tokens.clone());

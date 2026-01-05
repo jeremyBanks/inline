@@ -14,8 +14,8 @@ fn main() {
 
     println!("This program has been run {} times", *counter + 1);
 
-    let current = *counter;
-    counter.literal = current + 1;
+    // Increment the counter - written to source on drop
+    *counter += 1;
 
     println!("\nThe counter has been updated in the source code!");
     println!("Run this program again to see it increment.");
