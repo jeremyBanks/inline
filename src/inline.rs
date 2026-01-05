@@ -21,8 +21,10 @@ pub struct LiteralInner<T: Value> {
 }
 
 impl<T: Value> LiteralInner<T> {
-    /// Create a new LiteralInner instance (called by the registry)
-    /// Does NOT fail if the source file doesn't exist - that's only an error if you call set()
+    /// Create a new LiteralInner instance (called by the registry).
+    ///
+    /// Does NOT fail if the source file doesn't exist - that's only an error
+    /// when writing (on drop or explicit flush).
     pub(crate) fn new(value: T, file: &str, line: u32, column: u32) -> Self {
         LiteralInner {
             value,
@@ -115,7 +117,7 @@ impl<T: Value> LiteralInner<T> {
         // In Write mode: write changes to disk
         if mode.can_write() {
             // Check if we're running under cargo
-            if !is_running_under_cargo() {
+            if !crate::runtime::is_running_under_cargo() {
                 panic!(
                     "Cannot write to source files outside of cargo environment!\n\
                      File: {}:{}:{}\n\
@@ -213,13 +215,6 @@ impl<T: Value + std::fmt::Debug> std::fmt::Debug for LiteralInner<T> {
     }
 }
 
-/// Check if we're running under cargo by looking for cargo-specific env vars
-fn is_running_under_cargo() -> bool {
-    std::env::var("CARGO").is_ok()
-        || std::env::var("CARGO_MANIFEST_DIR").is_ok()
-        || std::env::var("CARGO_PKG_NAME").is_ok()
-}
-
 /// A self-modifying value that holds a lock and can update its source code.
 ///
 /// This type wraps a `MutexGuard` to an [`LiteralInner<T>`] and provides
@@ -228,33 +223,24 @@ fn is_running_under_cargo() -> bool {
 /// Created via the [`literal!`](macro@crate::literal) macro. The lock is held
 /// for the entire lifetime of this value.
 ///
-/// # Example (write-on-drop with .value field)
+/// # Example (write-on-drop with `.literal` field)
 ///
 /// ```no_run
 /// use jeb_literal::literal;
 ///
 /// let mut counter = literal!(0u32);
-/// println!("Value: {}", *counter);  // Single deref
-/// counter.literal = *counter + 1;
-/// ```
-///
-/// # Example (write-on-drop with DerefMut)
-///
-/// ```no_run
-/// use jeb_literal::literal;
-///
-/// let mut counter = literal!(0u32);
-/// *counter += 1;  // Mutate directly
+/// println!("Value: {}", *counter);  // Single deref to read
+/// counter.literal = *counter + 1;   // Assign to public field
 /// // Value is automatically written on drop
 /// ```
 ///
-/// # Example (public .value field)
+/// # Example (write-on-drop with `DerefMut`)
 ///
 /// ```no_run
 /// use jeb_literal::literal;
 ///
 /// let mut counter = literal!(0u32);
-/// counter.literal = 42;  // Direct field assignment, no * needed
+/// *counter += 1;  // Mutate directly via DerefMut
 /// // Value is automatically written on drop
 /// ```
 
@@ -371,7 +357,7 @@ impl<T: Value + 'static> Drop for Literal<T> {
                 // In Write mode, update the source
                 if mode.can_write() {
                     // Check if we're running under cargo
-                    if !is_running_under_cargo() {
+                    if !crate::runtime::is_running_under_cargo() {
                         return;
                     }
 
@@ -410,8 +396,12 @@ impl<T: Value + std::fmt::Display + 'static> std::fmt::Display for Literal<T> {
 }
 
 impl<T: Value + 'static> Clone for Literal<T> {
+    /// Clone returns a new `Literal<T>` pointing to the SAME registry entry.
+    ///
+    /// **Note:** Both the original and cloned `Literal` will attempt to write
+    /// on drop if mutated. If both are mutated independently, the last one to
+    /// drop will overwrite the other's changes.
     fn clone(&self) -> Self {
-        // Return another smart pointer to the SAME registry entry
         use crate::LiteralPrivate;
         Literal::__new(
             self.guard.value.clone(),
