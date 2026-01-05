@@ -11,13 +11,13 @@ use std::path::PathBuf;
 /// wrapper returned by the `literal!` macro instead.
 #[doc(hidden)]
 pub struct LiteralInner<T: Value> {
-    value: T,
-    file: PathBuf,
-    line: u32,
-    column: u32,
+    pub(crate) value: T,
+    pub(crate) file: PathBuf,
+    pub(crate) line: u32,
+    pub(crate) column: u32,
     /// Stable index into the file's literal macros (resolved lazily)
     /// This never changes even if line numbers shift!
-    macro_index: Option<usize>,
+    pub(crate) macro_index: Option<usize>,
 }
 
 impl<T: Value> LiteralInner<T> {
@@ -173,7 +173,7 @@ impl<T: Value> LiteralInner<T> {
     }
 
     /// Internal: update the source file with the new value
-    fn update_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
+    pub(crate) fn update_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
         // Index must be resolved by now
         let index = self
             .macro_index
@@ -257,10 +257,24 @@ fn is_running_under_cargo() -> bool {
 /// counter.literal = 42;  // Direct field assignment, no * needed
 /// // Value is automatically written on drop
 /// ```
+
+/// Private trait for internal methods that shouldn't pollute the namespace.
+///
+/// This trait contains methods that are only meant to be called by the macro
+/// or internal library code. By making them trait methods, we completely avoid
+/// name collisions even with `__` prefixed names.
+#[doc(hidden)]
+pub trait LiteralPrivate<T: Value + 'static> {
+    /// Create a new Literal value (internal use only, called by macro).
+    ///
+    /// **Note:** For testing only. Leaks the file path string.
+    fn __new(value: T, file: &str, line: u32, column: u32) -> Self;
+}
+
 pub struct Literal<T: Value + 'static> {
     /// The current literal value. Mutating this field triggers write-on-drop.
     pub literal: T,
-    guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
+    pub(crate) guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
     /// Clone of the original value when this Literal was created.
     /// Used in Drop to detect mutations.
     original: T,
@@ -276,25 +290,20 @@ impl<T: Value + 'static> Literal<T> {
         Literal { literal, guard, original }
     }
 
-    /// Create a new Literal value for testing purposes
-    ///
-    /// This is equivalent to calling the macro, but allows specifying
-    /// custom file/line/column values for testing.
-    ///
-    /// **Note:** For testing only. Leaks the file path string.
-    #[doc(hidden)]
-    pub fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
-        // Leak the string to get 'static lifetime (acceptable for tests)
-        let file_static: &'static str = Box::leak(file.to_string().into_boxed_str());
-        let mutex_ref = crate::registry::get_or_create(value, file_static, line, column);
-        Literal::from_guard(mutex_ref.lock())
-    }
-
     /// Get a reference to the current value
     ///
     /// Same as dereferencing, but explicit.
     pub fn get(&self) -> &T {
         &self.literal
+    }
+}
+
+impl<T: Value + 'static> LiteralPrivate<T> for Literal<T> {
+    fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
+        // Leak the string to get 'static lifetime (acceptable for tests)
+        let file_static: &'static str = Box::leak(file.to_string().into_boxed_str());
+        let mutex_ref = crate::registry::get_or_create(value, file_static, line, column);
+        Literal::from_guard(mutex_ref.lock())
     }
 }
 
@@ -317,7 +326,10 @@ impl<T: Value + 'static> Drop for Literal<T> {
         // Check if the value was mutated (via DerefMut or direct .literal assignment)
         // Compare using PartialEq
         if self.original != self.literal {
-            // Value was mutated, trigger write
+            // Value was mutated - mark as dirty for background flush
+            crate::dirty::mark_dirty(&self.guard.file, self.guard.line, self.guard.column);
+
+            // Trigger write based on mode
             let mode = crate::runtime::get_mode();
 
             // In Memory mode, update the guard but don't write to disk
@@ -367,10 +379,46 @@ impl<T: Value + 'static> Drop for Literal<T> {
                     self.guard.value = self.literal.clone();
 
                     // Silently ignore errors in drop - we can't panic or return an error
-                    let _ = self.guard.update_source(&self.guard.value);
+                    if self.guard.update_source(&self.guard.value).is_ok() {
+                        // Clear dirty flag after successful write
+                        crate::dirty::clear_dirty(&self.guard.file, self.guard.line, self.guard.column);
+                    }
                 }
             }
         }
+    }
+}
+
+// Blanket trait implementations to make Literal<T> transparent
+
+impl<T: Value + 'static> AsRef<T> for Literal<T> {
+    fn as_ref(&self) -> &T {
+        &self.literal
+    }
+}
+
+impl<T: Value + 'static> std::borrow::Borrow<T> for Literal<T> {
+    fn borrow(&self) -> &T {
+        &self.literal
+    }
+}
+
+impl<T: Value + std::fmt::Display + 'static> std::fmt::Display for Literal<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.literal, f)
+    }
+}
+
+impl<T: Value + 'static> Clone for Literal<T> {
+    fn clone(&self) -> Self {
+        // Return another smart pointer to the SAME registry entry
+        use crate::LiteralPrivate;
+        Literal::__new(
+            self.guard.value.clone(),
+            self.guard.file.to_str().unwrap(),
+            self.guard.line,
+            self.guard.column,
+        )
     }
 }
 

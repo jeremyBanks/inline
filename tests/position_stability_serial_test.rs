@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use tempfile::TempDir;
+use jeb_literal::LiteralPrivate;
 
 #[test]
 fn test_multiple_updates_same_litter() {

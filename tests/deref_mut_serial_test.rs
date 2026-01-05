@@ -3,6 +3,7 @@
 //! Verifies that mutating through DerefMut triggers automatic writes on drop
 
 use std::env;
+use jeb_literal::LiteralPrivate;
 use std::fs;
 use tempfile::TempDir;
 

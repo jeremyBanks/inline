@@ -3,6 +3,8 @@
 //! These tests verify that literal values persist across line insertions,
 //! which is the critical behavior enabled by index-based registry keys.
 
+use jeb_literal::LiteralPrivate;
+
 use std::env;
 use std::fs;
 use tempfile::TempDir;

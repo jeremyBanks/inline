@@ -3,6 +3,7 @@
 //! Verifies that literal!() with no arguments uses Default::default()
 
 use std::env;
+use jeb_literal::LiteralPrivate;
 use std::fs;
 use tempfile::TempDir;
 

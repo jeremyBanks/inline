@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use tempfile::TempDir;
+use jeb_literal::LiteralPrivate;
 
 /// Helper to find all literal! macro positions in a file
 fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {

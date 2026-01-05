@@ -54,9 +54,15 @@ compile_error!("Features 'write' and 'no-write' are mutually exclusive. Enable o
 
 mod literal;
 mod inline;
+mod dirty;
+mod ext;
+mod flush;
 pub mod runtime;
 pub mod registry;
 
 pub use literal::*;
 pub use inline::*;
 pub use runtime::*;
+pub use ext::*;
+pub use flush::{flush_all, start_background_flush};
+pub use dirty::{has_dirty_literals, dirty_count};

@@ -2,6 +2,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
+use jeb_literal::LiteralPrivate;
 
 /// Helper to create a test file with Rust source code
 struct TestFile {

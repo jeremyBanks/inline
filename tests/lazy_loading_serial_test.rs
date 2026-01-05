@@ -1,4 +1,5 @@
 use std::env;
+use jeb_literal::LiteralPrivate;
 
 #[test]
 fn test_lazy_loading_allows_missing_files_on_read() {
