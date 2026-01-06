@@ -69,7 +69,7 @@ This makes the library work with any function name, aliases, or qualified paths.
 | Before (Macro) | After (Function) |
 |----------------|------------------|
 | `literal!(42u32)` | `literal(42u32)` |
-| `literal!()` | Not supported (always requires argument) |
+| `literal!()` | `literal_default::<T>()` |
 
 ## Benefits
 

@@ -363,3 +363,27 @@ pub fn literal<T: Value + 'static>(value: T) -> Literal<T> {
         loc.column(),
     ).lock())
 }
+
+/// Create a self-modifying value initialized with its default value.
+///
+/// This is equivalent to `literal(T::default())` but more concise for types
+/// that implement `Default`.
+///
+/// # Example
+///
+/// ```no_run
+/// use jeb_literal::literal_default;
+///
+/// let mut counter = literal_default::<u32>();
+/// // Equivalent to: literal(0u32)
+/// ```
+#[track_caller]
+pub fn literal_default<T: Value + Default + 'static>() -> Literal<T> {
+    let loc = std::panic::Location::caller();
+    Literal::from_guard(crate::registry::get_or_create(
+        T::default(),
+        loc.file(),
+        loc.line(),
+        loc.column(),
+    ).lock())
+}
