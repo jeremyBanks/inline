@@ -210,9 +210,7 @@ impl<T: Value + 'static> Literal<T> {
 
 impl<T: Value + 'static> LiteralPrivate<T> for Literal<T> {
     fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
-        // Leak the string to get 'static lifetime (acceptable for tests)
-        let file_static: &'static str = Box::leak(file.to_string().into_boxed_str());
-        let mutex_ref = crate::registry::get_or_create(value, file_static, line, column);
+        let mutex_ref = crate::registry::get_or_create_at(value, file, line, column);
         Literal::from_guard(mutex_ref.lock())
     }
 }
@@ -355,13 +353,7 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 /// The same underlying value is returned for all calls from the same source location.
 #[track_caller]
 pub fn literal<T: Value + 'static>(value: T) -> Literal<T> {
-    let loc = std::panic::Location::caller();
-    Literal::from_guard(crate::registry::get_or_create(
-        value,
-        loc.file(),
-        loc.line(),
-        loc.column(),
-    ).lock())
+    Literal::from_guard(crate::registry::get_or_create(value).lock())
 }
 
 /// Create a self-modifying value initialized with its default value.
@@ -379,11 +371,5 @@ pub fn literal<T: Value + 'static>(value: T) -> Literal<T> {
 /// ```
 #[track_caller]
 pub fn literal_default<T: Value + Default + 'static>() -> Literal<T> {
-    let loc = std::panic::Location::caller();
-    Literal::from_guard(crate::registry::get_or_create(
-        T::default(),
-        loc.file(),
-        loc.line(),
-        loc.column(),
-    ).lock())
+    Literal::from_guard(crate::registry::get_or_create(T::default()).lock())
 }

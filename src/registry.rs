@@ -71,12 +71,27 @@ static VALUE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, RegistryValue>>> =
 /// with efficient caching to avoid repeated parsing. The stable index ensures
 /// values persist even when lines are inserted above the literal.
 ///
-/// **Note:** This is an internal function called by the `literal!` macro.
-/// Users should use the macro instead.
+/// Uses `#[track_caller]` to automatically capture the call site location.
+///
+/// **Note:** This is an internal function called by `literal()` and `literal_default()`.
+/// Users should use those functions instead.
 #[doc(hidden)]
+#[track_caller]
 pub fn get_or_create<T: Value + 'static>(
     initial: T,
-    file: &'static str,
+) -> &'static Mutex<LiteralInner<T>> {
+    let loc = std::panic::Location::caller();
+    get_or_create_at(initial, loc.file(), loc.line(), loc.column())
+}
+
+/// Get or create a static literal value at an explicit source location.
+///
+/// This is the internal implementation that takes explicit location parameters.
+/// Used by tests that need to specify synthetic file locations.
+#[doc(hidden)]
+pub fn get_or_create_at<T: Value + 'static>(
+    initial: T,
+    file: &str,
     line: u32,
     column: u32,
 ) -> &'static Mutex<LiteralInner<T>> {
