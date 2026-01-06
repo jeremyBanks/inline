@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 use tempfile::TempDir;
-use jeb_literal::LiteralPrivate;
+use code_cell::CodeCellPrivate;
 
 #[test]
 fn test_long_vec_causes_line_wrapping() {
@@ -10,15 +10,15 @@ fn test_long_vec_causes_line_wrapping() {
 
     // Start with SHORT values
     let original = r#"fn main() {
-    let a = literal(vec![1u32, 2u32]);
-    let b = literal(100u32);
+    let a = code_cell(vec![1u32, 2u32]);
+    let b = code_cell(100u32);
 }
 "#;
     fs::write(&path, original).unwrap();
     println!("=== ORIGINAL ===");
     println!("{}", original);
 
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("CODE_CELL_MODE", "write");
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
@@ -30,12 +30,12 @@ fn test_long_vec_causes_line_wrapping() {
 
     // Create inline for the vector
     let mut litter_a =
-        jeb_literal::Literal::__new(vec![1u32, 2u32], path.to_str().unwrap(), a_line, a_col);
+        code_cell::CodeCell::__new(vec![1u32, 2u32], path.to_str().unwrap(), a_line, a_col);
 
     // Update to a REALLY LONG vector that will definitely wrap
     let long_vec: Vec<u32> = (0..100).collect();
     println!("\n=== UPDATING A TO LONG VECTOR (0..100) ===");
-    litter_a.literal = long_vec;
+    litter_a.value = long_vec;
 
     let content = fs::read_to_string(&path).unwrap();
     println!("{}", content);
@@ -65,7 +65,7 @@ fn test_long_vec_causes_line_wrapping() {
 
         // Try to update B using the OLD position - this tests the index-based approach
         {
-            let mut litter_b = jeb_literal::Literal::__new(
+            let mut litter_b = code_cell::CodeCell::__new(
                 100u32,
                 path.to_str().unwrap(),
                 b_line, // OLD position from initial parse
@@ -73,7 +73,7 @@ fn test_long_vec_causes_line_wrapping() {
             );
 
             println!("\n=== UPDATING B USING ORIGINAL POSITION (index-based lookup) ===");
-            litter_b.literal = 999u32;
+            litter_b.value = 999u32;
             // Drop happens here - triggers write
         }
 
@@ -82,7 +82,7 @@ fn test_long_vec_causes_line_wrapping() {
         println!("\n=== FINAL FILE CONTENT ===");
         println!("{}", final_content);
 
-        if final_content.contains("literal(999u32)") {
+        if final_content.contains("code_cell(999u32)") {
             println!("\n✅ SUCCESS! Index-based approach works even when line numbers shift!");
             println!(
                 "The original position (line {}) was mapped to a stable index,",
@@ -93,7 +93,7 @@ fn test_long_vec_causes_line_wrapping() {
                 positions_after[1].0
             );
         } else {
-            println!("❌ Failed to update B! Expected to find literal(999u32)");
+            println!("❌ Failed to update B! Expected to find code_cell(999u32)");
             panic!("Index-based approach failed!");
         }
     } else {
@@ -101,21 +101,21 @@ fn test_long_vec_causes_line_wrapping() {
         println!("Let's still verify the index-based approach works by updating B");
 
         {
-            let mut litter_b = jeb_literal::Literal::__new(100u32, path.to_str().unwrap(), b_line, b_col);
+            let mut litter_b = code_cell::CodeCell::__new(100u32, path.to_str().unwrap(), b_line, b_col);
 
-            litter_b.literal = 999u32;
+            litter_b.value = 999u32;
             // Drop happens here - triggers write
         }
 
         let final_content = fs::read_to_string(&path).unwrap();
         assert!(
-            final_content.contains("literal(999u32)"),
+            final_content.contains("code_cell(999u32)"),
             "Should update B successfully"
         );
         println!("✅ B updated successfully");
     }
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("CODE_CELL_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
@@ -132,7 +132,7 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
             if let syn::Expr::Call(call) = node {
                 if let syn::Expr::Path(path) = &*call.func {
                     if let Some(segment) = path.path.segments.last() {
-                        if segment.ident == "literal" {
+                        if segment.ident == "code_cell" {
                             let span = segment.ident.span();
                             let start = span.start();
                             self.positions

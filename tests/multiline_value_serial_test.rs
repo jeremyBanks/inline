@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 use tempfile::TempDir;
-use jeb_literal::LiteralPrivate;
+use code_cell::CodeCellPrivate;
 
 #[test]
 fn test_very_long_value_formatting() {
@@ -12,15 +12,15 @@ fn test_very_long_value_formatting() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = literal(1u32);
-    let b = literal(2u32);
+    let a = code_cell(1u32);
+    let b = code_cell(2u32);
 }
 "#;
     fs::write(&path, original).unwrap();
     println!("=== ORIGINAL ===");
     println!("{}", original);
 
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("CODE_CELL_MODE", "write");
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
@@ -29,10 +29,10 @@ fn test_very_long_value_formatting() {
     println!("Initial: a at line {}, b at line {}", a_line, b_line);
 
     // Create a very large number (will this cause line wrapping?)
-    let mut litter_a = jeb_literal::Literal::__new(1u32, path.to_str().unwrap(), a_line, a_col);
+    let mut litter_a = code_cell::CodeCell::__new(1u32, path.to_str().unwrap(), a_line, a_col);
 
     // Update to maximum u32 value
-    litter_a.literal = 4294967295u32;
+    litter_a.value = 4294967295u32;
 
     println!("\n=== AFTER UPDATING A TO MAX U32 ===");
     let content = fs::read_to_string(&path).unwrap();
@@ -56,7 +56,7 @@ fn test_very_long_value_formatting() {
         println!("\n✓ Line numbers stable even with large value");
     }
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("CODE_CELL_MODE");
 }
 
 #[test]
@@ -67,15 +67,15 @@ fn test_tuple_value_formatting() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = literal((1u32, 2u32, 3u32));
-    let b = literal(100u32);
+    let a = code_cell((1u32, 2u32, 3u32));
+    let b = code_cell(100u32);
 }
 "#;
     fs::write(&path, original).unwrap();
     println!("=== ORIGINAL ===");
     println!("{}", original);
 
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("CODE_CELL_MODE", "write");
 
     let positions = find_all_positions(&path);
     let (a_line, a_col) = positions[0];
@@ -84,10 +84,10 @@ fn test_tuple_value_formatting() {
     println!("Initial: a at line {}, b at line {}", a_line, b_line);
 
     let mut litter_a =
-        jeb_literal::Literal::__new((1u32, 2u32, 3u32), path.to_str().unwrap(), a_line, a_col);
+        code_cell::CodeCell::__new((1u32, 2u32, 3u32), path.to_str().unwrap(), a_line, a_col);
 
     // Update to different tuple
-    litter_a.literal = (999u32, 888u32, 777u32);
+    litter_a.value = (999u32, 888u32, 777u32);
 
     println!("\n=== AFTER UPDATING TUPLE ===");
     let content = fs::read_to_string(&path).unwrap();
@@ -107,7 +107,7 @@ fn test_tuple_value_formatting() {
 
     println!("\n✓ Line numbers stable with tuple values");
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("CODE_CELL_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
@@ -124,7 +124,7 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
             if let syn::Expr::Call(call) = node {
                 if let syn::Expr::Path(path) = &*call.func {
                     if let Some(segment) = path.path.segments.last() {
-                        if segment.ident == "literal" {
+                        if segment.ident == "code_cell" {
                             let span = segment.ident.span();
                             let start = span.start();
                             self.positions

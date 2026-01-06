@@ -1,4 +1,4 @@
-use crate::literal::Value;
+use crate::value::Value;
 use std::ops::Deref;
 use std::path::PathBuf;
 
@@ -7,10 +7,10 @@ use std::path::PathBuf;
 /// This type wraps a value and provides the ability to update both the
 /// in-memory value and its representation in the source code file.
 ///
-/// **Note:** This is an internal type. Users should interact with the [`Literal`]
-/// wrapper returned by the [`literal()`] function instead.
+/// **Note:** This is an internal type. Users should interact with the [`CodeCell`]
+/// wrapper returned by the [`code_cell()`] function instead.
 #[doc(hidden)]
-pub struct LiteralInner<T: Value> {
+pub struct CodeCellInner<T: Value> {
     pub(crate) value: T,
     pub(crate) file: PathBuf,
     pub(crate) line: u32,
@@ -20,13 +20,13 @@ pub struct LiteralInner<T: Value> {
     pub(crate) literal_index: Option<usize>,
 }
 
-impl<T: Value> LiteralInner<T> {
-    /// Create a new LiteralInner instance (called by the registry).
+impl<T: Value> CodeCellInner<T> {
+    /// Create a new CodeCellInner instance (called by the registry).
     ///
     /// Does NOT fail if the source file doesn't exist - that's only an error
     /// when writing (on drop or explicit flush).
     pub(crate) fn new(value: T, file: &str, line: u32, column: u32) -> Self {
-        LiteralInner {
+        CodeCellInner {
             value,
             file: PathBuf::from(file),
             line,
@@ -119,7 +119,7 @@ impl<T: Value> LiteralInner<T> {
     }
 }
 
-impl<T: Value> Deref for LiteralInner<T> {
+impl<T: Value> Deref for CodeCellInner<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -127,9 +127,9 @@ impl<T: Value> Deref for LiteralInner<T> {
     }
 }
 
-impl<T: Value + std::fmt::Debug> std::fmt::Debug for LiteralInner<T> {
+impl<T: Value + std::fmt::Debug> std::fmt::Debug for CodeCellInner<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LiteralInner")
+        f.debug_struct("CodeCellInner")
             .field("value", &self.value)
             .field("file", &self.file)
             .field("line", &self.line)
@@ -141,99 +141,98 @@ impl<T: Value + std::fmt::Debug> std::fmt::Debug for LiteralInner<T> {
 
 /// A self-modifying value that holds a lock and can update its source code.
 ///
-/// This type wraps a `MutexGuard` to an [`LiteralInner<T>`] and provides
+/// This type wraps a `MutexGuard` to a [`CodeCellInner<T>`] and provides
 /// convenient access to the value with a single dereference.
 ///
-/// Created via the [`literal!`](macro@crate::literal) macro. The lock is held
-/// for the entire lifetime of this value.
+/// Created via the [`code_cell()`] function. The lock is held for the entire
+/// lifetime of this value.
 ///
-/// # Example (write-on-drop with `.literal` field)
+/// # Example (write-on-drop with `.value` field)
 ///
 /// ```no_run
-/// use jeb_literal::literal;
+/// use code_cell::code_cell;
 ///
-/// let mut counter = literal!(0u32);
+/// let mut counter = code_cell(0u32);
 /// println!("Value: {}", *counter);  // Single deref to read
-/// counter.literal = *counter + 1;   // Assign to public field
+/// counter.value = *counter + 1;     // Assign to public field
 /// // Value is automatically written on drop
 /// ```
 ///
 /// # Example (write-on-drop with `DerefMut`)
 ///
 /// ```no_run
-/// use jeb_literal::literal;
+/// use code_cell::code_cell;
 ///
-/// let mut counter = literal!(0u32);
+/// let mut counter = code_cell(0u32);
 /// *counter += 1;  // Mutate directly via DerefMut
 /// // Value is automatically written on drop
 /// ```
 
 /// Private trait for internal methods that shouldn't pollute the namespace.
 ///
-/// This trait contains methods that are only meant to be called by the macro
-/// or internal library code. By making them trait methods, we completely avoid
-/// name collisions even with `__` prefixed names.
+/// This trait contains methods that are only meant to be called internally.
+/// By making them trait methods, we completely avoid name collisions.
 #[doc(hidden)]
-pub trait LiteralPrivate<T: Value + 'static> {
-    /// Create a new Literal value (internal use only, called by macro).
+pub trait CodeCellPrivate<T: Value + 'static> {
+    /// Create a new CodeCell (internal use only, for testing).
     ///
-    /// **Note:** For testing only. Leaks the file path string.
+    /// **Note:** For testing only.
     fn __new(value: T, file: &str, line: u32, column: u32) -> Self;
 }
 
-pub struct Literal<T: Value + 'static> {
-    /// The current literal value. Mutating this field triggers write-on-drop.
-    pub literal: T,
-    pub(crate) guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
-    /// Clone of the original value when this Literal was created.
+pub struct CodeCell<T: Value + 'static> {
+    /// The current value. Mutating this field triggers write-on-drop.
+    pub value: T,
+    pub(crate) guard: parking_lot::MutexGuard<'static, CodeCellInner<T>>,
+    /// Clone of the original value when this CodeCell was created.
     /// Used in Drop to detect mutations.
     original: T,
 }
 
-impl<T: Value + 'static> Literal<T> {
-    /// Create an Literal wrapper from a mutex guard
+impl<T: Value + 'static> CodeCell<T> {
+    /// Create a CodeCell wrapper from a mutex guard
     #[doc(hidden)]
-    pub fn from_guard(guard: parking_lot::MutexGuard<'static, LiteralInner<T>>) -> Self {
+    pub fn from_guard(guard: parking_lot::MutexGuard<'static, CodeCellInner<T>>) -> Self {
         // Clone the value twice: once for working copy, once for change detection
-        let literal = guard.value.clone();
+        let value = guard.value.clone();
         let original = guard.value.clone();
-        Literal { literal, guard, original }
+        CodeCell { value, guard, original }
     }
 
     /// Get a reference to the current value
     ///
     /// Same as dereferencing, but explicit.
     pub fn get(&self) -> &T {
-        &self.literal
+        &self.value
     }
 }
 
-impl<T: Value + 'static> LiteralPrivate<T> for Literal<T> {
-    fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
-        let mutex_ref = crate::registry::get_or_create_at(value, file, line, column);
-        Literal::from_guard(mutex_ref.lock())
+impl<T: Value + 'static> CodeCellPrivate<T> for CodeCell<T> {
+    fn __new(init: T, file: &str, line: u32, column: u32) -> Self {
+        let mutex_ref = crate::registry::get_or_create_at(init, file, line, column);
+        CodeCell::from_guard(mutex_ref.lock())
     }
 }
 
-impl<T: Value + 'static> Deref for Literal<T> {
+impl<T: Value + 'static> Deref for CodeCell<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.literal
+        &self.value
     }
 }
 
-impl<T: Value + 'static> std::ops::DerefMut for Literal<T> {
+impl<T: Value + 'static> std::ops::DerefMut for CodeCell<T> {
     fn deref_mut(&mut self) -> &mut T {
-        &mut self.literal
+        &mut self.value
     }
 }
 
-impl<T: Value + 'static> Drop for Literal<T> {
+impl<T: Value + 'static> Drop for CodeCell<T> {
     fn drop(&mut self) {
-        // Check if the value was mutated (via DerefMut or direct .literal assignment)
+        // Check if the value was mutated (via DerefMut or direct .value assignment)
         // Compare using PartialEq
-        if self.original != self.literal {
+        if self.original != self.value {
             // Value was mutated - mark as dirty for background flush
             crate::dirty::mark_dirty(&self.guard.file, self.guard.line, self.guard.column);
 
@@ -242,7 +241,7 @@ impl<T: Value + 'static> Drop for Literal<T> {
 
             // In Memory mode, update the guard but don't write to disk
             if mode == crate::runtime::Mode::Memory {
-                self.guard.value = self.literal.clone();
+                self.guard.value = self.value.clone();
                 return;
             }
 
@@ -261,12 +260,12 @@ impl<T: Value + 'static> Drop for Literal<T> {
 
                 // In Verify mode, verify that the value matches the source
                 if mode == crate::runtime::Mode::Verify {
-                    // Sync the public literal field back to guard for verification
-                    self.guard.value = self.literal.clone();
+                    // Sync the public value field back to guard for verification
+                    self.guard.value = self.value.clone();
                     // Verify - this may panic if there's a mismatch
                     if let Err(e) = self.guard.verify_source(&self.guard.value) {
                         panic!(
-                            "Literal verification failed at {}:{}:{}\\n{}",
+                            "CodeCell verification failed at {}:{}:{}\\n{}",
                             self.guard.file.display(),
                             self.guard.line,
                             self.guard.column,
@@ -283,8 +282,8 @@ impl<T: Value + 'static> Drop for Literal<T> {
                         return;
                     }
 
-                    // Sync the public literal field back to the guard before writing
-                    self.guard.value = self.literal.clone();
+                    // Sync the public value field back to the guard before writing
+                    self.guard.value = self.value.clone();
 
                     // Silently ignore errors in drop - we can't panic or return an error
                     if self.guard.update_source(&self.guard.value).is_ok() {
@@ -297,30 +296,30 @@ impl<T: Value + 'static> Drop for Literal<T> {
     }
 }
 
-// Blanket trait implementations to make Literal<T> transparent
+// Blanket trait implementations to make CodeCell<T> transparent
 
-impl<T: Value + 'static> AsRef<T> for Literal<T> {
+impl<T: Value + 'static> AsRef<T> for CodeCell<T> {
     fn as_ref(&self) -> &T {
-        &self.literal
+        &self.value
     }
 }
 
-impl<T: Value + 'static> std::borrow::Borrow<T> for Literal<T> {
+impl<T: Value + 'static> std::borrow::Borrow<T> for CodeCell<T> {
     fn borrow(&self) -> &T {
-        &self.literal
+        &self.value
     }
 }
 
-impl<T: Value + std::fmt::Display + 'static> std::fmt::Display for Literal<T> {
+impl<T: Value + std::fmt::Display + 'static> std::fmt::Display for CodeCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.literal, f)
+        std::fmt::Display::fmt(&self.value, f)
     }
 }
 
-impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
+impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for CodeCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Literal")
-            .field("literal", &self.literal)
+        f.debug_struct("CodeCell")
+            .field("value", &self.value)
             .finish()
     }
 }
@@ -328,17 +327,17 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 /// Create a self-modifying value that can update its source code.
 ///
 /// This function captures the source location using `#[track_caller]` and
-/// returns a [`Literal<T>`] that holds a lock to the underlying value.
+/// returns a [`CodeCell<T>`] that holds a lock to the underlying value.
 /// The lock is held until the value is dropped.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use jeb_literal::literal;
+/// use code_cell::code_cell;
 ///
-/// let mut counter = literal(0u32);
+/// let mut counter = code_cell(0u32);
 /// let current = *counter;  // Single dereference
-/// counter.literal = current + 1;
+/// counter.value = current + 1;
 /// // In Write mode, the source file is updated
 /// // Lock is released when counter goes out of scope
 /// ```
@@ -349,27 +348,27 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 ///
 /// # Returns
 ///
-/// A [`Literal<T>`] that holds the lock and derefs to `&T`.
+/// A [`CodeCell<T>`] that holds the lock and derefs to `&T`.
 /// The same underlying value is returned for all calls from the same source location.
 #[track_caller]
-pub fn literal<T: Value + 'static>(value: T) -> Literal<T> {
-    Literal::from_guard(crate::registry::get_or_create(value).lock())
+pub fn code_cell<T: Value + 'static>(value: T) -> CodeCell<T> {
+    CodeCell::from_guard(crate::registry::get_or_create(value).lock())
 }
 
 /// Create a self-modifying value initialized with its default value.
 ///
-/// This is equivalent to `literal(T::default())` but more concise for types
+/// This is equivalent to `code_cell(T::default())` but more concise for types
 /// that implement `Default`.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use jeb_literal::literal_default;
+/// use code_cell::code_cell_default;
 ///
-/// let mut counter = literal_default::<u32>();
-/// // Equivalent to: literal(0u32)
+/// let mut counter = code_cell_default::<u32>();
+/// // Equivalent to: code_cell(0u32)
 /// ```
 #[track_caller]
-pub fn literal_default<T: Value + Default + 'static>() -> Literal<T> {
-    Literal::from_guard(crate::registry::get_or_create(T::default()).lock())
+pub fn code_cell_default<T: Value + Default + 'static>() -> CodeCell<T> {
+    CodeCell::from_guard(crate::registry::get_or_create(T::default()).lock())
 }

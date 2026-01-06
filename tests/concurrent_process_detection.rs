@@ -16,7 +16,7 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
             if let syn::Expr::Call(call) = node {
                 if let syn::Expr::Path(path) = &*call.func {
                     if let Some(segment) = path.path.segments.last() {
-                        if segment.ident == "literal" {
+                        if segment.ident == "code_cell" {
                             let span = segment.ident.span();
                             let start = span.start();
                             self.positions
@@ -38,7 +38,7 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
 #[should_panic(expected = "CONCURRENT MODIFICATION DETECTED")]
 fn test_detects_external_file_modification() {
     let test_code = r#"fn example() {
-    let x = literal(42);
+    let x = code_cell(42);
 }
 "#;
 
@@ -49,26 +49,26 @@ fn test_detects_external_file_modification() {
     // Load the file into inline's state
     let positions = find_litter_positions(&test_file);
     let _index =
-        jeb_literal::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
+        code_cell::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
 
     // Simulate another process modifying the file
     // (In reality, this would be a different process, but we can simulate it)
     let modified_code = r#"fn example() {
-    let x = literal(999);
+    let x = code_cell(999);
 }
 "#;
     fs::write(&test_file, modified_code).unwrap();
 
     // Now try to write - this should panic because the file was modified externally
     let new_tokens: proc_macro2::TokenStream = "100".parse().unwrap();
-    jeb_literal::runtime::update_macro_by_index(&test_file, 0, new_tokens).unwrap();
-    jeb_literal::runtime::write_to_disk(&test_file).unwrap(); // Should panic here
+    code_cell::runtime::update_macro_by_index(&test_file, 0, new_tokens).unwrap();
+    code_cell::runtime::write_to_disk(&test_file).unwrap(); // Should panic here
 }
 
 #[test]
 fn test_no_panic_when_no_concurrent_modification() {
     let test_code = r#"fn example() {
-    let x = literal(42);
+    let x = code_cell(42);
 }
 "#;
 
@@ -79,12 +79,12 @@ fn test_no_panic_when_no_concurrent_modification() {
     // Load the file
     let positions = find_litter_positions(&test_file);
     let _index =
-        jeb_literal::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
+        code_cell::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
 
     // Modify through inline - should work fine
     let new_tokens: proc_macro2::TokenStream = "100".parse().unwrap();
-    jeb_literal::runtime::update_macro_by_index(&test_file, 0, new_tokens).unwrap();
-    jeb_literal::runtime::write_to_disk(&test_file).unwrap(); // Should succeed
+    code_cell::runtime::update_macro_by_index(&test_file, 0, new_tokens).unwrap();
+    code_cell::runtime::write_to_disk(&test_file).unwrap(); // Should succeed
 
     // Verify the write happened
     let content = fs::read_to_string(&test_file).unwrap();
@@ -94,7 +94,7 @@ fn test_no_panic_when_no_concurrent_modification() {
 #[test]
 fn test_multiple_writes_without_external_modification() {
     let test_code = r#"fn example() {
-    let x = literal(42);
+    let x = code_cell(42);
 }
 "#;
 
@@ -105,17 +105,17 @@ fn test_multiple_writes_without_external_modification() {
     // Load the file
     let positions = find_litter_positions(&test_file);
     let _index =
-        jeb_literal::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
+        code_cell::runtime::get_macro_index(&test_file, positions[0].0, positions[0].1).unwrap();
 
     // First write
     let tokens1: proc_macro2::TokenStream = "100".parse().unwrap();
-    jeb_literal::runtime::update_macro_by_index(&test_file, 0, tokens1).unwrap();
-    jeb_literal::runtime::write_to_disk(&test_file).unwrap();
+    code_cell::runtime::update_macro_by_index(&test_file, 0, tokens1).unwrap();
+    code_cell::runtime::write_to_disk(&test_file).unwrap();
 
     // Second write - should work because we track the disk state after the first write
     let tokens2: proc_macro2::TokenStream = "200".parse().unwrap();
-    jeb_literal::runtime::update_macro_by_index(&test_file, 0, tokens2).unwrap();
-    jeb_literal::runtime::write_to_disk(&test_file).unwrap();
+    code_cell::runtime::update_macro_by_index(&test_file, 0, tokens2).unwrap();
+    code_cell::runtime::write_to_disk(&test_file).unwrap();
 
     // Verify the final write
     let content = fs::read_to_string(&test_file).unwrap();

@@ -3,7 +3,7 @@
 //! These tests verify that literal values persist across line insertions,
 //! which is the critical behavior enabled by index-based registry keys.
 
-use jeb_literal::LiteralPrivate;
+use code_cell::CodeCellPrivate;
 
 use std::env;
 use std::fs;
@@ -19,13 +19,13 @@ fn test_value_persists_across_line_insertions() {
 
     // Original file with a single literal at line 2
     let original = r#"fn main() {
-    let counter = literal(0u32);
+    let counter = code_cell(0u32);
     println!("Counter: {}", *counter);
 }
 "#;
     fs::write(&path, original).unwrap();
 
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("CODE_CELL_MODE", "write");
 
     // Find the literal's initial position
     let positions = find_all_literal_positions(&path);
@@ -38,7 +38,7 @@ fn test_value_persists_across_line_insertions() {
     println!("{}", original);
 
     // Create the literal and set it to a new value
-    let mut counter = jeb_literal::Literal::__new(
+    let mut counter = code_cell::CodeCell::__new(
         0u32,
         path.to_str().unwrap(),
         initial_line,
@@ -46,14 +46,14 @@ fn test_value_persists_across_line_insertions() {
     );
 
     println!("\n=== SETTING VALUE TO 42 ===");
-    counter.literal = 42u32;
+    counter.value = 42u32;
     drop(counter); // Release the lock
 
     // Verify the file was updated
     let after_set = fs::read_to_string(&path).unwrap();
     println!("{}", after_set);
     assert!(
-        after_set.contains("literal(42u32)"),
+        after_set.contains("code_cell(42u32)"),
         "File should contain the updated value"
     );
 
@@ -71,14 +71,14 @@ fn test_value_persists_across_line_insertions() {
 // Line 9
 // Line 10
 fn main() {
-    let counter = literal(42u32);
+    let counter = code_cell(42u32);
     println!("Counter: {}", *counter);
 }
 "#;
     fs::write(&path, modified).unwrap();
 
     // Clear the file state cache so the runtime re-parses the file
-    jeb_literal::clear_file_state_cache();
+    code_cell::clear_file_state_cache();
 
     println!("{}", modified);
 
@@ -99,7 +99,7 @@ fn main() {
     // and return our value of 42, not reset to the initial value of 0
     println!("\n=== ACCESSING LITERAL AT NEW POSITION ===");
     let counter_after_shift =
-        jeb_literal::Literal::__new(0u32, path.to_str().unwrap(), new_line, new_col);
+        code_cell::CodeCell::__new(0u32, path.to_str().unwrap(), new_line, new_col);
 
     let value = *counter_after_shift;
     println!("Value after line shift: {}", value);
@@ -117,7 +117,7 @@ fn main() {
     println!("  But its value remained 42 (not reset to 0)");
     println!("  This proves index-based registry keys are working!");
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("CODE_CELL_MODE");
 }
 
 #[test]
@@ -129,14 +129,14 @@ fn test_multiple_literals_maintain_distinct_identities() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = literal(10u32);
-    let b = literal(20u32);
-    let c = literal(30u32);
+    let a = code_cell(10u32);
+    let b = code_cell(20u32);
+    let c = code_cell(30u32);
 }
 "#;
     fs::write(&path, original).unwrap();
 
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("CODE_CELL_MODE", "write");
 
     // Find all three literals
     let positions = find_all_literal_positions(&path);
@@ -152,14 +152,14 @@ fn test_multiple_literals_maintain_distinct_identities() {
     println!("C: line {}, col {}", c_line, c_col);
 
     // Create and set all three literals to different values
-    let mut lit_a = jeb_literal::Literal::__new(10u32, path.to_str().unwrap(), a_line, a_col);
-    let mut lit_b = jeb_literal::Literal::__new(20u32, path.to_str().unwrap(), b_line, b_col);
-    let mut lit_c = jeb_literal::Literal::__new(30u32, path.to_str().unwrap(), c_line, c_col);
+    let mut lit_a = code_cell::CodeCell::__new(10u32, path.to_str().unwrap(), a_line, a_col);
+    let mut lit_b = code_cell::CodeCell::__new(20u32, path.to_str().unwrap(), b_line, b_col);
+    let mut lit_c = code_cell::CodeCell::__new(30u32, path.to_str().unwrap(), c_line, c_col);
 
     println!("\n=== SETTING UNIQUE VALUES ===");
-    lit_a.literal = 111u32;
-    lit_b.literal = 222u32;
-    lit_c.literal = 333u32;
+    lit_a.value = 111u32;
+    lit_b.value = 222u32;
+    lit_c.value = 333u32;
     drop(lit_a);
     drop(lit_b);
     drop(lit_c);
@@ -167,18 +167,18 @@ fn test_multiple_literals_maintain_distinct_identities() {
     // Insert lines between A and B
     println!("\n=== INSERTING LINES BETWEEN A AND B ===");
     let modified = r#"fn main() {
-    let a = literal(111u32);
+    let a = code_cell(111u32);
     // Extra line 1
     // Extra line 2
     // Extra line 3
-    let b = literal(222u32);
-    let c = literal(333u32);
+    let b = code_cell(222u32);
+    let c = code_cell(333u32);
 }
 "#;
     fs::write(&path, modified).unwrap();
 
     // Clear the file state cache so the runtime re-parses the file
-    jeb_literal::clear_file_state_cache();
+    code_cell::clear_file_state_cache();
 
     // Find new positions
     let new_positions = find_all_literal_positions(&path);
@@ -195,11 +195,11 @@ fn test_multiple_literals_maintain_distinct_identities() {
 
     // Access each literal at its new position
     let lit_a_after =
-        jeb_literal::Literal::__new(10u32, path.to_str().unwrap(), new_a_line, new_a_col);
+        code_cell::CodeCell::__new(10u32, path.to_str().unwrap(), new_a_line, new_a_col);
     let lit_b_after =
-        jeb_literal::Literal::__new(20u32, path.to_str().unwrap(), new_b_line, new_b_col);
+        code_cell::CodeCell::__new(20u32, path.to_str().unwrap(), new_b_line, new_b_col);
     let lit_c_after =
-        jeb_literal::Literal::__new(30u32, path.to_str().unwrap(), new_c_line, new_c_col);
+        code_cell::CodeCell::__new(30u32, path.to_str().unwrap(), new_c_line, new_c_col);
 
     // Verify each maintained its unique value
     assert_eq!(
@@ -220,7 +220,7 @@ fn test_multiple_literals_maintain_distinct_identities() {
     println!("  B: 222 (shifted from line {} to {})", b_line, new_b_line);
     println!("  C: 333 (shifted from line {} to {})", c_line, new_c_line);
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("CODE_CELL_MODE");
 }
 
 #[test]
@@ -232,12 +232,12 @@ fn test_index_resolution_is_consistent() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let x = literal(100u32);
+    let x = code_cell(100u32);
 }
 "#;
     fs::write(&path, original).unwrap();
 
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("CODE_CELL_MODE", "write");
 
     // Get initial position
     let positions = find_all_literal_positions(&path);
@@ -247,20 +247,20 @@ fn test_index_resolution_is_consistent() {
     println!("Line {}, column {}", line1, col1);
 
     // Resolve the index directly
-    let index1 = jeb_literal::runtime::get_macro_index(&path, line1, col1).unwrap();
+    let index1 = code_cell::runtime::get_macro_index(&path, line1, col1).unwrap();
     println!("Resolved to index: {}", index1);
 
     // Modify the file to shift the literal
     let modified = r#"// New comment
 // Another comment
 fn main() {
-    let x = literal(100u32);
+    let x = code_cell(100u32);
 }
 "#;
     fs::write(&path, modified).unwrap();
 
     // Clear the file state cache so the runtime re-parses the file
-    jeb_literal::clear_file_state_cache();
+    code_cell::clear_file_state_cache();
 
     // Get new position
     let new_positions = find_all_literal_positions(&path);
@@ -270,7 +270,7 @@ fn main() {
     println!("Line {}, column {}", line2, col2);
 
     // Resolve the index again
-    let index2 = jeb_literal::runtime::get_macro_index(&path, line2, col2).unwrap();
+    let index2 = code_cell::runtime::get_macro_index(&path, line2, col2).unwrap();
     println!("Resolved to index: {}", index2);
 
     // THE TEST: Both should resolve to the same index
@@ -286,10 +286,10 @@ fn main() {
     println!("  Position changed: line {} -> {}", line1, line2);
     println!("  But index remained: {}", index1);
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("CODE_CELL_MODE");
 }
 
-/// Helper function to find all literal() call positions in a file
+/// Helper function to find all code_cell() call positions in a file
 fn find_all_literal_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
     let source = fs::read_to_string(path).unwrap();
     let ast = syn::parse_file(&source).unwrap();
@@ -304,7 +304,7 @@ fn find_all_literal_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
             if let syn::Expr::Call(call) = node {
                 if let syn::Expr::Path(path) = &*call.func {
                     if let Some(segment) = path.path.segments.last() {
-                        if segment.ident == "literal" {
+                        if segment.ident == "code_cell" {
                             let span = segment.ident.span();
                             let start = span.start();
                             self.positions

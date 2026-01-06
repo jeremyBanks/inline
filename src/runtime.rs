@@ -29,10 +29,10 @@ pub enum Mode {
     /// DEFAULT OUTSIDE TESTS (self-modifying code!)
     Write,
     /// Changes in memory only, never writes to disk
-    /// Must be explicitly enabled via LITERAL_MODE=memory
+    /// Must be explicitly enabled via CODE_CELL_MODE=memory
     Memory,
     /// Rejects any attempt to write, always fails
-    /// Must be explicitly enabled via LITERAL_MODE=reject
+    /// Must be explicitly enabled via CODE_CELL_MODE=reject
     Reject,
 }
 
@@ -85,26 +85,26 @@ impl Mode {
 
 /// Get the current mode by checking environment variable
 ///
-/// Modes (set via LITERAL_MODE environment variable):
+/// Modes (set via CODE_CELL_MODE environment variable):
 /// - "verify": Verify values match source (DEFAULT IN TESTS)
 /// - "write": Write changes to source files (DEFAULT OUTSIDE TESTS)
 /// - "memory": Changes in memory only (opt-in only)
 /// - "reject": Reject any write attempts (opt-in only)
 ///
 /// Examples:
-///   LITERAL_MODE=write cargo test     # Update all snapshots
+///   CODE_CELL_MODE=write cargo test     # Update all snapshots
 ///   cargo test                        # Verify snapshots (default in tests)
 ///   cargo run                         # Self-modifying mode (default outside tests)
-///   LITERAL_MODE=memory cargo run     # Run without file writes
+///   CODE_CELL_MODE=memory cargo run     # Run without file writes
 pub fn get_mode() -> Mode {
-    if let Ok(mode_str) = env::var("LITERAL_MODE") {
+    if let Ok(mode_str) = env::var("CODE_CELL_MODE") {
         return match mode_str.to_lowercase().as_str() {
             "write" | "update" => Mode::Write,
             "verify" => Mode::Verify,
             "memory" => Mode::Memory,
             "reject" => Mode::Reject,
             _ => {
-                eprintln!("Warning: Unknown LITERAL_MODE='{}', using default. Valid: write, verify, memory, reject", mode_str);
+                eprintln!("Warning: Unknown CODE_CELL_MODE='{}', using default. Valid: write, verify, memory, reject", mode_str);
                 Mode::default_for_context()
             }
         };
