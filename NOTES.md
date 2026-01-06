@@ -43,6 +43,27 @@ for AST scanning.
 - Column matching works correctly for function calls
 - All core tests pass
 
+## Position-Based Matching (Improved)
+
+Initially, the AST scanning code filtered by function name (`segment.ident == "literal"`).
+This was fragile because:
+- Name collisions with other functions named `literal`
+- Aliases (`use literal as foo; foo(42)`)
+- Qualified paths (`crate::literal()`, `inline::literal()`)
+
+**Solution:** Match by exact position only, not by name.
+
+The key insight: `#[track_caller]` gives us the exact (line, column) of the call site.
+Whatever function call is at that position IS our call - guaranteed because we called it.
+We don't need to filter by name at all.
+
+Changes in `src/runtime.rs`:
+- `build_index_map()` - indexes ALL `ExprCall` by position, not just ones named "literal"
+- `find_literal_arg_span_static()` - finds the Nth call expression, not the Nth "literal" call
+- `IndexedLiteralReader` - reads the Nth call expression's argument
+
+This makes the library work with any function name, aliases, or qualified paths.
+
 ## API Change
 
 | Before (Macro) | After (Function) |

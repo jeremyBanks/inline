@@ -239,25 +239,14 @@ impl FileState {
             current_index: usize,
         }
 
-        impl IndexBuilder {
-            /// Check if an expression is a call to `literal`
-            fn is_literal_call(expr: &syn::Expr) -> Option<proc_macro2::Span> {
-                if let syn::Expr::Call(call) = expr {
-                    if let syn::Expr::Path(path) = &*call.func {
-                        if let Some(segment) = path.path.segments.last() {
-                            if segment.ident == "literal" {
-                                return Some(segment.ident.span());
-                            }
-                        }
-                    }
-                }
-                None
-            }
-        }
-
         impl<'ast> Visit<'ast> for IndexBuilder {
             fn visit_expr(&mut self, node: &'ast syn::Expr) {
-                if let Some(span) = Self::is_literal_call(node) {
+                // Index ALL function calls by position - we match by exact position,
+                // not by name. The position from #[track_caller] is guaranteed to be
+                // correct because it's the actual call site.
+                if let syn::Expr::Call(call) = node {
+                    use syn::spanned::Spanned;
+                    let span = call.func.span();
                     let start = span.start();
                     let pos = (start.line as u32, start.column as u32);
                     self.map.insert(pos, self.current_index);
@@ -276,11 +265,11 @@ impl FileState {
         builder.map
     }
 
-    /// Get the stable index for a literal() call at the given position
+    /// Get the stable index for a function call at the given position
     ///
     /// Note: column matching is flexible because Location::caller().column()
     /// returns the start of the function call. We match on line and find the
-    /// closest literal() call on that line.
+    /// closest function call on that line.
     pub fn get_index(&self, line: u32, column: u32) -> Result<usize, io::Error> {
         let (_, position_to_index) = self.get_cached_ast()?;
 
@@ -289,7 +278,7 @@ impl FileState {
             return Ok(index);
         }
 
-        // If no exact match, find all literal calls on the same line
+        // If no exact match, find all function calls on the same line
         let calls_on_line: Vec<_> = position_to_index
             .iter()
             .filter(|((l, _c), _idx)| *l == line)
@@ -299,7 +288,7 @@ impl FileState {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!(
-                    "No literal() call found on line {} in {}",
+                    "No function call found on line {} in {}",
                     line,
                     self.path.display()
                 ),
@@ -387,38 +376,19 @@ impl FileState {
             span: Option<(proc_macro2::LineColumn, proc_macro2::LineColumn)>,
         }
 
-        impl SpanFinder {
-            /// Check if an expression is a call to `literal`
-            fn is_literal_call(expr: &syn::Expr) -> bool {
-                if let syn::Expr::Call(call) = expr {
-                    if let syn::Expr::Path(path) = &*call.func {
-                        if let Some(segment) = path.path.segments.last() {
-                            return segment.ident == "literal";
-                        }
-                    }
-                }
-                false
-            }
-
-            fn try_find_span(&mut self, call: &syn::ExprCall) {
-                if self.current_index == self.target_index {
-                    // Found our target! Extract the span of the first argument
-                    if let Some(first_arg) = call.args.first() {
-                        use syn::spanned::Spanned;
-                        let arg_span = first_arg.span();
-                        self.span = Some((arg_span.start(), arg_span.end()));
-                    }
-                }
-                self.current_index += 1;
-            }
-        }
-
         impl<'ast> Visit<'ast> for SpanFinder {
             fn visit_expr(&mut self, node: &'ast syn::Expr) {
-                if Self::is_literal_call(node) {
-                    if let syn::Expr::Call(call) = node {
-                        self.try_find_span(call);
+                // Match ALL function calls - we use position-based matching, not name
+                if let syn::Expr::Call(call) = node {
+                    if self.current_index == self.target_index {
+                        // Found our target! Extract the span of the first argument
+                        if let Some(first_arg) = call.args.first() {
+                            use syn::spanned::Spanned;
+                            let arg_span = first_arg.span();
+                            self.span = Some((arg_span.start(), arg_span.end()));
+                        }
                     }
+                    self.current_index += 1;
                 }
                 syn::visit::visit_expr(self, node);
             }
@@ -434,7 +404,7 @@ impl FileState {
 
         let (start_lc, end_lc) = finder
             .span
-            .ok_or_else(|| format!("Could not find literal() call at index {}", target_index))?;
+            .ok_or_else(|| format!("Could not find function call at index {}", target_index))?;
 
         // Convert line/column to byte offsets
         let start_byte = Self::line_col_to_byte_static(source, start_lc.line, start_lc.column)?;
@@ -508,7 +478,7 @@ impl FileState {
 
         reader
             .tokens
-            .ok_or_else(|| format!("Could not find literal() call at index {}", index))
+            .ok_or_else(|| format!("Could not find function call at index {}", index))
     }
 
     // Keep old name as alias for compatibility
@@ -572,47 +542,24 @@ impl FileState {
     }
 }
 
-/// Visitor that reads the Nth literal() call's argument (by index)
+/// Visitor that reads the Nth function call's argument (by index)
 struct IndexedLiteralReader {
     target_index: usize,
     current_index: usize,
     tokens: Option<proc_macro2::TokenStream>,
 }
 
-impl IndexedLiteralReader {
-    /// Check if an expression is a call to `literal`
-    fn is_literal_call(expr: &syn::Expr) -> bool {
-        if let syn::Expr::Call(call) = expr {
-            if let syn::Expr::Path(path) = &*call.func {
-                if let Some(segment) = path.path.segments.last() {
-                    return segment.ident == "literal";
-                }
-            }
-        }
-        false
-    }
-
-    fn try_read_call(&mut self, call: &syn::ExprCall) {
-        if self.tokens.is_some() {
-            return;
-        }
-
-        if self.current_index == self.target_index {
-            // Found our target! Get the first argument's tokens
-            if let Some(first_arg) = call.args.first() {
-                self.tokens = Some(quote::quote!(#first_arg));
-            }
-        }
-        self.current_index += 1;
-    }
-}
-
 impl<'ast> syn::visit::Visit<'ast> for IndexedLiteralReader {
     fn visit_expr(&mut self, node: &'ast syn::Expr) {
-        if Self::is_literal_call(node) {
-            if let syn::Expr::Call(call) = node {
-                self.try_read_call(call);
+        // Match ALL function calls - we use position-based matching, not name
+        if let syn::Expr::Call(call) = node {
+            if self.tokens.is_none() && self.current_index == self.target_index {
+                // Found our target! Get the first argument's tokens
+                if let Some(first_arg) = call.args.first() {
+                    self.tokens = Some(quote::quote!(#first_arg));
+                }
             }
+            self.current_index += 1;
         }
         syn::visit::visit_expr(self, node);
     }
