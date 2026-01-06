@@ -234,16 +234,10 @@ impl<T: Value + 'static> Drop for Literal<T> {
     fn drop(&mut self) {
         // DESIGN NOTE: Drop implementations cannot return errors or panic reliably,
         // so we silently ignore failures during index resolution and source updates.
-        // The background flush thread and explicit flush() calls provide recovery paths.
         // Values are always updated in memory even if disk writes fail.
 
         // Check if the value was mutated (via DerefMut or direct .literal assignment)
-        // Compare using PartialEq
         if self.original != self.literal {
-            // Value was mutated - mark as dirty for background flush
-            crate::dirty::mark_dirty(&self.guard.file, self.guard.line, self.guard.column);
-
-            // Trigger write based on mode
             let mode = crate::runtime::get_mode();
 
             // In Memory mode, update the guard but don't write to disk
@@ -260,16 +254,13 @@ impl<T: Value + 'static> Drop for Literal<T> {
             // For Verify or Write modes, we need file access
             if mode.needs_file_access() {
                 // Resolve the index (if not already resolved)
-                if let Err(_) = self.guard.resolve_index() {
-                    // Silently skip if we can't resolve the index
+                if self.guard.resolve_index().is_err() {
                     return;
                 }
 
                 // In Verify mode, verify that the value matches the source
                 if mode == crate::runtime::Mode::Verify {
-                    // Sync the public literal field back to guard for verification
                     self.guard.value = self.literal.clone();
-                    // Verify - this may panic if there's a mismatch
                     if let Err(e) = self.guard.verify_source(&self.guard.value) {
                         panic!(
                             "Literal verification failed at {}:{}:{}\n{}",
@@ -284,19 +275,12 @@ impl<T: Value + 'static> Drop for Literal<T> {
 
                 // In Write mode, update the source
                 if mode.can_write() {
-                    // Check if we're running under cargo
                     if !crate::runtime::is_running_under_cargo() {
                         return;
                     }
 
-                    // Sync the public literal field back to the guard before writing
                     self.guard.value = self.literal.clone();
-
-                    // Silently ignore errors in drop - we can't panic or return an error
-                    if self.guard.update_source(&self.guard.value).is_ok() {
-                        // Clear dirty flag after successful write
-                        crate::dirty::clear_dirty(&self.guard.file, self.guard.line, self.guard.column);
-                    }
+                    let _ = self.guard.update_source(&self.guard.value);
                 }
             }
         }

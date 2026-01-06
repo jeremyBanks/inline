@@ -80,9 +80,6 @@ pub fn get_or_create<T: Value + 'static>(
     line: u32,
     column: u32,
 ) -> &'static Mutex<LiteralInner<T>> {
-    // Auto-start background flush thread on first literal access
-    let _ = crate::flush::start_background_flush_internal();
-
     // Try to resolve the stable index from (line, column)
     // This parses the file once per file and caches the (line, column) → index mapping
     // If the file doesn't exist (e.g., in tests or compiled binaries), fall back to (line, column)

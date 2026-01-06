@@ -72,14 +72,6 @@ pub trait LiteralExt<T: Value + 'static> {
 
 impl<T: Value + 'static> LiteralExt<T> for Literal<T> {
     fn flush(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // Mark as dirty for tracking
-        crate::dirty::mark_dirty(
-            &self.guard.file,
-            self.guard.line,
-            self.guard.column,
-        );
-
-        // Get the mode and check if we should write
         let mode = crate::runtime::get_mode();
 
         // In Memory mode, just update the guard value
@@ -107,13 +99,6 @@ impl<T: Value + 'static> LiteralExt<T> for Literal<T> {
         if mode.can_write() {
             self.guard.value = self.literal.clone();
             self.guard.update_source(&self.literal)?;
-
-            // Clear dirty flag after successful write
-            crate::dirty::clear_dirty(
-                &self.guard.file,
-                self.guard.line,
-                self.guard.column,
-            );
         }
 
         Ok(())
