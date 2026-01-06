@@ -12,26 +12,20 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
     }
 
     impl<'ast> Visit<'ast> for Finder {
-        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            if let Some(segment) = node.mac.path.segments.last() {
-                if segment.ident == "literal" {
-                    let start = segment.ident.span().start();
-                    self.positions
-                        .push((start.line as u32, start.column as u32));
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if let syn::Expr::Call(call) = node {
+                if let syn::Expr::Path(path) = &*call.func {
+                    if let Some(segment) = path.path.segments.last() {
+                        if segment.ident == "literal" {
+                            let span = segment.ident.span();
+                            let start = span.start();
+                            self.positions
+                                .push((start.line as u32, start.column as u32));
+                        }
+                    }
                 }
             }
-            syn::visit::visit_expr_macro(self, node);
-        }
-
-        fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
-            if let Some(segment) = node.mac.path.segments.last() {
-                if segment.ident == "literal" {
-                    let start = segment.ident.span().start();
-                    self.positions
-                        .push((start.line as u32, start.column as u32));
-                }
-            }
-            syn::visit::visit_stmt_macro(self, node);
+            syn::visit::visit_expr(self, node);
         }
     }
 
@@ -44,7 +38,7 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
 #[should_panic(expected = "CONCURRENT MODIFICATION DETECTED")]
 fn test_detects_external_file_modification() {
     let test_code = r#"fn example() {
-    let x = literal!(42);
+    let x = literal(42);
 }
 "#;
 
@@ -60,7 +54,7 @@ fn test_detects_external_file_modification() {
     // Simulate another process modifying the file
     // (In reality, this would be a different process, but we can simulate it)
     let modified_code = r#"fn example() {
-    let x = literal!(999);
+    let x = literal(999);
 }
 "#;
     fs::write(&test_file, modified_code).unwrap();
@@ -74,7 +68,7 @@ fn test_detects_external_file_modification() {
 #[test]
 fn test_no_panic_when_no_concurrent_modification() {
     let test_code = r#"fn example() {
-    let x = literal!(42);
+    let x = literal(42);
 }
 "#;
 
@@ -100,7 +94,7 @@ fn test_no_panic_when_no_concurrent_modification() {
 #[test]
 fn test_multiple_writes_without_external_modification() {
     let test_code = r#"fn example() {
-    let x = literal!(42);
+    let x = literal(42);
 }
 "#;
 

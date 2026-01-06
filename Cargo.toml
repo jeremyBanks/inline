@@ -27,6 +27,7 @@ databake = "0.1"
 syn = { version = "2", features = ["full", "visit", "extra-traits"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 parking_lot = "0.12"
+quote = "1"
 
 [dev-dependencies]
 tempfile = "3"

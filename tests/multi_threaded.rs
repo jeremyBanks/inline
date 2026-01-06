@@ -12,26 +12,20 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
     }
 
     impl<'ast> Visit<'ast> for Finder {
-        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            if let Some(segment) = node.mac.path.segments.last() {
-                if segment.ident == "literal" {
-                    let start = segment.ident.span().start();
-                    self.positions
-                        .push((start.line as u32, start.column as u32));
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if let syn::Expr::Call(call) = node {
+                if let syn::Expr::Path(path) = &*call.func {
+                    if let Some(segment) = path.path.segments.last() {
+                        if segment.ident == "literal" {
+                            let span = segment.ident.span();
+                            let start = span.start();
+                            self.positions
+                                .push((start.line as u32, start.column as u32));
+                        }
+                    }
                 }
             }
-            syn::visit::visit_expr_macro(self, node);
-        }
-
-        fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
-            if let Some(segment) = node.mac.path.segments.last() {
-                if segment.ident == "literal" {
-                    let start = segment.ident.span().start();
-                    self.positions
-                        .push((start.line as u32, start.column as u32));
-                }
-            }
-            syn::visit::visit_stmt_macro(self, node);
+            syn::visit::visit_expr(self, node);
         }
     }
 
@@ -42,11 +36,11 @@ fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
 
 #[test]
 fn test_multi_threaded_access() {
-    // Create a simple test file with multiple literal! macros
+    // Create a simple test file with multiple literal() calls
     let test_code = r#"fn example() {
-    let a = literal!(42);
-    let b = literal!(100);
-    let c = literal!(200);
+    let a = literal(42);
+    let b = literal(100);
+    let c = literal(200);
 }
 "#;
 
@@ -119,7 +113,7 @@ fn test_multi_threaded_access() {
 #[test]
 fn test_sequential_modifications_across_threads() {
     let test_code = r#"fn example() {
-    let x = literal!(0);
+    let x = literal(0);
 }
 "#;
 

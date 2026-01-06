@@ -8,7 +8,7 @@
 //! ```no_run
 //! use jeb_literal::literal;
 //!
-//! let mut counter = literal!(0u32);
+//! let mut counter = literal(0u32);
 //! println!("Run #{}", *counter + 1);
 //! let current = *counter;
 //! counter.literal = current + 1;
@@ -43,10 +43,10 @@
 //!
 //! # How It Works
 //!
-//! 1. The `literal!()` macro captures the source location
+//! 1. The `literal()` function captures the source location via `#[track_caller]`
 //! 2. Mutations are detected on drop (comparing original vs current value)
-//! 3. The source file is parsed and the macro is located by stable index
-//! 4. Character-range splicing replaces only the macro's value
+//! 3. The source file is parsed and the function call is located by stable index
+//! 4. Character-range splicing replaces only the call's argument
 //! 5. Original formatting is preserved
 
 // Compile-time check: write and no-write features are mutually exclusive

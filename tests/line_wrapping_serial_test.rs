@@ -10,8 +10,8 @@ fn test_long_vec_causes_line_wrapping() {
 
     // Start with SHORT values
     let original = r#"fn main() {
-    let a = literal!(vec![1u32, 2u32]);
-    let b = literal!(100u32);
+    let a = literal(vec![1u32, 2u32]);
+    let b = literal(100u32);
 }
 "#;
     fs::write(&path, original).unwrap();
@@ -82,7 +82,7 @@ fn test_long_vec_causes_line_wrapping() {
         println!("\n=== FINAL FILE CONTENT ===");
         println!("{}", final_content);
 
-        if final_content.contains("literal!(999u32)") {
+        if final_content.contains("literal(999u32)") {
             println!("\n✅ SUCCESS! Index-based approach works even when line numbers shift!");
             println!(
                 "The original position (line {}) was mapped to a stable index,",
@@ -93,7 +93,7 @@ fn test_long_vec_causes_line_wrapping() {
                 positions_after[1].0
             );
         } else {
-            println!("❌ Failed to update B! Expected to find literal!(999u32)");
+            println!("❌ Failed to update B! Expected to find literal(999u32)");
             panic!("Index-based approach failed!");
         }
     } else {
@@ -109,7 +109,7 @@ fn test_long_vec_causes_line_wrapping() {
 
         let final_content = fs::read_to_string(&path).unwrap();
         assert!(
-            final_content.contains("literal!(999u32)"),
+            final_content.contains("literal(999u32)"),
             "Should update B successfully"
         );
         println!("✅ B updated successfully");
@@ -128,20 +128,20 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
     }
 
     impl<'ast> Visit<'ast> for MacroCollector {
-        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            let is_litter = if let Some(segment) = node.mac.path.segments.last() {
-                segment.ident == "literal"
-            } else {
-                false
-            };
-
-            if is_litter {
-                let span = node.mac.path.segments.last().unwrap().ident.span();
-                let start = span.start();
-                self.positions
-                    .push((start.line as u32, start.column as u32));
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if let syn::Expr::Call(call) = node {
+                if let syn::Expr::Path(path) = &*call.func {
+                    if let Some(segment) = path.path.segments.last() {
+                        if segment.ident == "literal" {
+                            let span = segment.ident.span();
+                            let start = span.start();
+                            self.positions
+                                .push((start.line as u32, start.column as u32));
+                        }
+                    }
+                }
             }
-            syn::visit::visit_expr_macro(self, node);
+            syn::visit::visit_expr(self, node);
         }
     }
 

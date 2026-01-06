@@ -8,16 +8,16 @@ use std::path::PathBuf;
 /// in-memory value and its representation in the source code file.
 ///
 /// **Note:** This is an internal type. Users should interact with the [`Literal`]
-/// wrapper returned by the `literal!` macro instead.
+/// wrapper returned by the [`literal()`] function instead.
 #[doc(hidden)]
 pub struct LiteralInner<T: Value> {
     pub(crate) value: T,
     pub(crate) file: PathBuf,
     pub(crate) line: u32,
     pub(crate) column: u32,
-    /// Stable index into the file's literal macros (resolved lazily)
+    /// Stable index into the file's literal() calls (resolved lazily)
     /// This never changes even if line numbers shift!
-    pub(crate) macro_index: Option<usize>,
+    pub(crate) literal_index: Option<usize>,
 }
 
 impl<T: Value> LiteralInner<T> {
@@ -31,13 +31,13 @@ impl<T: Value> LiteralInner<T> {
             file: PathBuf::from(file),
             line,
             column,
-            macro_index: None, // Resolve lazily when needed
+            literal_index: None, // Resolve lazily when needed
         }
     }
 
-    /// Lazily resolve the macro index from the source file
+    /// Lazily resolve the literal index from the source file
     pub(crate) fn resolve_index(&mut self) -> Result<usize, Box<dyn std::error::Error>> {
-        if let Some(index) = self.macro_index {
+        if let Some(index) = self.literal_index {
             return Ok(index);
         }
 
@@ -52,7 +52,7 @@ impl<T: Value> LiteralInner<T> {
                 )
             })?;
 
-        self.macro_index = Some(index);
+        self.literal_index = Some(index);
         Ok(index)
     }
 
@@ -65,7 +65,7 @@ impl<T: Value> LiteralInner<T> {
     pub(crate) fn verify_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
         // Index must be resolved by now
         let index = self
-            .macro_index
+            .literal_index
             .expect("Index should be resolved before calling verify_source");
 
         // Get the current tokens from the source file
@@ -102,7 +102,7 @@ impl<T: Value> LiteralInner<T> {
     pub(crate) fn update_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
         // Index must be resolved by now
         let index = self
-            .macro_index
+            .literal_index
             .expect("Index should be resolved before calling update_source");
 
         // Bake the value to Rust code
@@ -134,7 +134,7 @@ impl<T: Value + std::fmt::Debug> std::fmt::Debug for LiteralInner<T> {
             .field("file", &self.file)
             .field("line", &self.line)
             .field("column", &self.column)
-            .field("macro_index", &self.macro_index)
+            .field("literal_index", &self.literal_index)
             .finish()
     }
 }
@@ -329,16 +329,16 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 
 /// Create a self-modifying value that can update its source code.
 ///
-/// The macro captures the source location and returns an [`Literal<T>`] that
-/// holds a lock to the underlying value. The lock is held until the value
-/// is dropped.
+/// This function captures the source location using `#[track_caller]` and
+/// returns a [`Literal<T>`] that holds a lock to the underlying value.
+/// The lock is held until the value is dropped.
 ///
 /// # Example
 ///
 /// ```no_run
 /// use jeb_literal::literal;
 ///
-/// let mut counter = literal!(0u32);
+/// let mut counter = literal(0u32);
 /// let current = *counter;  // Single dereference
 /// counter.literal = current + 1;
 /// // In Write mode, the source file is updated
@@ -351,28 +351,15 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 ///
 /// # Returns
 ///
-/// An [`Literal<T>`] that holds the lock and derefs to `&T`.
+/// A [`Literal<T>`] that holds the lock and derefs to `&T`.
 /// The same underlying value is returned for all calls from the same source location.
-///
-/// # Default Values
-///
-/// When called without arguments, uses `Default::default()`:
-/// ```no_run
-/// use jeb_literal::literal;
-///
-/// let counter: jeb_literal::Literal<u32> = literal!();  // Uses 0u32 (default)
-/// ```
-#[macro_export]
-macro_rules! literal {
-    () => {{
-        $crate::Literal::from_guard($crate::registry::get_or_create(
-            ::std::default::Default::default(),
-            file!(),
-            line!(),
-            column!()
-        ).lock())
-    }};
-    ($value:expr) => {{
-        $crate::Literal::from_guard($crate::registry::get_or_create($value, file!(), line!(), column!()).lock())
-    }};
+#[track_caller]
+pub fn literal<T: Value + 'static>(value: T) -> Literal<T> {
+    let loc = std::panic::Location::caller();
+    Literal::from_guard(crate::registry::get_or_create(
+        value,
+        loc.file(),
+        loc.line(),
+        loc.column(),
+    ).lock())
 }

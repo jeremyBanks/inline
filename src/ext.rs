@@ -17,7 +17,7 @@ use std::path::Path;
 /// ```no_run
 /// use jeb_literal::{literal, LiteralExt};
 ///
-/// let mut x = literal!(42);
+/// let mut x = literal(42);
 /// x.literal = 100;
 /// x.flush()?; // Requires LiteralExt in scope
 /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -40,7 +40,7 @@ pub trait LiteralExt<T: Value + 'static> {
     /// ```no_run
     /// use jeb_literal::{literal, LiteralExt};
     ///
-    /// let mut counter = literal!(0);
+    /// let mut counter = literal(0);
     /// counter.literal = 42;
     /// counter.flush()?; // Write immediately, don't wait for Drop
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -132,7 +132,7 @@ impl<T: Value + 'static> LiteralExt<T> for Literal<T> {
     }
 
     fn index(&self) -> Option<usize> {
-        self.guard.macro_index
+        self.guard.literal_index
     }
 }
 
@@ -147,7 +147,7 @@ impl<T: Value + 'static> LiteralExt<T> for Literal<T> {
 /// ```no_run
 /// use jeb_literal::literal;
 ///
-/// let mut x = literal!(42);
+/// let mut x = literal(42);
 /// x.literal = 100;
 /// jeb_literal::flush(&mut x)?; // No trait import needed
 /// # Ok::<(), Box<dyn std::error::Error>>(())

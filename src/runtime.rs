@@ -229,7 +229,7 @@ impl FileState {
         })
     }
 
-    /// Build a map from (line, column) to macro index by traversing the AST
+    /// Build a map from (line, column) to literal call index by traversing the AST
     /// Indices are assigned in AST traversal order and never change
     fn build_index_map(ast: &syn::File) -> HashMap<(u32, u32), usize> {
         use syn::visit::Visit;
@@ -239,41 +239,32 @@ impl FileState {
             current_index: usize,
         }
 
-        impl<'ast> Visit<'ast> for IndexBuilder {
-            fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-                let is_literal_macro = if let Some(segment) = node.mac.path.segments.last() {
-                    segment.ident == "literal"
-                } else {
-                    false
-                };
-
-                if is_literal_macro {
-                    let span = node.mac.path.segments.last().unwrap().ident.span();
-                    let start = span.start();
-                    let pos = (start.line as u32, start.column as u32);
-                    self.map.insert(pos, self.current_index);
-                    self.current_index += 1;
+        impl IndexBuilder {
+            /// Check if an expression is a call to `literal`
+            fn is_literal_call(expr: &syn::Expr) -> Option<proc_macro2::Span> {
+                if let syn::Expr::Call(call) = expr {
+                    if let syn::Expr::Path(path) = &*call.func {
+                        if let Some(segment) = path.path.segments.last() {
+                            if segment.ident == "literal" {
+                                return Some(segment.ident.span());
+                            }
+                        }
+                    }
                 }
-
-                syn::visit::visit_expr_macro(self, node);
+                None
             }
+        }
 
-            fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
-                let is_literal_macro = if let Some(segment) = node.mac.path.segments.last() {
-                    segment.ident == "literal"
-                } else {
-                    false
-                };
-
-                if is_literal_macro {
-                    let span = node.mac.path.segments.last().unwrap().ident.span();
+        impl<'ast> Visit<'ast> for IndexBuilder {
+            fn visit_expr(&mut self, node: &'ast syn::Expr) {
+                if let Some(span) = Self::is_literal_call(node) {
                     let start = span.start();
                     let pos = (start.line as u32, start.column as u32);
                     self.map.insert(pos, self.current_index);
                     self.current_index += 1;
                 }
 
-                syn::visit::visit_stmt_macro(self, node);
+                syn::visit::visit_expr(self, node);
             }
         }
 
@@ -285,11 +276,11 @@ impl FileState {
         builder.map
     }
 
-    /// Get the stable index for a macro at the given position
+    /// Get the stable index for a literal() call at the given position
     ///
-    /// Note: column matching is flexible because column!() returns the start of the
-    /// macro invocation (e.g., "inline::literal!") but syn's span might point to
-    /// the last segment. We match on line and find the closest macro on that line.
+    /// Note: column matching is flexible because Location::caller().column()
+    /// returns the start of the function call. We match on line and find the
+    /// closest literal() call on that line.
     pub fn get_index(&self, line: u32, column: u32) -> Result<usize, io::Error> {
         let (_, position_to_index) = self.get_cached_ast()?;
 
@@ -298,30 +289,30 @@ impl FileState {
             return Ok(index);
         }
 
-        // If no exact match, find all macros on the same line
-        let macros_on_line: Vec<_> = position_to_index
+        // If no exact match, find all literal calls on the same line
+        let calls_on_line: Vec<_> = position_to_index
             .iter()
             .filter(|((l, _c), _idx)| *l == line)
             .collect();
 
-        if macros_on_line.is_empty() {
+        if calls_on_line.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 format!(
-                    "No literal! macro found on line {} in {}",
+                    "No literal() call found on line {} in {}",
                     line,
                     self.path.display()
                 ),
             ));
         }
 
-        // If there's only one macro on this line, use it
-        if macros_on_line.len() == 1 {
-            return Ok(*macros_on_line[0].1);
+        // If there's only one call on this line, use it
+        if calls_on_line.len() == 1 {
+            return Ok(*calls_on_line[0].1);
         }
 
-        // Multiple macros on same line - find closest by column
-        let closest = macros_on_line
+        // Multiple calls on same line - find closest by column
+        let closest = calls_on_line
             .iter()
             .min_by_key(|((_, c), _)| (*c as i32 - column as i32).abs())
             .unwrap();
@@ -329,12 +320,12 @@ impl FileState {
         Ok(*closest.1)
     }
 
-    /// Update the macro at the given index with new tokens
+    /// Update the literal() call at the given index with new tokens
     /// CRITICAL: Holds write lock for the entire operation to prevent concurrent modifications
     ///
     /// IMPORTANT: Uses character-range splicing to preserve formatting!
-    /// Only the macro value is replaced - everything else stays untouched.
-    pub fn update_macro_by_index(
+    /// Only the function argument is replaced - everything else stays untouched.
+    pub fn update_literal_by_index(
         &self,
         index: usize,
         new_tokens: proc_macro2::TokenStream,
@@ -345,13 +336,13 @@ impl FileState {
         // Get the source while holding the lock (avoid deadlock)
         let source = shared.source.clone();
 
-        // Parse the current source to find the macro
+        // Parse the current source to find the literal call
         let ast = syn::parse_file(&source)
             .map_err(|e| format!("Failed to parse source: {}", e))?;
 
-        // Find the byte span of the target macro's value tokens
+        // Find the byte span of the target call's argument
         // Pass source as parameter to avoid deadlock
-        let value_span = Self::find_macro_value_span_static(&ast, index, &source)?;
+        let value_span = Self::find_literal_arg_span_static(&ast, index, &source)?;
 
         // Generate the new value string
         let new_value_str = new_tokens.to_string();
@@ -373,8 +364,17 @@ impl FileState {
         Ok(())
     }
 
-    /// Find the byte span of a macro's value tokens in the source code (static method)
-    fn find_macro_value_span_static(
+    // Keep old name as alias for compatibility during transition
+    pub fn update_macro_by_index(
+        &self,
+        index: usize,
+        new_tokens: proc_macro2::TokenStream,
+    ) -> Result<(), String> {
+        self.update_literal_by_index(index, new_tokens)
+    }
+
+    /// Find the byte span of a literal() call's argument in the source code (static method)
+    fn find_literal_arg_span_static(
         ast: &syn::File,
         target_index: usize,
         source: &str,
@@ -388,47 +388,39 @@ impl FileState {
         }
 
         impl SpanFinder {
-            fn try_find_span(&mut self, mac: &syn::Macro) {
-                let is_literal_macro = if let Some(segment) = mac.path.segments.last() {
-                    segment.ident == "literal"
-                } else {
-                    false
-                };
-
-                if is_literal_macro {
-                    if self.current_index == self.target_index {
-                        // Found our target! Extract the line/column span of the tokens
-                        if !mac.tokens.is_empty() {
-                            // Non-empty macro: Get the span from the first to last token
-                            let first_span = mac.tokens.clone().into_iter().next().unwrap().span();
-                            let last_span = mac.tokens.clone().into_iter().last().unwrap().span();
-
-                            self.span = Some((first_span.start(), last_span.end()));
-                        } else {
-                            // Empty macro like literal!()
-                            // Use the delimiter span - this gives us the position inside the parens
-                            // For literal!(), the delimiter span is between ( and )
-                            let delimiter_span = mac.delimiter.span();
-                            let open_span = delimiter_span.open();
-                            // For empty macros, we want to insert at the position right after '('
-                            // which is the same as the open span's end position
-                            self.span = Some((open_span.end(), open_span.end()));
+            /// Check if an expression is a call to `literal`
+            fn is_literal_call(expr: &syn::Expr) -> bool {
+                if let syn::Expr::Call(call) = expr {
+                    if let syn::Expr::Path(path) = &*call.func {
+                        if let Some(segment) = path.path.segments.last() {
+                            return segment.ident == "literal";
                         }
                     }
-                    self.current_index += 1;
                 }
+                false
+            }
+
+            fn try_find_span(&mut self, call: &syn::ExprCall) {
+                if self.current_index == self.target_index {
+                    // Found our target! Extract the span of the first argument
+                    if let Some(first_arg) = call.args.first() {
+                        use syn::spanned::Spanned;
+                        let arg_span = first_arg.span();
+                        self.span = Some((arg_span.start(), arg_span.end()));
+                    }
+                }
+                self.current_index += 1;
             }
         }
 
         impl<'ast> Visit<'ast> for SpanFinder {
-            fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-                self.try_find_span(&node.mac);
-                syn::visit::visit_expr_macro(self, node);
-            }
-
-            fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
-                self.try_find_span(&node.mac);
-                syn::visit::visit_stmt_macro(self, node);
+            fn visit_expr(&mut self, node: &'ast syn::Expr) {
+                if Self::is_literal_call(node) {
+                    if let syn::Expr::Call(call) = node {
+                        self.try_find_span(call);
+                    }
+                }
+                syn::visit::visit_expr(self, node);
             }
         }
 
@@ -442,7 +434,7 @@ impl FileState {
 
         let (start_lc, end_lc) = finder
             .span
-            .ok_or_else(|| format!("Could not find literal! macro at index {}", target_index))?;
+            .ok_or_else(|| format!("Could not find literal() call at index {}", target_index))?;
 
         // Convert line/column to byte offsets
         let start_byte = Self::line_col_to_byte_static(source, start_lc.line, start_lc.column)?;
@@ -499,13 +491,13 @@ impl FileState {
         ))
     }
 
-    /// Get the current tokens of a literal macro at the given index
-    pub fn get_macro_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
+    /// Get the current tokens of a literal() call's argument at the given index
+    pub fn get_literal_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
         let (ast, _) = self
             .get_cached_ast()
             .map_err(|e| format!("Failed to get AST: {}", e))?;
 
-        let mut reader = IndexedMacroReader {
+        let mut reader = IndexedLiteralReader {
             target_index: index,
             current_index: 0,
             tokens: None,
@@ -516,7 +508,12 @@ impl FileState {
 
         reader
             .tokens
-            .ok_or_else(|| format!("Could not find literal! macro at index {}", index))
+            .ok_or_else(|| format!("Could not find literal() call at index {}", index))
+    }
+
+    // Keep old name as alias for compatibility
+    pub fn get_macro_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
+        self.get_literal_tokens(index)
     }
 
     /// Write the current shared source to disk.
@@ -575,44 +572,49 @@ impl FileState {
     }
 }
 
-/// Visitor that reads the Nth literal! macro (by index)
-struct IndexedMacroReader {
+/// Visitor that reads the Nth literal() call's argument (by index)
+struct IndexedLiteralReader {
     target_index: usize,
     current_index: usize,
     tokens: Option<proc_macro2::TokenStream>,
 }
 
-impl IndexedMacroReader {
-    fn try_read_macro(&mut self, mac: &syn::Macro) {
+impl IndexedLiteralReader {
+    /// Check if an expression is a call to `literal`
+    fn is_literal_call(expr: &syn::Expr) -> bool {
+        if let syn::Expr::Call(call) = expr {
+            if let syn::Expr::Path(path) = &*call.func {
+                if let Some(segment) = path.path.segments.last() {
+                    return segment.ident == "literal";
+                }
+            }
+        }
+        false
+    }
+
+    fn try_read_call(&mut self, call: &syn::ExprCall) {
         if self.tokens.is_some() {
             return;
         }
 
-        let is_literal_macro = if let Some(segment) = mac.path.segments.last() {
-            segment.ident == "literal"
-        } else {
-            false
-        };
-
-        if is_literal_macro {
-            if self.current_index == self.target_index {
-                // Found our target!
-                self.tokens = Some(mac.tokens.clone());
+        if self.current_index == self.target_index {
+            // Found our target! Get the first argument's tokens
+            if let Some(first_arg) = call.args.first() {
+                self.tokens = Some(quote::quote!(#first_arg));
             }
-            self.current_index += 1;
         }
+        self.current_index += 1;
     }
 }
 
-impl<'ast> syn::visit::Visit<'ast> for IndexedMacroReader {
-    fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-        self.try_read_macro(&node.mac);
-        syn::visit::visit_expr_macro(self, node);
-    }
-
-    fn visit_stmt_macro(&mut self, node: &'ast syn::StmtMacro) {
-        self.try_read_macro(&node.mac);
-        syn::visit::visit_stmt_macro(self, node);
+impl<'ast> syn::visit::Visit<'ast> for IndexedLiteralReader {
+    fn visit_expr(&mut self, node: &'ast syn::Expr) {
+        if Self::is_literal_call(node) {
+            if let syn::Expr::Call(call) = node {
+                self.try_read_call(call);
+            }
+        }
+        syn::visit::visit_expr(self, node);
     }
 }
 

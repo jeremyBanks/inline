@@ -12,9 +12,9 @@ fn test_line_number_stability_with_multiple_litters() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = literal!(1u32);
-    let b = literal!(2u32);
-    let c = literal!(3u32);
+    let a = literal(1u32);
+    let b = literal(2u32);
+    let c = literal(3u32);
 }
 "#;
     fs::write(&path, original).unwrap();
@@ -119,20 +119,20 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
     }
 
     impl<'ast> Visit<'ast> for MacroCollector {
-        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            let is_litter = if let Some(segment) = node.mac.path.segments.last() {
-                segment.ident == "literal"
-            } else {
-                false
-            };
-
-            if is_litter {
-                let span = node.mac.path.segments.last().unwrap().ident.span();
-                let start = span.start();
-                self.positions
-                    .push((start.line as u32, start.column as u32));
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if let syn::Expr::Call(call) = node {
+                if let syn::Expr::Path(path) = &*call.func {
+                    if let Some(segment) = path.path.segments.last() {
+                        if segment.ident == "literal" {
+                            let span = segment.ident.span();
+                            let start = span.start();
+                            self.positions
+                                .push((start.line as u32, start.column as u32));
+                        }
+                    }
+                }
             }
-            syn::visit::visit_expr_macro(self, node);
+            syn::visit::visit_expr(self, node);
         }
     }
 

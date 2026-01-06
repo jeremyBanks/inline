@@ -12,7 +12,7 @@ fn test_multiple_updates_same_litter() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let x = literal!(42u32);
+    let x = literal(42u32);
 }
 "#;
     fs::write(&path, original).unwrap();
@@ -30,15 +30,20 @@ fn test_multiple_updates_same_litter() {
     }
 
     impl<'ast> Visit<'ast> for MacroFinder {
-        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            if let Some(ident) = node.mac.path.get_ident() {
-                if ident == "literal" {
-                    let span = ident.span();
-                    let start = span.start();
-                    self.line = Some(start.line as u32);
-                    self.column = Some(start.column as u32);
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if let syn::Expr::Call(call) = node {
+                if let syn::Expr::Path(path) = &*call.func {
+                    if let Some(segment) = path.path.segments.last() {
+                        if segment.ident == "literal" {
+                            let span = segment.ident.span();
+                            let start = span.start();
+                            self.line = Some(start.line as u32);
+                            self.column = Some(start.column as u32);
+                        }
+                    }
                 }
             }
+            syn::visit::visit_expr(self, node);
         }
     }
 

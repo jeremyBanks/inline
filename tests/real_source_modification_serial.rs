@@ -29,7 +29,7 @@ fn test_counter_a_modification() {
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_a.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(42u32)"),
+        disk_content.contains("literal(42u32)"),
         "Disk should contain updated value. Content:\n{}",
         disk_content
     );
@@ -44,7 +44,7 @@ fn test_counter_a_modification() {
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_a.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(0u32)"),
+        disk_content.contains("literal(0u32)"),
         "Disk should be restored to default. Content:\n{}",
         disk_content
     );
@@ -73,7 +73,7 @@ fn test_counter_b_modification() {
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_b.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(999u32)"),
+        disk_content.contains("literal(999u32)"),
         "Disk should contain updated value. Content:\n{}",
         disk_content
     );
@@ -88,7 +88,7 @@ fn test_counter_b_modification() {
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_b.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(0u32)"),
+        disk_content.contains("literal(0u32)"),
         "Disk should be restored to default. Content:\n{}",
         disk_content
     );
@@ -117,7 +117,7 @@ fn test_counter_c_modification() {
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_c.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(12345u32)"),
+        disk_content.contains("literal(12345u32)"),
         "Disk should contain updated value. Content:\n{}",
         disk_content
     );
@@ -132,7 +132,7 @@ fn test_counter_c_modification() {
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_c.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(0u32)"),
+        disk_content.contains("literal(0u32)"),
         "Disk should be restored to default. Content:\n{}",
         disk_content
     );
@@ -195,7 +195,7 @@ fn test_multiple_modifications_same_value() {
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("literal!(100u32)"));
+    assert!(disk.contains("literal(100u32)"));
 
     {
         let mut value = fixtures::counter_d::get();
@@ -203,7 +203,7 @@ fn test_multiple_modifications_same_value() {
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("literal!(200u32)"));
+    assert!(disk.contains("literal(200u32)"));
 
     {
         let mut value = fixtures::counter_d::get();
@@ -211,7 +211,7 @@ fn test_multiple_modifications_same_value() {
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("literal!(300u32)"));
+    assert!(disk.contains("literal(300u32)"));
 
     // Restore
     {
@@ -220,7 +220,7 @@ fn test_multiple_modifications_same_value() {
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("literal!(0u32)"));
+    assert!(disk.contains("literal(0u32)"));
 
     env::remove_var("LITERAL_MODE");
 }
@@ -248,7 +248,7 @@ fn test_concurrent_modification_detection() {
         r#"/// Fixture E: Counter for testing concurrent modification detection
 /// Default value: 0
 pub fn get() -> jeb_literal::Literal<u32> {
-    jeb_literal::literal!(777u32)  // Externally modified!
+    jeb_literal::literal(777u32)  // Externally modified!
 }
 "#,
     )
@@ -288,7 +288,7 @@ pub fn get() -> jeb_literal::Literal<u32> {
         r#"/// Fixture E: Counter for testing concurrent modification detection
 /// Default value: 0
 pub fn get() -> jeb_literal::Literal<u32> {
-    jeb_literal::literal!(0u32)
+    jeb_literal::literal(0u32)
 }
 "#,
     )
@@ -349,7 +349,7 @@ fn test_formatting_preservation() {
 #[test]
 #[ignore] // TODO: Adapt for write-on-drop - needs explicit drops between modifications
 fn test_multiple_macros_same_file() {
-    // Test modifying multiple different literal! macros in the same file
+    // Test modifying multiple different literal() calls in the same file
     // in various orders, including on the same line and different lines
     env::set_var("LITERAL_MODE", "write");
 
@@ -365,48 +365,48 @@ fn test_multiple_macros_same_file() {
     // Modify first macro
     first.literal = 100u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(100u32)"));
-    assert!(disk.contains("literal!(20u32)"));
-    assert!(disk.contains("literal!(30u32)"));
+    assert!(disk.contains("literal(100u32)"));
+    assert!(disk.contains("literal(20u32)"));
+    assert!(disk.contains("literal(30u32)"));
 
     // Modify second macro
     second.literal = 200u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(100u32)"));
-    assert!(disk.contains("literal!(200u32)"));
-    assert!(disk.contains("literal!(30u32)"));
+    assert!(disk.contains("literal(100u32)"));
+    assert!(disk.contains("literal(200u32)"));
+    assert!(disk.contains("literal(30u32)"));
 
     // Modify third macro
     third.literal = 300u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(100u32)"));
-    assert!(disk.contains("literal!(200u32)"));
-    assert!(disk.contains("literal!(300u32)"));
+    assert!(disk.contains("literal(100u32)"));
+    assert!(disk.contains("literal(200u32)"));
+    assert!(disk.contains("literal(300u32)"));
 
     // Modify first again
     first.literal = 111u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(111u32)"));
-    assert!(disk.contains("literal!(200u32)"));
-    assert!(disk.contains("literal!(300u32)"));
+    assert!(disk.contains("literal(111u32)"));
+    assert!(disk.contains("literal(200u32)"));
+    assert!(disk.contains("literal(300u32)"));
 
     // Modify in reverse order
     third.literal = 333u32;
     second.literal = 222u32;
     first.literal = 11u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(11u32)"));
-    assert!(disk.contains("literal!(222u32)"));
-    assert!(disk.contains("literal!(333u32)"));
+    assert!(disk.contains("literal(11u32)"));
+    assert!(disk.contains("literal(222u32)"));
+    assert!(disk.contains("literal(333u32)"));
 
     // Restore all to defaults
     first.literal = 10u32;
     second.literal = 20u32;
     third.literal = 30u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(10u32)"));
-    assert!(disk.contains("literal!(20u32)"));
-    assert!(disk.contains("literal!(30u32)"));
+    assert!(disk.contains("literal(10u32)"));
+    assert!(disk.contains("literal(20u32)"));
+    assert!(disk.contains("literal(30u32)"));
 
     env::remove_var("LITERAL_MODE");
 }
@@ -432,17 +432,17 @@ fn test_multiple_files_interleaved() {
     counter_a.literal = 1u32;
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(1u32)"));
+        .contains("literal(1u32)"));
 
     counter_b.literal = 2u32;
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("literal!(2u32)"));
+        .contains("literal(2u32)"));
 
     counter_a.literal = 11u32; // Modify counter_a again
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(11u32)"));
+        .contains("literal(11u32)"));
 
     config_a.literal = "test_value".to_string();
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
@@ -452,31 +452,31 @@ fn test_multiple_files_interleaved() {
     counter_d.literal = 4u32;
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
-        .contains("literal!(4u32)"));
+        .contains("literal(4u32)"));
 
     counter_b.literal = 22u32; // Modify counter_b again
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("literal!(22u32)"));
+        .contains("literal(22u32)"));
 
     counter_a.literal = 111u32; // Modify counter_a third time
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(111u32)"));
+        .contains("literal(111u32)"));
 
     // Verify all files have correct values
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(111u32)"));
+        .contains("literal(111u32)"));
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("literal!(22u32)"));
+        .contains("literal(22u32)"));
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
         .unwrap()
         .contains(r#""test_value""#));
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
-        .contains("literal!(4u32)"));
+        .contains("literal(4u32)"));
 
     // Restore all to defaults
     counter_a.literal = 0u32;
@@ -487,16 +487,16 @@ fn test_multiple_files_interleaved() {
     // Verify restoration
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(0u32)"));
+        .contains("literal(0u32)"));
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("literal!(0u32)"));
+        .contains("literal(0u32)"));
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
         .unwrap()
         .contains(r#""default""#));
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
-        .contains("literal!(0u32)"));
+        .contains("literal(0u32)"));
 
     env::remove_var("LITERAL_MODE");
 }

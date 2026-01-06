@@ -3,35 +3,34 @@ use std::fs;
 use tempfile::TempDir;
 use jeb_literal::LiteralPrivate;
 
-/// Helper to find all literal! macro positions in a file
+/// Helper to find all literal() call positions in a file
 fn find_litter_positions(file_path: &std::path::Path) -> Vec<(u32, u32)> {
     let source = fs::read_to_string(file_path).unwrap();
     let ast = syn::parse_file(&source).unwrap();
 
     use syn::visit::Visit;
-    struct MacroCollector {
+    struct CallCollector {
         positions: Vec<(u32, u32)>,
     }
 
-    impl<'ast> Visit<'ast> for MacroCollector {
-        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            let is_litter = if let Some(segments) = node.mac.path.segments.iter().last() {
-                segments.ident == "literal"
-            } else {
-                false
-            };
-
-            if is_litter {
-                let span = node.mac.path.segments.last().unwrap().ident.span();
-                let start = span.start();
-                self.positions
-                    .push((start.line as u32, start.column as u32));
+    impl<'ast> Visit<'ast> for CallCollector {
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if let syn::Expr::Call(call) = node {
+                if let syn::Expr::Path(path) = &*call.func {
+                    if let Some(segment) = path.path.segments.last() {
+                        if segment.ident == "literal" {
+                            let span = segment.ident.span();
+                            let start = span.start();
+                            self.positions.push((start.line as u32, start.column as u32));
+                        }
+                    }
+                }
             }
-            syn::visit::visit_expr_macro(self, node);
+            syn::visit::visit_expr(self, node);
         }
     }
 
-    let mut collector = MacroCollector {
+    let mut collector = CallCollector {
         positions: Vec::new(),
     };
     collector.visit_file(&ast);
@@ -45,7 +44,7 @@ fn test_verify_mode_matching_value() {
 
     // Write a file with a inline value
     let content = r#"fn test() {
-    let x = jeb_literal::literal!(42u32);
+    let x = jeb_literal::literal(42u32);
 }
 "#;
     fs::write(&path, content).unwrap();
@@ -72,7 +71,7 @@ fn test_verify_mode_mismatched_value() {
 
     // Write a file with a inline value
     let content = r#"fn test() {
-    let x = jeb_literal::literal!(42u32);
+    let x = jeb_literal::literal(42u32);
 }
 "#;
     fs::write(&path, content).unwrap();
@@ -101,7 +100,7 @@ fn test_verify_mode_complex_value() {
 
     // Write a file with a complex inline value
     let content = r#"fn test() {
-    let x = jeb_literal::literal!(vec![1u32, 2u32, 3u32]);
+    let x = jeb_literal::literal(vec![1u32, 2u32, 3u32]);
 }
 "#;
     fs::write(&path, content).unwrap();
@@ -129,7 +128,7 @@ fn test_verify_mode_complex_value_mismatch() {
 
     // Write a file with a complex inline value
     let content = r#"fn test() {
-    let x = jeb_literal::literal!(vec![1u32, 2u32, 3u32]);
+    let x = jeb_literal::literal(vec![1u32, 2u32, 3u32]);
 }
 "#;
     fs::write(&path, content).unwrap();

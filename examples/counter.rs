@@ -10,7 +10,7 @@
 use jeb_literal::literal;
 
 fn main() {
-    let mut counter = literal!(0u32);
+    let mut counter = literal(0u32);
 
     println!("This program has been run {} times", *counter + 1);
 

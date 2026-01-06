@@ -19,7 +19,7 @@ fn test_value_persists_across_line_insertions() {
 
     // Original file with a single literal at line 2
     let original = r#"fn main() {
-    let counter = literal!(0u32);
+    let counter = literal(0u32);
     println!("Counter: {}", *counter);
 }
 "#;
@@ -53,7 +53,7 @@ fn test_value_persists_across_line_insertions() {
     let after_set = fs::read_to_string(&path).unwrap();
     println!("{}", after_set);
     assert!(
-        after_set.contains("literal!(42u32)"),
+        after_set.contains("literal(42u32)"),
         "File should contain the updated value"
     );
 
@@ -71,7 +71,7 @@ fn test_value_persists_across_line_insertions() {
 // Line 9
 // Line 10
 fn main() {
-    let counter = literal!(42u32);
+    let counter = literal(42u32);
     println!("Counter: {}", *counter);
 }
 "#;
@@ -129,9 +129,9 @@ fn test_multiple_literals_maintain_distinct_identities() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = literal!(10u32);
-    let b = literal!(20u32);
-    let c = literal!(30u32);
+    let a = literal(10u32);
+    let b = literal(20u32);
+    let c = literal(30u32);
 }
 "#;
     fs::write(&path, original).unwrap();
@@ -167,12 +167,12 @@ fn test_multiple_literals_maintain_distinct_identities() {
     // Insert lines between A and B
     println!("\n=== INSERTING LINES BETWEEN A AND B ===");
     let modified = r#"fn main() {
-    let a = literal!(111u32);
+    let a = literal(111u32);
     // Extra line 1
     // Extra line 2
     // Extra line 3
-    let b = literal!(222u32);
-    let c = literal!(333u32);
+    let b = literal(222u32);
+    let c = literal(333u32);
 }
 "#;
     fs::write(&path, modified).unwrap();
@@ -232,7 +232,7 @@ fn test_index_resolution_is_consistent() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let x = literal!(100u32);
+    let x = literal(100u32);
 }
 "#;
     fs::write(&path, original).unwrap();
@@ -254,7 +254,7 @@ fn test_index_resolution_is_consistent() {
     let modified = r#"// New comment
 // Another comment
 fn main() {
-    let x = literal!(100u32);
+    let x = literal(100u32);
 }
 "#;
     fs::write(&path, modified).unwrap();
@@ -289,7 +289,7 @@ fn main() {
     env::remove_var("LITERAL_MODE");
 }
 
-/// Helper function to find all literal! macro positions in a file
+/// Helper function to find all literal() call positions in a file
 fn find_all_literal_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
     let source = fs::read_to_string(path).unwrap();
     let ast = syn::parse_file(&source).unwrap();
@@ -300,20 +300,20 @@ fn find_all_literal_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
     }
 
     impl<'ast> Visit<'ast> for MacroCollector {
-        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            let is_literal = if let Some(segment) = node.mac.path.segments.last() {
-                segment.ident == "literal"
-            } else {
-                false
-            };
-
-            if is_literal {
-                let span = node.mac.path.segments.last().unwrap().ident.span();
-                let start = span.start();
-                self.positions
-                    .push((start.line as u32, start.column as u32));
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if let syn::Expr::Call(call) = node {
+                if let syn::Expr::Path(path) = &*call.func {
+                    if let Some(segment) = path.path.segments.last() {
+                        if segment.ident == "literal" {
+                            let span = segment.ident.span();
+                            let start = span.start();
+                            self.positions
+                                .push((start.line as u32, start.column as u32));
+                        }
+                    }
+                }
             }
-            syn::visit::visit_expr_macro(self, node);
+            syn::visit::visit_expr(self, node);
         }
     }
 

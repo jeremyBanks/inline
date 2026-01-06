@@ -9,9 +9,9 @@ use jeb_literal::literal;
 
 fn main() {
     // Simple configuration values that update themselves
-    let mut max_retries = literal!(3u32);
-    let mut timeout_ms = literal!(1000u32);
-    let mut debug_mode = literal!(false);
+    let mut max_retries = literal(3u32);
+    let mut timeout_ms = literal(1000u32);
+    let mut debug_mode = literal(false);
 
     println!("Current configuration:");
     println!("  Max retries: {}", *max_retries.get());
