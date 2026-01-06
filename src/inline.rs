@@ -1,6 +1,8 @@
 use crate::literal::Value;
+use parking_lot::ArcMutexGuard;
 use std::ops::Deref;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Internal implementation of a self-modifying value.
 ///
@@ -21,11 +23,12 @@ pub struct LiteralInner<T: Value> {
 }
 
 impl<T: Value> LiteralInner<T> {
-    /// Create a new LiteralInner instance (called by the registry).
+    /// Create a new LiteralInner instance (called by the literal! macro).
     ///
     /// Does NOT fail if the source file doesn't exist - that's only an error
     /// when writing (on drop or explicit flush).
-    pub(crate) fn new(value: T, file: &str, line: u32, column: u32) -> Self {
+    #[doc(hidden)]
+    pub fn new(value: T, file: &str, line: u32, column: u32) -> Self {
         LiteralInner {
             value,
             file: PathBuf::from(file),
@@ -174,7 +177,7 @@ impl<T: Value + std::fmt::Debug> std::fmt::Debug for LiteralInner<T> {
 /// or internal library code. By making them trait methods, we completely avoid
 /// name collisions even with `__` prefixed names.
 #[doc(hidden)]
-pub trait LiteralPrivate<T: Value + 'static> {
+pub trait LiteralPrivate<T: Value + Send + 'static> {
     /// Create a new Literal value (internal use only, called by macro).
     ///
     /// **Note:** For testing only. Leaks the file path string.
@@ -184,16 +187,18 @@ pub trait LiteralPrivate<T: Value + 'static> {
 pub struct Literal<T: Value + 'static> {
     /// The current literal value. Mutating this field triggers write-on-drop.
     pub literal: T,
-    pub(crate) guard: parking_lot::MutexGuard<'static, LiteralInner<T>>,
+    pub(crate) guard: ArcMutexGuard<parking_lot::RawMutex, LiteralInner<T>>,
     /// Clone of the original value when this Literal was created.
     /// Used in Drop to detect mutations.
     original: T,
 }
 
 impl<T: Value + 'static> Literal<T> {
-    /// Create an Literal wrapper from a mutex guard
+    /// Create a Literal wrapper from an Arc<Mutex<LiteralInner<T>>>
     #[doc(hidden)]
-    pub fn from_guard(guard: parking_lot::MutexGuard<'static, LiteralInner<T>>) -> Self {
+    pub fn from_arc(arc: Arc<parking_lot::Mutex<LiteralInner<T>>>) -> Self {
+        // Lock the Arc to get an ArcMutexGuard (self-contained, no lifetime issues)
+        let guard = parking_lot::Mutex::lock_arc(&arc);
         // Clone the value twice: once for working copy, once for change detection
         let literal = guard.value.clone();
         let original = guard.value.clone();
@@ -208,12 +213,11 @@ impl<T: Value + 'static> Literal<T> {
     }
 }
 
-impl<T: Value + 'static> LiteralPrivate<T> for Literal<T> {
+impl<T: Value + Send + 'static> LiteralPrivate<T> for Literal<T> {
     fn __new(value: T, file: &str, line: u32, column: u32) -> Self {
-        // Leak the string to get 'static lifetime (acceptable for tests)
-        let file_static: &'static str = Box::leak(file.to_string().into_boxed_str());
-        let mutex_ref = crate::registry::get_or_create(value, file_static, line, column);
-        Literal::from_guard(mutex_ref.lock())
+        // Use the registry to get/create the Arc<Mutex<LiteralInner<T>>>
+        let arc = crate::registry::get_or_create(value, file, line, column);
+        Literal::from_arc(arc)
     }
 }
 
@@ -365,14 +369,40 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for Literal<T> {
 #[macro_export]
 macro_rules! literal {
     () => {{
-        $crate::Literal::from_guard($crate::registry::get_or_create(
-            ::std::default::Default::default(),
-            file!(),
-            line!(),
-            column!()
-        ).lock())
+        $crate::literal!(::std::default::Default::default())
     }};
     ($value:expr) => {{
-        $crate::Literal::from_guard($crate::registry::get_or_create($value, file!(), line!(), column!()).lock())
+        // Each call site gets its own static storage via a type-erased Arc.
+        // The Arc is stored as dyn Any to avoid needing to specify the type in the static.
+        static LITERAL: ::std::sync::OnceLock<
+            ::std::sync::Arc<dyn ::std::any::Any + Send + Sync>
+        > = ::std::sync::OnceLock::new();
+
+        // Auto-start background flush thread on first literal access
+        let _ = $crate::flush::start_background_flush_internal();
+
+        // Helper function to ensure type T is inferred from the value argument.
+        #[inline(always)]
+        fn __init_literal<T: $crate::Value + Send + 'static>(
+            value: T,
+            file: &'static str,
+            line: u32,
+            column: u32,
+            store: &::std::sync::OnceLock<::std::sync::Arc<dyn ::std::any::Any + Send + Sync>>,
+        ) -> ::std::sync::Arc<$crate::parking_lot::Mutex<$crate::LiteralInner<T>>> {
+            let arc = store.get_or_init(|| {
+                let inner = $crate::LiteralInner::new(value, file, line, column);
+                let mutex = $crate::parking_lot::Mutex::new(inner);
+                ::std::sync::Arc::new(mutex) as ::std::sync::Arc<dyn ::std::any::Any + Send + Sync>
+            });
+            // Downcast the Arc<dyn Any> to Arc<Mutex<LiteralInner<T>>>
+            // This is safe because each static is unique to this call site
+            arc.clone()
+                .downcast::<$crate::parking_lot::Mutex<$crate::LiteralInner<T>>>()
+                .expect("Type mismatch in literal! macro - this is a bug")
+        }
+
+        let arc = __init_literal($value, file!(), line!(), column!(), &LITERAL);
+        $crate::Literal::from_arc(arc)
     }};
 }

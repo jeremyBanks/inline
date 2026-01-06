@@ -91,7 +91,8 @@ pub fn flush_all() -> Result<(), Box<dyn std::error::Error>> {
 /// - Adds ±12.5% jitter to prevent thundering herd
 ///
 /// The thread runs until program exit.
-pub(crate) fn start_background_flush_internal() -> Option<JoinHandle<()>> {
+#[doc(hidden)]
+pub fn start_background_flush_internal() -> Option<JoinHandle<()>> {
     // Only start once
     if BACKGROUND_STARTED.swap(true, Ordering::SeqCst) {
         return None;

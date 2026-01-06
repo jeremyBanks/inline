@@ -57,9 +57,13 @@ mod literal;
 mod inline;
 mod dirty;
 mod ext;
-mod flush;
+pub mod flush;
 pub mod runtime;
 pub mod registry;
+
+// Re-export parking_lot for use in the literal! macro
+#[doc(hidden)]
+pub use parking_lot;
 
 pub use literal::*;
 pub use inline::*;

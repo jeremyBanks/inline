@@ -1,4 +1,4 @@
-use jeb_literal::literal;
+use jeb_literal::{literal, LiteralPrivate};
 use std::env;
 
 #[test]
@@ -91,20 +91,23 @@ fn test_static_persistence_across_function_calls() {
 #[test]
 fn test_static_persistence_thread_safety() {
     use std::thread;
+    use std::sync::Arc;
 
     env::set_var("LITERAL_MODE", "memory");
 
-    // Helper function to ensure all threads access the same source location
-    fn get_counter() -> jeb_literal::Literal<u32> {
-        literal!(0u32)
-    }
+    // Use a shared path that all threads can use
+    // We use __new with a fixed path to avoid writing to the test source file
+    let path = "/nonexistent/thread_test.rs";
+    let path_arc = Arc::new(path.to_string());
 
-    // Spawn multiple threads that all access the same static value
+    // Spawn multiple threads that all access the same registry entry
     let handles: Vec<_> = (0..10)
         .map(|_| {
-            thread::spawn(|| {
+            let path = Arc::clone(&path_arc);
+            thread::spawn(move || {
                 for _ in 0..100 {
-                    let mut counter = get_counter();
+                    // All threads use the same (file, line, column) so they share state
+                    let mut counter = jeb_literal::Literal::__new(0u32, &path, 1, 1);
                     let current = *counter;
                     counter.literal = current + 1;
                     // Lock is dropped here
@@ -118,8 +121,8 @@ fn test_static_persistence_thread_safety() {
         handle.join().unwrap();
     }
 
-    // Check final value from same location
-    let counter = get_counter();
+    // Check final value from same registry entry
+    let counter = jeb_literal::Literal::__new(0u32, path, 1, 1);
     let final_value = *counter;
 
     // Should be 10 threads * 100 increments = 1000
