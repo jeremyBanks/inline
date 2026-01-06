@@ -540,6 +540,95 @@ impl FileState {
 
         Ok(())
     }
+
+    /// Replace the entire function call expression at the given index with new tokens.
+    ///
+    /// Unlike `update_literal_by_index` which only replaces the argument,
+    /// this replaces the entire `func(arg)` expression with the replacement tokens.
+    ///
+    /// Used by `replace_me()` to substitute the whole call with the baked value.
+    pub fn replace_expression_by_index(
+        &self,
+        index: usize,
+        replacement: proc_macro2::TokenStream,
+    ) -> Result<(), String> {
+        // ACQUIRE WRITE LOCK
+        let mut shared = self.shared.write();
+
+        let source = shared.source.clone();
+
+        // Parse to find the expression
+        let ast = syn::parse_file(&source)
+            .map_err(|e| format!("Failed to parse source: {}", e))?;
+
+        // Find the byte span of the entire call expression
+        let expr_span = Self::find_call_expression_span_static(&ast, index, &source)?;
+
+        // Generate the replacement string
+        let replacement_str = replacement.to_string();
+
+        // Perform character-range splicing
+        let mut new_source = String::with_capacity(source.len());
+        new_source.push_str(&source[..expr_span.start]);
+        new_source.push_str(&replacement_str);
+        new_source.push_str(&source[expr_span.end..]);
+
+        // Update shared state
+        shared.source = new_source;
+        shared.version += 1;
+
+        Ok(())
+    }
+
+    /// Find the byte span of an entire function call expression at the given index.
+    fn find_call_expression_span_static(
+        ast: &syn::File,
+        target_index: usize,
+        source: &str,
+    ) -> Result<std::ops::Range<usize>, String> {
+        use syn::visit::Visit;
+
+        struct ExprSpanFinder {
+            target_index: usize,
+            current_index: usize,
+            span: Option<(proc_macro2::LineColumn, proc_macro2::LineColumn)>,
+        }
+
+        impl<'ast> Visit<'ast> for ExprSpanFinder {
+            fn visit_expr(&mut self, node: &'ast syn::Expr) {
+                if let syn::Expr::Call(call) = node {
+                    if self.current_index == self.target_index {
+                        // Found our target! Get the span of the entire call expression
+                        use syn::spanned::Spanned;
+                        // The call expression spans from the function to the closing paren
+                        // We need to get the span of the entire ExprCall
+                        let call_span = call.span();
+                        self.span = Some((call_span.start(), call_span.end()));
+                    }
+                    self.current_index += 1;
+                }
+                syn::visit::visit_expr(self, node);
+            }
+        }
+
+        let mut finder = ExprSpanFinder {
+            target_index,
+            current_index: 0,
+            span: None,
+        };
+
+        finder.visit_file(ast);
+
+        let (start_lc, end_lc) = finder
+            .span
+            .ok_or_else(|| format!("Could not find function call at index {}", target_index))?;
+
+        // Convert line/column to byte offsets
+        let start_byte = Self::line_col_to_byte_static(source, start_lc.line, start_lc.column)?;
+        let end_byte = Self::line_col_to_byte_static(source, end_lc.line, end_lc.column)?;
+
+        Ok(start_byte..end_byte)
+    }
 }
 
 /// Visitor that reads the Nth function call's argument (by index)
@@ -656,4 +745,21 @@ pub fn clear_file_state_cache() {
     CACHE.with(|cache| {
         cache.borrow_mut().clear();
     });
+}
+
+/// Replace an entire function call expression with new tokens.
+///
+/// Unlike `update_macro_by_index` which replaces only the call's argument,
+/// this replaces the entire `func(arg)` expression with the replacement tokens.
+///
+/// Used by `replace_me()` to substitute the whole call with the baked value.
+pub fn replace_expression(
+    path: &Path,
+    index: usize,
+    replacement: proc_macro2::TokenStream,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let state = get_or_load_file_state(path)?;
+    state.replace_expression_by_index(index, replacement)?;
+    write_to_disk(path)?;
+    Ok(())
 }

@@ -58,6 +58,7 @@ mod inline;
 mod dirty;
 mod ext;
 mod flush;
+mod replace;
 pub mod runtime;
 pub mod registry;
 
@@ -67,3 +68,4 @@ pub use runtime::*;
 pub use ext::*;
 pub use flush::{flush_all, start_background_flush};
 pub use dirty::{has_dirty_literals, dirty_count};
+pub use replace::{replace_me, replace_me_at};
