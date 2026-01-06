@@ -1,17 +1,17 @@
-//! One-shot code generation via `replace_me()`.
+//! One-shot code generation via `replace()`.
 //!
-//! Unlike `code_cell()` which provides ongoing mutable persistence,
-//! `replace_me()` is for one-time code generation: it evaluates an expression,
+//! Unlike `cell()` which provides ongoing mutable persistence,
+//! `replace()` is for one-time code generation: it evaluates an expression,
 //! bakes it to source code, and replaces the entire call with the literal value.
 //!
 //! # Example
 //!
 //! ```no_run
-//! use code_cell::replace_me;
+//! use inline::replace;
 //! use uuid::Uuid;
 //!
 //! // First run: generates UUID, writes to source, returns value
-//! let uuid = replace_me(Uuid::new_v4());
+//! let uuid = replace(Uuid::new_v4());
 //!
 //! // After source replacement, the code becomes:
 //! // let uuid = Uuid::from_bytes([0x55, 0x0e, ...]);
@@ -21,7 +21,7 @@
 //!
 //! - **First call**: Evaluates argument, stores in memory, writes to source, returns value
 //! - **Subsequent calls (same run)**: Returns clone from memory, ignores argument
-//! - **After replacement**: The `replace_me()` call no longer exists in source
+//! - **After replacement**: The `replace(...)` call no longer exists in source
 
 use crate::value::Value;
 use once_cell::sync::Lazy;
@@ -30,7 +30,7 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-/// Registry key for replace_me: (file, index_or_position, type_id)
+/// Registry key for replace: (file, index_or_position, type_id)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum IndexOrPosition {
     Index(usize),
@@ -46,10 +46,14 @@ struct StoredValue<T> {
     written: bool,
 }
 
-/// Global registry for replace_me values
+/// Global registry for replace values
 /// Each entry stores the value and whether it's been written to source
 static REPLACE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, usize>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
+
+// =============================================================================
+// Canonical function: replace()
+// =============================================================================
 
 /// One-shot code generation that replaces the entire call with the baked value.
 ///
@@ -57,16 +61,16 @@ static REPLACE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, usize>>> =
 /// returns the value. On subsequent executions within the same run, returns a
 /// clone of the persisted value (ignoring the new argument).
 ///
-/// After the source file is modified, the `replace_me(...)` call no longer exists -
+/// After the source file is modified, the `replace(...)` call no longer exists -
 /// it has been replaced with the literal value.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use code_cell::replace_me;
+/// use inline::replace;
 ///
 /// // First run: computes and bakes to source
-/// let config = replace_me(Config::compute_expensive());
+/// let config = replace(Config::compute_expensive());
 ///
 /// // Source becomes:
 /// // let config = Config { field: value, ... };
@@ -76,16 +80,16 @@ static REPLACE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, usize>>> =
 ///
 /// The value type must implement `Value` (which requires `Bake + Clone + PartialEq`).
 #[track_caller]
-pub fn replace_me<T: Value + 'static>(value: T) -> T {
+pub fn replace<T: Value + 'static>(value: T) -> T {
     let loc = std::panic::Location::caller();
-    replace_me_at(value, loc.file(), loc.line(), loc.column())
+    replace_at(value, loc.file(), loc.line(), loc.column())
 }
 
 /// Internal implementation with explicit location parameters.
 ///
 /// Used for testing with synthetic file locations.
 #[doc(hidden)]
-pub fn replace_me_at<T: Value + 'static>(
+pub fn replace_at<T: Value + 'static>(
     value: T,
     file: &str,
     line: u32,
@@ -141,7 +145,7 @@ pub fn replace_me_at<T: Value + 'static>(
                 }
             }
         } else if mode == crate::runtime::Mode::Verify {
-            // In verify mode, we could check the source matches, but since replace_me
+            // In verify mode, we could check the source matches, but since replace
             // is designed to be replaced, verification doesn't make as much sense
             // Just mark as "written" to avoid repeated checks
             stored.written = true;
@@ -152,4 +156,30 @@ pub fn replace_me_at<T: Value + 'static>(
     }
 
     stored.value.clone()
+}
+
+// =============================================================================
+// Aliases for replace()
+// =============================================================================
+
+/// Alias of [`replace()`].
+#[track_caller]
+pub fn val<T: Value + 'static>(value: T) -> T {
+    replace(value)
+}
+
+/// Alias of [`replace()`].
+#[track_caller]
+pub fn eval<T: Value + 'static>(value: T) -> T {
+    replace(value)
+}
+
+/// Alias of [`replace()`].
+///
+/// A playful, attention-grabbing name - if you leave this in your code,
+/// it's a reminder to replace it with a proper value!
+#[track_caller]
+#[allow(non_snake_case)]
+pub fn REPLACE_ME<T: Value + 'static>(value: T) -> T {
+    replace(value)
 }

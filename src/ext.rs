@@ -1,28 +1,28 @@
-//! Extension traits and utilities for `CodeCell<T>`.
+//! Extension traits and utilities for `InlineCell<T>`.
 //!
-//! This module provides traits with methods that extend `CodeCell<T>` functionality
+//! This module provides traits with methods that extend `InlineCell<T>` functionality
 //! without polluting the namespace of the inner type `T`.
 
-use crate::inline::CodeCell;
+use crate::inline::InlineCell;
 use crate::value::Value;
 use std::path::Path;
 
-/// Extension methods for `CodeCell<T>` that require explicit import.
+/// Extension methods for `InlineCell<T>` that require explicit import.
 ///
-/// These methods are available on `CodeCell<T>` but only when this trait is in scope.
+/// These methods are available on `InlineCell<T>` but only when this trait is in scope.
 /// This prevents name collisions with methods on the inner type `T`.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use code_cell::{code_cell, CodeCellExt};
+/// use cell::{cell, InlineCellExt};
 ///
-/// let mut x = code_cell(42);
+/// let mut x = cell(42);
 /// x.value = 100;
-/// x.flush()?; // Requires CodeCellExt in scope
+/// x.flush()?; // Requires InlineCellExt in scope
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-pub trait CodeCellExt<T: Value + 'static> {
+pub trait InlineCellExt<T: Value + 'static> {
     /// Write this code cell's current value to the source file immediately.
     ///
     /// Normally, writes happen on Drop. This method allows explicit control
@@ -38,9 +38,9 @@ pub trait CodeCellExt<T: Value + 'static> {
     /// # Example
     ///
     /// ```no_run
-    /// use code_cell::{code_cell, CodeCellExt};
+    /// use cell::{cell, InlineCellExt};
     ///
-    /// let mut counter = code_cell(0);
+    /// let mut counter = cell(0);
     /// counter.value = 42;
     /// counter.flush()?; // Write immediately, don't wait for Drop
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -70,7 +70,7 @@ pub trait CodeCellExt<T: Value + 'static> {
     fn index(&self) -> Option<usize>;
 }
 
-impl<T: Value + 'static> CodeCellExt<T> for CodeCell<T> {
+impl<T: Value + 'static> InlineCellExt<T> for InlineCell<T> {
     fn flush(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // Mark as dirty for tracking
         crate::dirty::mark_dirty(
@@ -132,7 +132,7 @@ impl<T: Value + 'static> CodeCellExt<T> for CodeCell<T> {
     }
 
     fn index(&self) -> Option<usize> {
-        self.guard.literal_index
+        self.guard.call_index
     }
 }
 
@@ -140,40 +140,40 @@ impl<T: Value + 'static> CodeCellExt<T> for CodeCell<T> {
 
 /// Write a code cell's current value to the source file immediately.
 ///
-/// This is a free function version of [`CodeCellExt::flush`].
+/// This is a free function version of [`InlineCellExt::flush`].
 ///
 /// # Example
 ///
 /// ```no_run
-/// use code_cell::code_cell;
+/// use cell::cell;
 ///
-/// let mut x = code_cell(42);
+/// let mut x = cell(42);
 /// x.value = 100;
-/// code_cell::flush(&mut x)?; // No trait import needed
+/// cell::flush(&mut x)?; // No trait import needed
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn flush<T: Value + 'static>(
-    cell: &mut CodeCell<T>,
+    cell: &mut InlineCell<T>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    CodeCellExt::flush(cell)
+    InlineCellExt::flush(cell)
 }
 
 /// Get the source file path for a code cell.
-pub fn path<T: Value + 'static>(cell: &CodeCell<T>) -> &Path {
-    CodeCellExt::path(cell)
+pub fn path<T: Value + 'static>(cell: &InlineCell<T>) -> &Path {
+    InlineCellExt::path(cell)
 }
 
 /// Get the source line number for a code cell.
-pub fn line<T: Value + 'static>(cell: &CodeCell<T>) -> u32 {
-    CodeCellExt::line(cell)
+pub fn line<T: Value + 'static>(cell: &InlineCell<T>) -> u32 {
+    InlineCellExt::line(cell)
 }
 
 /// Get the source column number for a code cell.
-pub fn column<T: Value + 'static>(cell: &CodeCell<T>) -> u32 {
-    CodeCellExt::column(cell)
+pub fn column<T: Value + 'static>(cell: &InlineCell<T>) -> u32 {
+    InlineCellExt::column(cell)
 }
 
 /// Get the stable index for a code cell, if resolved.
-pub fn index<T: Value + 'static>(cell: &CodeCell<T>) -> Option<usize> {
-    CodeCellExt::index(cell)
+pub fn index<T: Value + 'static>(cell: &InlineCell<T>) -> Option<usize> {
+    InlineCellExt::index(cell)
 }

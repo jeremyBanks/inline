@@ -2,7 +2,7 @@
 //!
 //! These tests verify the one-shot code generation feature.
 
-use code_cell::replace_me_at;
+use inline::replace_at;
 use std::env;
 use std::fs;
 use tempfile::TempDir;
@@ -83,15 +83,15 @@ fn test_replace_me_basic() {
 "#,
     );
 
-    env::set_var("CODE_CELL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Clear any cached state
-    code_cell::clear_file_state_cache();
+    inline::clear_file_state_cache();
 
     let (line, column) = find_call_position(&test_file.path);
 
-    // Call replace_me_at - this should replace the entire expression
-    let result = replace_me_at(100u32, test_file.path.to_str().unwrap(), line, column);
+    // Call replace_at - this should replace the entire expression
+    let result = replace_at(100u32, test_file.path.to_str().unwrap(), line, column);
 
     // Should return the value
     assert_eq!(result, 100u32);
@@ -100,7 +100,7 @@ fn test_replace_me_basic() {
     test_file.assert_contains("100u32");
     test_file.assert_does_not_contain("replace_me");
 
-    env::remove_var("CODE_CELL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
@@ -113,15 +113,15 @@ fn test_replace_me_memory_mode() {
 "#,
     );
 
-    env::set_var("CODE_CELL_MODE", "memory");
+    env::set_var("INLINE_MODE", "memory");
 
     // Clear any cached state
-    code_cell::clear_file_state_cache();
+    inline::clear_file_state_cache();
 
     let (line, column) = find_call_position(&test_file.path);
 
-    // Call replace_me_at
-    let result = replace_me_at(100u32, test_file.path.to_str().unwrap(), line, column);
+    // Call replace_at
+    let result = replace_at(100u32, test_file.path.to_str().unwrap(), line, column);
 
     // Should return the value
     assert_eq!(result, 100u32);
@@ -129,7 +129,7 @@ fn test_replace_me_memory_mode() {
     // File should still contain the original replace_me call
     test_file.assert_contains("replace_me(42u32)");
 
-    env::remove_var("CODE_CELL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
@@ -142,22 +142,22 @@ fn test_replace_me_persistence() {
 "#,
     );
 
-    env::set_var("CODE_CELL_MODE", "memory");
+    env::set_var("INLINE_MODE", "memory");
 
     // Clear any cached state
-    code_cell::clear_file_state_cache();
+    inline::clear_file_state_cache();
 
     let (line, column) = find_call_position(&test_file.path);
 
     // First call stores the value
-    let result1 = replace_me_at(100u32, test_file.path.to_str().unwrap(), line, column);
+    let result1 = replace_at(100u32, test_file.path.to_str().unwrap(), line, column);
     assert_eq!(result1, 100u32);
 
     // Second call from same location returns the stored value, ignoring the new argument
-    let result2 = replace_me_at(999u32, test_file.path.to_str().unwrap(), line, column);
+    let result2 = replace_at(999u32, test_file.path.to_str().unwrap(), line, column);
     assert_eq!(result2, 100u32); // Should still be 100, not 999
 
-    env::remove_var("CODE_CELL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
@@ -171,10 +171,10 @@ fn test_replace_me_different_locations() {
 "#,
     );
 
-    env::set_var("CODE_CELL_MODE", "memory");
+    env::set_var("INLINE_MODE", "memory");
 
     // Clear any cached state
-    code_cell::clear_file_state_cache();
+    inline::clear_file_state_cache();
 
     // Find both positions
     let source = fs::read_to_string(&test_file.path).unwrap();
@@ -206,13 +206,13 @@ fn test_replace_me_different_locations() {
     let (line2, col2) = finder.positions[1];
 
     // Each location gets its own value
-    let result1 = replace_me_at(10u32, test_file.path.to_str().unwrap(), line1, col1);
-    let result2 = replace_me_at(20u32, test_file.path.to_str().unwrap(), line2, col2);
+    let result1 = replace_at(10u32, test_file.path.to_str().unwrap(), line1, col1);
+    let result2 = replace_at(20u32, test_file.path.to_str().unwrap(), line2, col2);
 
     assert_eq!(result1, 10u32);
     assert_eq!(result2, 20u32);
 
-    env::remove_var("CODE_CELL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
@@ -225,15 +225,15 @@ fn test_replace_me_with_vec() {
 "#,
     );
 
-    env::set_var("CODE_CELL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Clear any cached state
-    code_cell::clear_file_state_cache();
+    inline::clear_file_state_cache();
 
     let (line, column) = find_call_position(&test_file.path);
 
-    // Call replace_me_at with a vec
-    let result = replace_me_at(vec![1i32, 2, 3], test_file.path.to_str().unwrap(), line, column);
+    // Call replace_at with a vec
+    let result = replace_at(vec![1i32, 2, 3], test_file.path.to_str().unwrap(), line, column);
 
     assert_eq!(result, vec![1i32, 2, 3]);
 
@@ -245,5 +245,5 @@ fn test_replace_me_with_vec() {
         content
     );
 
-    env::remove_var("CODE_CELL_MODE");
+    env::remove_var("INLINE_MODE");
 }

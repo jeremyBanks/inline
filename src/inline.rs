@@ -7,44 +7,44 @@ use std::path::PathBuf;
 /// This type wraps a value and provides the ability to update both the
 /// in-memory value and its representation in the source code file.
 ///
-/// **Note:** This is an internal type. Users should interact with the [`CodeCell`]
-/// wrapper returned by the [`code_cell()`] function instead.
+/// **Note:** This is an internal type. Users should interact with the [`InlineCell`]
+/// wrapper returned by the [`cell()`] function instead.
 #[doc(hidden)]
-pub struct CodeCellInner<T: Value> {
+pub struct InlineCellInner<T: Value> {
     pub(crate) value: T,
     pub(crate) file: PathBuf,
     pub(crate) line: u32,
     pub(crate) column: u32,
-    /// Stable index into the file's literal() calls (resolved lazily)
+    /// Stable index into the file's function calls (resolved lazily)
     /// This never changes even if line numbers shift!
-    pub(crate) literal_index: Option<usize>,
+    pub(crate) call_index: Option<usize>,
 }
 
-impl<T: Value> CodeCellInner<T> {
-    /// Create a new CodeCellInner instance (called by the registry).
+impl<T: Value> InlineCellInner<T> {
+    /// Create a new InlineCellInner instance (called by the registry).
     ///
     /// Does NOT fail if the source file doesn't exist - that's only an error
     /// when writing (on drop or explicit flush).
     pub(crate) fn new(value: T, file: &str, line: u32, column: u32) -> Self {
-        CodeCellInner {
+        InlineCellInner {
             value,
             file: PathBuf::from(file),
             line,
             column,
-            literal_index: None, // Resolve lazily when needed
+            call_index: None, // Resolve lazily when needed
         }
     }
 
-    /// Lazily resolve the literal index from the source file
+    /// Lazily resolve the call index from the source file
     pub(crate) fn resolve_index(&mut self) -> Result<usize, Box<dyn std::error::Error>> {
-        if let Some(index) = self.literal_index {
+        if let Some(index) = self.call_index {
             return Ok(index);
         }
 
         let index =
             crate::runtime::get_macro_index(&self.file, self.line, self.column).map_err(|e| {
                 format!(
-                    "Failed to find literal! macro at {}:{}:{}\n{}",
+                    "Failed to find call at {}:{}:{}\n{}",
                     self.file.display(),
                     self.line,
                     self.column,
@@ -52,7 +52,7 @@ impl<T: Value> CodeCellInner<T> {
                 )
             })?;
 
-        self.literal_index = Some(index);
+        self.call_index = Some(index);
         Ok(index)
     }
 
@@ -65,7 +65,7 @@ impl<T: Value> CodeCellInner<T> {
     pub(crate) fn verify_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
         // Index must be resolved by now
         let index = self
-            .literal_index
+            .call_index
             .expect("Index should be resolved before calling verify_source");
 
         // Get the current tokens from the source file
@@ -102,7 +102,7 @@ impl<T: Value> CodeCellInner<T> {
     pub(crate) fn update_source(&self, new_value: &T) -> Result<(), Box<dyn std::error::Error>> {
         // Index must be resolved by now
         let index = self
-            .literal_index
+            .call_index
             .expect("Index should be resolved before calling update_source");
 
         // Bake the value to Rust code
@@ -119,7 +119,7 @@ impl<T: Value> CodeCellInner<T> {
     }
 }
 
-impl<T: Value> Deref for CodeCellInner<T> {
+impl<T: Value> Deref for InlineCellInner<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -127,32 +127,32 @@ impl<T: Value> Deref for CodeCellInner<T> {
     }
 }
 
-impl<T: Value + std::fmt::Debug> std::fmt::Debug for CodeCellInner<T> {
+impl<T: Value + std::fmt::Debug> std::fmt::Debug for InlineCellInner<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CodeCellInner")
+        f.debug_struct("InlineCellInner")
             .field("value", &self.value)
             .field("file", &self.file)
             .field("line", &self.line)
             .field("column", &self.column)
-            .field("literal_index", &self.literal_index)
+            .field("call_index", &self.call_index)
             .finish()
     }
 }
 
 /// A self-modifying value that holds a lock and can update its source code.
 ///
-/// This type wraps a `MutexGuard` to a [`CodeCellInner<T>`] and provides
+/// This type wraps a `MutexGuard` to a [`InlineCellInner<T>`] and provides
 /// convenient access to the value with a single dereference.
 ///
-/// Created via the [`code_cell()`] function. The lock is held for the entire
+/// Created via the [`cell()`] function. The lock is held for the entire
 /// lifetime of this value.
 ///
 /// # Example (write-on-drop with `.value` field)
 ///
 /// ```no_run
-/// use code_cell::code_cell;
+/// use inline::cell;
 ///
-/// let mut counter = code_cell(0u32);
+/// let mut counter = cell(0u32);
 /// println!("Value: {}", *counter);  // Single deref to read
 /// counter.value = *counter + 1;     // Assign to public field
 /// // Value is automatically written on drop
@@ -161,42 +161,41 @@ impl<T: Value + std::fmt::Debug> std::fmt::Debug for CodeCellInner<T> {
 /// # Example (write-on-drop with `DerefMut`)
 ///
 /// ```no_run
-/// use code_cell::code_cell;
+/// use inline::cell;
 ///
-/// let mut counter = code_cell(0u32);
+/// let mut counter = cell(0u32);
 /// *counter += 1;  // Mutate directly via DerefMut
 /// // Value is automatically written on drop
 /// ```
+pub struct InlineCell<T: Value + 'static> {
+    /// The current value. Mutating this field triggers write-on-drop.
+    pub value: T,
+    pub(crate) guard: parking_lot::MutexGuard<'static, InlineCellInner<T>>,
+    /// Clone of the original value when this InlineCell was created.
+    /// Used in Drop to detect mutations.
+    original: T,
+}
 
 /// Private trait for internal methods that shouldn't pollute the namespace.
 ///
 /// This trait contains methods that are only meant to be called internally.
 /// By making them trait methods, we completely avoid name collisions.
 #[doc(hidden)]
-pub trait CodeCellPrivate<T: Value + 'static> {
-    /// Create a new CodeCell (internal use only, for testing).
+pub trait InlineCellPrivate<T: Value + 'static> {
+    /// Create a new InlineCell (internal use only, for testing).
     ///
     /// **Note:** For testing only.
     fn __new(value: T, file: &str, line: u32, column: u32) -> Self;
 }
 
-pub struct CodeCell<T: Value + 'static> {
-    /// The current value. Mutating this field triggers write-on-drop.
-    pub value: T,
-    pub(crate) guard: parking_lot::MutexGuard<'static, CodeCellInner<T>>,
-    /// Clone of the original value when this CodeCell was created.
-    /// Used in Drop to detect mutations.
-    original: T,
-}
-
-impl<T: Value + 'static> CodeCell<T> {
-    /// Create a CodeCell wrapper from a mutex guard
+impl<T: Value + 'static> InlineCell<T> {
+    /// Create an InlineCell wrapper from a mutex guard
     #[doc(hidden)]
-    pub fn from_guard(guard: parking_lot::MutexGuard<'static, CodeCellInner<T>>) -> Self {
+    pub fn from_guard(guard: parking_lot::MutexGuard<'static, InlineCellInner<T>>) -> Self {
         // Clone the value twice: once for working copy, once for change detection
         let value = guard.value.clone();
         let original = guard.value.clone();
-        CodeCell { value, guard, original }
+        InlineCell { value, guard, original }
     }
 
     /// Get a reference to the current value
@@ -207,14 +206,14 @@ impl<T: Value + 'static> CodeCell<T> {
     }
 }
 
-impl<T: Value + 'static> CodeCellPrivate<T> for CodeCell<T> {
+impl<T: Value + 'static> InlineCellPrivate<T> for InlineCell<T> {
     fn __new(init: T, file: &str, line: u32, column: u32) -> Self {
         let mutex_ref = crate::registry::get_or_create_at(init, file, line, column);
-        CodeCell::from_guard(mutex_ref.lock())
+        InlineCell::from_guard(mutex_ref.lock())
     }
 }
 
-impl<T: Value + 'static> Deref for CodeCell<T> {
+impl<T: Value + 'static> Deref for InlineCell<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -222,13 +221,13 @@ impl<T: Value + 'static> Deref for CodeCell<T> {
     }
 }
 
-impl<T: Value + 'static> std::ops::DerefMut for CodeCell<T> {
+impl<T: Value + 'static> std::ops::DerefMut for InlineCell<T> {
     fn deref_mut(&mut self) -> &mut T {
         &mut self.value
     }
 }
 
-impl<T: Value + 'static> Drop for CodeCell<T> {
+impl<T: Value + 'static> Drop for InlineCell<T> {
     fn drop(&mut self) {
         // Check if the value was mutated (via DerefMut or direct .value assignment)
         // Compare using PartialEq
@@ -265,7 +264,7 @@ impl<T: Value + 'static> Drop for CodeCell<T> {
                     // Verify - this may panic if there's a mismatch
                     if let Err(e) = self.guard.verify_source(&self.guard.value) {
                         panic!(
-                            "CodeCell verification failed at {}:{}:{}\\n{}",
+                            "InlineCell verification failed at {}:{}:{}\n{}",
                             self.guard.file.display(),
                             self.guard.line,
                             self.guard.column,
@@ -296,46 +295,50 @@ impl<T: Value + 'static> Drop for CodeCell<T> {
     }
 }
 
-// Blanket trait implementations to make CodeCell<T> transparent
+// Blanket trait implementations to make InlineCell<T> transparent
 
-impl<T: Value + 'static> AsRef<T> for CodeCell<T> {
+impl<T: Value + 'static> AsRef<T> for InlineCell<T> {
     fn as_ref(&self) -> &T {
         &self.value
     }
 }
 
-impl<T: Value + 'static> std::borrow::Borrow<T> for CodeCell<T> {
+impl<T: Value + 'static> std::borrow::Borrow<T> for InlineCell<T> {
     fn borrow(&self) -> &T {
         &self.value
     }
 }
 
-impl<T: Value + std::fmt::Display + 'static> std::fmt::Display for CodeCell<T> {
+impl<T: Value + std::fmt::Display + 'static> std::fmt::Display for InlineCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.value, f)
     }
 }
 
-impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for CodeCell<T> {
+impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for InlineCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CodeCell")
+        f.debug_struct("InlineCell")
             .field("value", &self.value)
             .finish()
     }
 }
 
+// =============================================================================
+// Canonical function: cell()
+// =============================================================================
+
 /// Create a self-modifying value that can update its source code.
 ///
 /// This function captures the source location using `#[track_caller]` and
-/// returns a [`CodeCell<T>`] that holds a lock to the underlying value.
+/// returns an [`InlineCell<T>`] that holds a lock to the underlying value.
 /// The lock is held until the value is dropped.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use code_cell::code_cell;
+/// use inline::cell;
 ///
-/// let mut counter = code_cell(0u32);
+/// let mut counter = cell(0u32);
 /// let current = *counter;  // Single dereference
 /// counter.value = current + 1;
 /// // In Write mode, the source file is updated
@@ -348,27 +351,53 @@ impl<T: Value + std::fmt::Debug + 'static> std::fmt::Debug for CodeCell<T> {
 ///
 /// # Returns
 ///
-/// A [`CodeCell<T>`] that holds the lock and derefs to `&T`.
+/// An [`InlineCell<T>`] that holds the lock and derefs to `&T`.
 /// The same underlying value is returned for all calls from the same source location.
 #[track_caller]
-pub fn code_cell<T: Value + 'static>(value: T) -> CodeCell<T> {
-    CodeCell::from_guard(crate::registry::get_or_create(value).lock())
+pub fn cell<T: Value + 'static>(value: T) -> InlineCell<T> {
+    InlineCell::from_guard(crate::registry::get_or_create(value).lock())
 }
 
 /// Create a self-modifying value initialized with its default value.
 ///
-/// This is equivalent to `code_cell(T::default())` but more concise for types
+/// This is equivalent to `cell(T::default())` but more concise for types
 /// that implement `Default`.
 ///
 /// # Example
 ///
 /// ```no_run
-/// use code_cell::code_cell_default;
+/// use inline::cell_default;
 ///
-/// let mut counter = code_cell_default::<u32>();
-/// // Equivalent to: code_cell(0u32)
+/// let mut counter = cell_default::<u32>();
+/// // Equivalent to: cell(0u32)
 /// ```
 #[track_caller]
-pub fn code_cell_default<T: Value + Default + 'static>() -> CodeCell<T> {
-    CodeCell::from_guard(crate::registry::get_or_create(T::default()).lock())
+pub fn cell_default<T: Value + Default + 'static>() -> InlineCell<T> {
+    InlineCell::from_guard(crate::registry::get_or_create(T::default()).lock())
+}
+
+// =============================================================================
+// Aliases for cell()
+// =============================================================================
+
+/// Alias of [`cell()`].
+#[track_caller]
+pub fn var<T: Value + 'static>(value: T) -> InlineCell<T> {
+    cell(value)
+}
+
+/// Alias of [`cell()`].
+#[track_caller]
+pub fn snapshot<T: Value + 'static>(value: T) -> InlineCell<T> {
+    cell(value)
+}
+
+/// Alias of [`cell()`].
+///
+/// A playful placeholder - if you leave this in your code, it's a reminder
+/// to replace it with a proper fallback value!
+#[track_caller]
+#[allow(non_snake_case)]
+pub fn HACK<T: Value + 'static>(value: T) -> InlineCell<T> {
+    cell(value)
 }

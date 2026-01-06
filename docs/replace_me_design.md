@@ -304,3 +304,37 @@ let counter = 0u32.code_cell();
 ```
 
 This is a separate project to tackle after the core `replace_me` function is complete.
+
+---
+
+## Future Work: Macro Syntax
+
+For users who prefer macro syntax (even though we're not using macros for anything special anymore), we could provide macro wrappers:
+
+```rust
+// These macros would work identically to the function versions
+inline::cell!(value)
+inline::replace!(value)
+```
+
+### Challenges
+
+The main challenge is **overlapping macro invocations**. When a macro is replaced, the span changes and any nested macros become orphaned:
+
+```rust
+// Nested call - outer replacement affects inner span
+let x = inline::replace!(inline::cell!(compute()));
+```
+
+Potential solutions:
+1. **Depth-first processing**: Process innermost macros first
+2. **Span markers**: Use unique identifiers instead of position
+3. **Prohibition**: Simply disallow nesting macros (document as limitation)
+
+### Implementation Notes
+
+- Macros would be thin wrappers around the function versions
+- The macro body span would be used instead of function call span
+- Need special AST handling to find `macro_rules!` invocations vs function calls
+
+This is a separate project to tackle after the extension trait methods.

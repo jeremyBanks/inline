@@ -5,13 +5,13 @@
 // To run:
 // LITERAL_MODE=write cargo run --example config
 
-use code_cell::code_cell;
+use inline::cell;
 
 fn main() {
     // Simple configuration values that update themselves
-    let mut max_retries = code_cell(3u32);
-    let mut timeout_ms = code_cell(1000u32);
-    let mut debug_mode = code_cell(false);
+    let mut max_retries = cell(3u32);
+    let mut timeout_ms = cell(1000u32);
+    let mut debug_mode = cell(false);
 
     println!("Current configuration:");
     println!("  Max retries: {}", *max_retries.get());

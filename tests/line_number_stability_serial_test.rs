@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 use tempfile::TempDir;
-use code_cell::CodeCellPrivate;
+use inline::InlineCellPrivate;
 
 #[test]
 fn test_line_number_stability_with_multiple_litters() {
@@ -12,16 +12,16 @@ fn test_line_number_stability_with_multiple_litters() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = code_cell(1u32);
-    let b = code_cell(2u32);
-    let c = code_cell(3u32);
+    let a = cell(1u32);
+    let b = cell(2u32);
+    let c = cell(3u32);
 }
 "#;
     fs::write(&path, original).unwrap();
     println!("=== ORIGINAL FILE ===");
     println!("{}", original);
 
-    env::set_var("CODE_CELL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Find all positions initially
     let positions = find_all_positions(&path);
@@ -36,9 +36,9 @@ fn test_line_number_stability_with_multiple_litters() {
     let (c_line, c_col) = positions[2];
 
     // Create inline instances
-    let mut litter_a = code_cell::CodeCell::__new(1u32, path.to_str().unwrap(), a_line, a_col);
-    let mut litter_b = code_cell::CodeCell::__new(2u32, path.to_str().unwrap(), b_line, b_col);
-    let mut litter_c = code_cell::CodeCell::__new(3u32, path.to_str().unwrap(), c_line, c_col);
+    let mut litter_a = inline::InlineCell::__new(1u32, path.to_str().unwrap(), a_line, a_col);
+    let mut litter_b = inline::InlineCell::__new(2u32, path.to_str().unwrap(), b_line, b_col);
+    let mut litter_c = inline::InlineCell::__new(3u32, path.to_str().unwrap(), c_line, c_col);
 
     // Update A
     println!("\n=== UPDATING A (1 -> 999) ===");
@@ -106,7 +106,7 @@ fn test_line_number_stability_with_multiple_litters() {
 
     println!("\n✓ ALL LINE NUMBERS REMAINED STABLE!");
 
-    env::remove_var("CODE_CELL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
@@ -123,7 +123,7 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
             if let syn::Expr::Call(call) = node {
                 if let syn::Expr::Path(path) = &*call.func {
                     if let Some(segment) = path.path.segments.last() {
-                        if segment.ident == "code_cell" {
+                        if segment.ident == "cell" {
                             let span = segment.ident.span();
                             let start = span.start();
                             self.positions

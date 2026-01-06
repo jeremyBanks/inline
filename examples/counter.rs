@@ -7,10 +7,10 @@
 // 2. Run with LITERAL_MODE=write ./counter
 // 3. Check the source file - the counter value will have been updated!
 
-use code_cell::code_cell;
+use inline::cell;
 
 fn main() {
-    let mut counter = code_cell(0u32);
+    let mut counter = cell(0u32);
 
     println!("This program has been run {} times", *counter + 1);
 

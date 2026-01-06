@@ -1,9 +1,9 @@
 // Quick test of the guard-returning macro
 
-use code_cell::code_cell;
+use inline::cell;
 
 fn main() {
-    let mut counter = code_cell(0u32);
+    let mut counter = cell(0u32);
 
     println!("Counter value: {}", *counter);
 
@@ -14,5 +14,5 @@ fn main() {
 
     // Test that we can't access the same value twice (would deadlock)
     // Uncomment to test:
-    // let mut counter2 = code_cell(0u32);  // Would deadlock!
+    // let mut counter2 = cell(0u32);  // Would deadlock!
 }

@@ -1,14 +1,14 @@
 //! Self-modifying values that update their source code at runtime.
 //!
-//! `code-cell` provides smart pointers that can modify their own source code.
+//! `inline` provides smart pointers that can modify their own source code.
 //! This is an experimental approach to snapshot testing and self-modifying code.
 //!
 //! # Example
 //!
 //! ```no_run
-//! use code_cell::code_cell;
+//! use inline::cell;
 //!
-//! let mut counter = code_cell(0u32);
+//! let mut counter = cell(0u32);
 //! println!("Run #{}", *counter + 1);
 //! let current = *counter;
 //! counter.value = current + 1;
@@ -17,7 +17,7 @@
 //!
 //! # Modes
 //!
-//! CodeCell has four modes controlled by the `CODE_CELL_MODE` environment variable:
+//! InlineCell has four modes controlled by the `INLINE_MODE` environment variable:
 //!
 //! - **Write** (default outside tests): Changes are written to source files
 //! - **Verify** (default in tests): Validates values match the source
@@ -25,9 +25,29 @@
 //! - **Reject**: Rejects any write attempts
 //!
 //! ```bash
-//! CODE_CELL_MODE=write cargo test    # Update all snapshots
-//! cargo test                          # Verify snapshots (default)
+//! INLINE_MODE=write cargo test    # Update all snapshots
+//! cargo test                       # Verify snapshots (default)
 //! ```
+//!
+//! # Functions
+//!
+//! ## Mutable cell (canonical: `cell`)
+//!
+//! Returns an `InlineCell<T>` that persists mutations to source code.
+//!
+//! - `inline::cell(value)` - canonical
+//! - `inline::var(value)` - alias
+//! - `inline::snapshot(value)` - alias
+//! - `inline::HACK(value)` - alias (playful placeholder)
+//!
+//! ## One-shot replacement (canonical: `replace`)
+//!
+//! Returns `T` directly, replacing the entire call with the baked value.
+//!
+//! - `inline::replace(value)` - canonical
+//! - `inline::val(value)` - alias
+//! - `inline::eval(value)` - alias
+//! - `inline::REPLACE_ME(value)` - alias (playful placeholder)
 //!
 //! # Supported Types
 //!
@@ -43,7 +63,7 @@
 //!
 //! # How It Works
 //!
-//! 1. The `code_cell()` function captures the source location via `#[track_caller]`
+//! 1. The `cell()` function captures the source location via `#[track_caller]`
 //! 2. Mutations are detected on drop (comparing original vs current value)
 //! 3. The source file is parsed and the function call is located by stable index
 //! 4. Character-range splicing replaces only the call's argument
@@ -68,4 +88,6 @@ pub use runtime::*;
 pub use ext::*;
 pub use flush::{flush_all, start_background_flush};
 pub use dirty::{has_dirty_literals, dirty_count};
-pub use replace::{replace_me, replace_me_at};
+
+// Re-export replace functions and aliases
+pub use replace::{replace, replace_at, val, eval, REPLACE_ME};
