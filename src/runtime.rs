@@ -245,11 +245,11 @@ impl FileState {
             fn visit_expr(&mut self, node: &'ast syn::Expr) {
                 use syn::spanned::Spanned;
 
-                // Index function calls and macro invocations by position.
+                // Index function calls, method calls, and macro invocations by position.
                 // When a macro like cell!() expands to cell(), #[track_caller]
                 // reports the macro call site. So we need to index macros too.
                 //
-                // IMPORTANT: We skip macros inside function call arguments
+                // IMPORTANT: We skip macros inside function/method call arguments
                 // (like vec![] in cell(vec![1,2])) to avoid indexing confusion.
                 match node {
                     syn::Expr::Call(call) => {
@@ -266,6 +266,25 @@ impl FileState {
                         let was_skipping = self.skip_macros;
                         self.skip_macros = true;
                         for arg in &call.args {
+                            self.visit_expr(arg);
+                        }
+                        self.skip_macros = was_skipping;
+                        return;
+                    }
+                    syn::Expr::MethodCall(method) => {
+                        // Index this method call
+                        let start = method.receiver.span().start();
+                        let pos = (start.line as u32, start.column as u32);
+                        self.map.insert(pos, self.current_index);
+                        self.current_index += 1;
+
+                        // Recurse into receiver (for chained calls)
+                        self.visit_expr(&method.receiver);
+
+                        // Recurse into args, but skip any macros found there
+                        let was_skipping = self.skip_macros;
+                        self.skip_macros = true;
+                        for arg in &method.args {
                             self.visit_expr(arg);
                         }
                         self.skip_macros = was_skipping;
@@ -418,9 +437,9 @@ impl FileState {
                 // Must match the same traversal logic as IndexBuilder
                 match node {
                     syn::Expr::Call(call) => {
-                        // Check if this is our target
+                        // Check if this is our target - use LAST arg (trailing position)
                         if self.current_index == self.target_index {
-                            if let Some(arg) = call.args.first() {
+                            if let Some(arg) = call.args.last() {
                                 self.span = Some((arg.span().start(), arg.span().end()));
                             }
                         }
@@ -433,6 +452,26 @@ impl FileState {
                         let was_skipping = self.skip_macros;
                         self.skip_macros = true;
                         for arg in &call.args {
+                            self.visit_expr(arg);
+                        }
+                        self.skip_macros = was_skipping;
+                        return;
+                    }
+                    syn::Expr::MethodCall(method) => {
+                        // Check if this is our target - replace RECEIVER
+                        if self.current_index == self.target_index {
+                            let receiver = &method.receiver;
+                            self.span = Some((receiver.span().start(), receiver.span().end()));
+                        }
+                        self.current_index += 1;
+
+                        // Recurse into receiver
+                        self.visit_expr(&method.receiver);
+
+                        // Recurse into args, but skip macros
+                        let was_skipping = self.skip_macros;
+                        self.skip_macros = true;
+                        for arg in &method.args {
                             self.visit_expr(arg);
                         }
                         self.skip_macros = was_skipping;
@@ -685,6 +724,22 @@ impl FileState {
                         self.skip_macros = was_skipping;
                         return;
                     }
+                    syn::Expr::MethodCall(method) => {
+                        if self.current_index == self.target_index {
+                            self.span = Some((method.span().start(), method.span().end()));
+                        }
+                        self.current_index += 1;
+
+                        self.visit_expr(&method.receiver);
+
+                        let was_skipping = self.skip_macros;
+                        self.skip_macros = true;
+                        for arg in &method.args {
+                            self.visit_expr(arg);
+                        }
+                        self.skip_macros = was_skipping;
+                        return;
+                    }
                     syn::Expr::Macro(mac) => {
                         if !self.skip_macros {
                             if self.current_index == self.target_index {
@@ -735,9 +790,10 @@ impl<'ast> syn::visit::Visit<'ast> for IndexedLiteralReader {
         // Must match the same traversal logic as IndexBuilder
         match node {
             syn::Expr::Call(call) => {
+                // Use LAST arg (trailing position)
                 if self.tokens.is_none() && self.current_index == self.target_index {
-                    if let Some(first_arg) = call.args.first() {
-                        self.tokens = Some(quote::quote!(#first_arg));
+                    if let Some(last_arg) = call.args.last() {
+                        self.tokens = Some(quote::quote!(#last_arg));
                     }
                 }
                 self.current_index += 1;
@@ -747,6 +803,24 @@ impl<'ast> syn::visit::Visit<'ast> for IndexedLiteralReader {
                 let was_skipping = self.skip_macros;
                 self.skip_macros = true;
                 for arg in &call.args {
+                    self.visit_expr(arg);
+                }
+                self.skip_macros = was_skipping;
+                return;
+            }
+            syn::Expr::MethodCall(method) => {
+                // Use RECEIVER
+                if self.tokens.is_none() && self.current_index == self.target_index {
+                    let receiver = &method.receiver;
+                    self.tokens = Some(quote::quote!(#receiver));
+                }
+                self.current_index += 1;
+
+                self.visit_expr(&method.receiver);
+
+                let was_skipping = self.skip_macros;
+                self.skip_macros = true;
+                for arg in &method.args {
                     self.visit_expr(arg);
                 }
                 self.skip_macros = was_skipping;
