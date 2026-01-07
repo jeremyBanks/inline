@@ -1,6 +1,6 @@
-# jeb-literal Design Document
+# inline Design Document
 
-This document describes the design and architecture of jeb-literal, a self-modifying literal value system for Rust.
+This document describes the design and architecture of `inline`, a self-modifying value system for Rust.
 
 **Document Status**: All sections marked UNAPPROVED are pending review and approval.
 
@@ -10,7 +10,7 @@ This document describes the design and architecture of jeb-literal, a self-modif
 
 ## Overview
 
-jeb-literal is an experimental Rust library that provides **mutable literals** - values that can modify their own source code representation at runtime. It enables patterns like snapshot testing and self-updating configuration through a smart pointer API that treats source code as mutable state.
+`inline` is an experimental Rust library that provides **mutable cells** - values that can modify their own source code representation at runtime. It enables patterns like snapshot testing and self-updating configuration through a smart pointer API that treats source code as mutable state.
 
 ### Design Goals
 
@@ -20,10 +20,13 @@ jeb-literal is an experimental Rust library that provides **mutable literals** -
 4. **Format Preservation**: Maintain original code formatting and style
 5. **Thread Safety**: Support concurrent access without corruption
 6. **Mode Flexibility**: Support multiple operational modes (write, verify, memory-only)
+7. **Rename Resilience**: No dependency on function/macro names - survives aliasing and renaming
 
 ### Core Innovation
 
-The key insight is treating source code as a **synchronized mutable store** rather than immutable text. By maintaining a registry of literal values and using character-range splicing to update source files, we create a bidirectional link between runtime values and their source representation.
+The key insight is treating source code as a **synchronized mutable store** rather than immutable text. By maintaining a registry of cell values and using character-range splicing to update source files, we create a bidirectional link between runtime values and their source representation.
+
+The implementation uses `#[track_caller]` to capture source locations without macros, enabling a pure function-based API that works with Rust's standard tooling.
 
 <!-- END SECTION: Overview -->
 
@@ -33,27 +36,27 @@ The key insight is treating source code as a **synchronized mutable store** rath
 
 ## Core Concepts
 
-### 1. Literal Values
+### 1. Inline Cells
 
-A **literal value** is a Rust value that:
-- Has a source code representation (via the `literal!()` macro)
+An **inline cell** is a Rust value that:
+- Has a source code representation (via `cell()` function or `cell!()` macro)
 - Can be read and modified at runtime
 - Automatically syncs changes back to source code (in Write mode)
 - Persists across function calls within the same execution
 
 ```rust
-let mut counter = literal!(0u32);
+let mut counter = cell(0u32);
 *counter += 1;  // Writes "1" back to source code on drop
 ```
 
 ### 2. Value Identity and Stability
 
-Each literal has a **stable identity** based on:
-- **File path**: Which source file contains the literal
-- **Index**: Position among all literals in that file (0th, 1st, 2nd, etc.)
+Each cell has a **stable identity** based on:
+- **File path**: Which source file contains the cell
+- **Index**: Position among all cells in that file (0th, 1st, 2nd, etc.)
 - **Type**: Rust's `TypeId` for type safety
 
-This is **more stable** than line/column positions because inserting lines above a literal doesn't change its index.
+This is **more stable** than line/column positions because inserting lines above a cell doesn't change its index.
 
 ### 3. Serialization via Bake
 
@@ -65,13 +68,13 @@ pub trait Value: Bake + Clone + PartialEq {}
 
 **Bake** serializes Rust values to Rust source code (token streams) for writing to source files.
 
-**Clone** enables creating a working copy in the public `literal` field and storing an `original` value for change detection.
+**Clone** enables creating a working copy in the public `value` field and storing an `original` value for change detection.
 
-**PartialEq** enables detecting mutations by comparing `original == literal` on drop.
+**PartialEq** enables detecting mutations by comparing `original == value` on drop.
 
 ### 4. Operational Modes
 
-The library has **four modes** controlled by the `LITERAL_MODE` environment variable:
+The library has **four modes** controlled by the `INLINE_MODE` environment variable:
 
 | Mode | Behavior | Default When |
 |------|----------|--------------|
@@ -88,16 +91,27 @@ Mutations are detected and written **on drop**:
 
 ```rust
 {
-    let mut counter = literal!(0u32);
-    counter.literal = 42;  // Just assigns field
+    let mut counter = cell(0u32);
+    counter.value = 42;  // Just assigns field
     // Drop happens here → detects change → writes to file
 }
 ```
 
 This is enabled by:
-- A public `literal: T` field for ergonomic assignment
+- A public `value: T` field for ergonomic assignment
 - An `original: T` field storing the initial value
 - A `Drop` impl that compares with `PartialEq` and writes if changed
+
+### 6. One-Shot Replacement
+
+The `replace()` function provides a different pattern - one-time code generation:
+
+```rust
+let author = replace(std::env::var("USER").unwrap_or_default());
+// After first run: let author = "jeremy";
+```
+
+Unlike `cell()` which replaces only the argument value, `replace()` substitutes the **entire call expression** with the baked result.
 
 <!-- END SECTION: Core Concepts -->
 
@@ -111,7 +125,7 @@ The system is organized into four main layers:
 
 ```
 ┌─────────────────────────────────────────────────┐
-│  User API (literal! macro, Literal<T>)         │
+│  User API (cell/replace functions, InlineCell)  │
 ├─────────────────────────────────────────────────┤
 │  Registry (type-erased value storage)           │
 ├─────────────────────────────────────────────────┤
@@ -121,43 +135,51 @@ The system is organized into four main layers:
 └─────────────────────────────────────────────────┘
 ```
 
-### Layer 1: User API (`src/inline.rs`)
+### Layer 1: User API (`src/inline.rs`, `src/replace.rs`)
 
 **Components:**
-- `literal!()` macro - Entry point, captures source location
-- `Literal<T>` - Smart pointer wrapper, holds lock and provides API
-- `LiteralInner<T>` - Internal value holder (hidden from users)
+- `cell()` / `cell_default()` - Entry points using `#[track_caller]`
+- `replace()` / `replace_default()` - One-shot replacement functions
+- `cell!()` / `replace!()` - Macro alternatives
+- `InlineCell<T>` - Smart pointer wrapper, holds lock and provides API
+- `InlineCellInner<T>` - Internal value holder (hidden from users)
 
 **Key Types:**
 
 ```rust
-pub struct Literal<T: Value + 'static> {
-    pub literal: T,                                    // Working copy
-    guard: MutexGuard<'static, LiteralInner<T>>,      // Exclusive lock
+pub struct InlineCell<T: Value + 'static> {
+    pub value: T,                                      // Working copy
+    guard: MutexGuard<'static, InlineCellInner<T>>,   // Exclusive lock
     original: T,                                       // For change detection
 }
 ```
 
 **API Surface:**
-- `literal!(expr)` - Create/access a literal value
-- `literal!()` - Create with `Default::default()`
-- `example.literal = value` or `*example = value` - Write via field or `DerefMut`
-- `example.literal` or `*example` - Read via field or `Deref`
+- `cell(expr)` - Create/access a cell value
+- `cell_default::<T>()` - Create with `Default::default()`
+- `replace(expr)` - One-shot replacement
+- `replace_default::<T>()` - One-shot with default
+- `x.value = val` or `*x = val` - Write via field or `DerefMut`
+- `x.value` or `*x` - Read via field or `Deref`
+
+**Function Aliases:**
+- Cell: `cell`, `var`, `snapshot`, `HACK`
+- Replace: `replace`, `val`, `eval`, `REPLACE_ME`
 
 ### Layer 2: Registry (`src/registry.rs`)
 
-**Purpose:** Type-erased global storage for literal values with stable identity.
+**Purpose:** Type-erased global storage for cell values with stable identity.
 
 **Key Type:**
 ```rust
 static VALUE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, RegistryValue>>>
 
 type RegistryKey = (PathBuf, u32, u32, TypeId);  // (file, line, column, type)
-type RegistryValue = usize;  // Raw pointer to Box<Mutex<LiteralInner<T>>>
+type RegistryValue = usize;  // Raw pointer to Box<Mutex<InlineCellInner<T>>>
 ```
 
 **Responsibilities:**
-- De-duplicate literals at the same source location
+- De-duplicate cells at the same source location
 - Provide `'static` lifetime through intentional memory leaks
 - Ensure type safety via `TypeId` in keys
 - Use compile-time (line, column) as identity (never changes)
@@ -193,12 +215,22 @@ thread_local! {
 
 **Responsibilities:**
 - Parse source files to AST (`syn::File`)
-- Build position-to-index mapping
+- Build position-to-index mapping for all call types
 - Detect concurrent external modifications via `disk_source` comparison
 - Verify initial value matches source on first access in Verify mode
 - Perform character-range splicing for updates
 - Cache parsed ASTs per-thread
 - Write modified source to disk
+
+**AST Visitor Design:**
+
+The `IndexBuilder` visitor counts calls in source order:
+- **Function calls (`ExprCall`)**: Indexed, last argument is replaced
+- **Method calls (`ExprMethodCall`)**: Indexed, receiver is replaced
+- **Macro invocations (`ExprMacro`)**: Indexed, entire contents replaced
+- Uses `skip_macros` flag to avoid double-counting macros inside function arguments
+
+**Critical**: No name-based filtering. The visitor counts ALL calls/macros in file order. Identity is purely positional.
 
 **Locking strategy:**
 - `RwLock` for `SharedState` - allows concurrent readers
@@ -222,42 +254,44 @@ thread_local! {
 
 ## Data Flow
 
-### Read Path (Accessing a Literal)
+### Read Path (Accessing a Cell)
 
 ```
-User code: literal!(42u32)
+User code: cell(42u32)
     ↓
-Macro expansion: registry::get_or_create(42, file!(), line!(), column!())
+#[track_caller] captures Location::caller()
+    ↓
+registry::get_or_create(42, file, line, column)
     ↓
 Registry: Check for existing (file, line, column, TypeId) → found?
-    ├─ YES → Return &'static Mutex<LiteralInner<T>>
-    └─ NO  → Create Box<Mutex<LiteralInner<T>>>, leak for 'static
+    ├─ YES → Return &'static Mutex<InlineCellInner<T>>
+    └─ NO  → Create Box<Mutex<InlineCellInner<T>>>, leak for 'static
              Insert into global map with key (file, line, column, TypeId)
-             Return &'static Mutex<LiteralInner<T>>
+             Return &'static Mutex<InlineCellInner<T>>
     ↓
-Macro: Call .lock() → MutexGuard<LiteralInner<T>>
+Call .lock() → MutexGuard<InlineCellInner<T>>
     ↓
-Literal::from_guard(): Clone value twice (working + original)
+InlineCell::from_guard(): Clone value twice (working + original)
     ↓
-Return Literal<T> to user
+Return InlineCell<T> to user
 ```
 
 **Note:** No file I/O occurs during reads. The registry uses compile-time (line, column) as identity.
 
-### Write Path (Modifying a Literal)
+### Write Path (Modifying a Cell)
 
 **Via write-on-drop:**
 
 ```
-User code: counter.literal = 42
+User code: counter.value = 42
     ↓
-Field assignment: self.literal = 42 (in-memory only)
+Field assignment: self.value = 42 (in-memory only)
     ↓
 [...later...]
     ↓
 Drop::drop(&mut self)
     ↓
-Compare: original == literal?
+Compare: original == value?
     ├─ YES → No-op, return early
     └─ NO  → Continue to write logic
         ↓
@@ -274,17 +308,32 @@ Compare: original == literal?
         Runtime: Update SharedState.disk_source
 ```
 
+### Replacement Behavior by Call Type
+
+When updating source code, the replacement target depends on the call type:
+
+| Call Type | What Gets Replaced | Example |
+|-----------|-------------------|---------|
+| Function call | Last argument | `cell(42)` → `cell(100)` |
+| Method call | Receiver | `42.cell()` → `100.cell()` |
+| Macro | Entire contents | `cell!(42)` → `cell!(100)` |
+
+For `replace()` mode, the **entire expression** is replaced:
+- `replace(compute())` → `"result"`
+
 ### Index Resolution (Lazy, Cached)
 
 ```
-get_macro_index(file, line, column)
+get_call_index(file, line, column)
     ↓
 FileState: Get or create for file
     ↓
 Check thread-local cache: version matches?
     ├─ YES → Use cached (ast, position_to_index)
     └─ NO  → Parse SharedState.source → syn::File
-             Walk AST, count literal!() macros, build position map
+             Walk AST with IndexBuilder visitor
+             Count ExprCall, ExprMethodCall, ExprMacro in order
+             Build position map (line, column) → index
              Cache (ast, position_to_index, version)
     ↓
 Look up (line, column) in position_to_index
@@ -300,24 +349,53 @@ Return stable index
 
 ## Key Design Decisions
 
-### 1. Registry Key Uses (line, column), Index Resolved Lazily
+### 1. `#[track_caller]` Instead of Macros
+
+**Decision:** Use `#[track_caller]` attribute on functions to capture source location.
+
+**Rationale:**
+- Simpler implementation (no proc-macro crate needed)
+- Better IDE support (functions vs macros)
+- Works with method syntax via extension traits
+- `Location::caller()` reports macro call site, not definition
+
+**Trade-off:**
+- Cannot capture exact token spans (only line/column)
+- Requires position-based AST matching
+
+### 2. Position-Based Matching (No Name Filtering)
+
+**Decision:** Count ALL calls in file order, match by position only. Never filter by function/macro name.
+
+**Rationale:**
+- Resilient to renaming: `use inline::cell as snapshot;` works
+- Resilient to aliasing: wrapper functions work
+- No false negatives from unexpected names
+- Simpler mental model
+
+**Trade-off:**
+- Counts unrelated calls (e.g., `vec![]` macros)
+- Index depends on all calls in file, not just inline cells
+- Acceptable: adding unrelated code rarely affects snapshot tests
+
+### 3. Registry Key Uses (line, column), Index Resolved Lazily
 
 **Decision:** Use compile-time (file, line, column) as registry key identity. Resolve stable index only when writing/verifying.
 
 **Rationale:**
-- Compile-time (line, column) from `file!()`, `line!()`, `column!()` never changes
+- Compile-time location from `Location::caller()` never changes
 - Eliminates file parsing on reads - just hash map lookup
 - Index only needed when actually modifying source files
 - Index resolution can be lazy and cached per-file
 
 **Trade-off:**
-- Index still needed for writing (to find Nth literal in file after edits)
+- Index still needed for writing (to find Nth call in file after edits)
 - But reads are faster with no file I/O
-- Adding/removing literals still shifts later indices (acceptable for snapshot testing)
+- Adding/removing calls still shifts later indices (acceptable for snapshot testing)
 
-### 2. Intentional Memory Leaks for `'static`
+### 4. Intentional Memory Leaks for `'static`
 
-**Decision:** Leak `Box<Mutex<LiteralInner<T>>>` to get `'static` lifetime.
+**Decision:** Leak `Box<Mutex<InlineCellInner<T>>>` to get `'static` lifetime.
 
 **Rationale:**
 - Registry must return `&'static` references
@@ -325,38 +403,36 @@ Return stable index
 - No safe way to prove exclusive ownership for deallocation
 
 **Trade-off:**
-- Memory grows with number of unique literal locations
-- Acceptable for typical usage (10s-100s of literals, not millions)
+- Memory grows with number of unique cell locations
+- Acceptable for typical usage (10s-100s of cells, not millions)
 
-### 3. Write-on-Drop Instead of Explicit `.set()`
+### 5. Write-on-Drop Instead of Explicit `.set()`
 
 **Decision:** Detect mutations in `Drop` by comparing with `PartialEq`.
 
 **Rationale:**
-- More ergonomic: `counter.literal = 42` vs `counter.set(42)`
+- More ergonomic: `counter.value = 42` vs `counter.set(42)`
 - Supports both direct field assignment and `DerefMut` (`*counter = 42`)
 - Consistent with Rust's RAII philosophy
 
 **Trade-off:**
 - Requires `Clone` bound (to store `original` value)
 - Requires `PartialEq` bound (to detect changes)
-- One extra clone per literal creation
+- One extra clone per cell creation
 - Writes happen at drop time (requires explicit scopes in some tests)
 
-### 4. Public `literal` Field (Not `value`)
+### 6. Public `value` Field
 
-**Decision:** Name the public field `literal` instead of `value`.
+**Decision:** Name the public field `value`.
 
 **Rationale:**
-- Reduces collision chance with inner type methods
-- If `T` has a `.value` field/method, `Deref` would conflict
-- Clearer intent: this is the literal's value
+- Clear, simple, standard naming
+- Intuitive for users: `cell.value = x`
 
 **Trade-off:**
-- Slightly more verbose: `counter.literal` vs `counter.value`
-- But avoids subtle bugs from name collisions
+- May conflict with inner type's `.value` field (use `Deref` instead)
 
-### 5. PartialEq-Based Comparison for Change Detection
+### 7. PartialEq-Based Comparison for Change Detection
 
 **Decision:** Compare values with `PartialEq` to detect changes, use `Bake` only for serialization.
 
@@ -369,13 +445,13 @@ Return stable index
 - Requires both `PartialEq` and `Bake` bounds
 - Types without `PartialEq` cannot be used (rare)
 
-### 6. Mode-Based Behavior with Cargo Detection and Feature Flag
+### 8. Mode-Based Behavior with Cargo Detection and Feature Flag
 
-**Decision:** Use runtime `LITERAL_MODE` env var, default based on cargo detection, with optional compile-time feature flag.
+**Decision:** Use runtime `INLINE_MODE` env var, default based on cargo detection, with optional compile-time feature flag.
 
 **Rationale:**
 - Same binary can verify or update snapshots via env var
-- Easier for users: `LITERAL_MODE=write cargo test`
+- Easier for users: `INLINE_MODE=write cargo test`
 - Safe defaults: Memory mode when not run by `cargo`, Write mode when run by `cargo`
 - Optional "write" feature can be disabled to compile out write functionality
 
@@ -384,9 +460,9 @@ Return stable index
 - Can't dead-code eliminate write logic unless feature disabled
 - Acceptable: mode check is trivial compared to file I/O
 
-### 7. Character-Range Splicing (Not Pretty-Printing)
+### 9. Character-Range Splicing (Not Pretty-Printing)
 
-**Decision:** Replace only the macro's token span, preserving surrounding code.
+**Decision:** Replace only the target span, preserving surrounding code.
 
 **Rationale:**
 - Maintains original formatting, comments, whitespace
@@ -395,22 +471,35 @@ Return stable index
 
 **Trade-off:**
 - More complex implementation (span tracking)
-- Long values may wrap lines (handled by prettyplease for new content)
+- Long values may wrap lines (handled by databake formatting)
 
-### 8. Mutex for Values, RwLock for Files
+### 10. Last Argument for Function Calls, Receiver for Method Calls
+
+**Decision:** For function calls, replace the last argument. For method calls, replace the receiver.
+
+**Rationale:**
+- Last argument position allows wrapper functions to add parameters before the value
+- Receiver position for methods is most natural (`42.cell()` → `100.cell()`)
+- Consistent, predictable behavior
+
+**Trade-off:**
+- Wrapper functions must put value last
+- Acceptable: trailing value position is a common Rust pattern
+
+### 11. Mutex for Values, RwLock for Files
 
 **Decision:** Different lock types for different granularities.
 
 **Rationale:**
-- `Mutex<LiteralInner<T>>`: Exclusive access model (always modify)
+- `Mutex<InlineCellInner<T>>`: Exclusive access model (always modify)
 - `RwLock<SharedState>`: Many readers, occasional writers (file state)
-- Optimizes for common case (many literals, few file updates)
+- Optimizes for common case (many cells, few file updates)
 
 **Trade-off:**
 - More complexity (two lock types)
 - Better performance under concurrent access
 
-### 9. Thread-Local AST Caching
+### 12. Thread-Local AST Caching
 
 **Decision:** Each thread caches its own parsed AST.
 
@@ -439,7 +528,7 @@ Return stable index
 #[test]
 fn test_render_output() {
     let output = render_component();
-    let expected = literal!("expected HTML".to_string());
+    let expected = cell("expected HTML".to_string());
 
     assert_eq!(output, *expected);
     // First run: write mode updates expected to match output
@@ -449,8 +538,8 @@ fn test_render_output() {
 
 **Workflow:**
 ```bash
-LITERAL_MODE=write cargo test  # Update all snapshots
-cargo test                      # Verify snapshots match
+INLINE_MODE=write cargo test  # Update all snapshots
+cargo test                     # Verify snapshots match
 ```
 
 ### 2. Self-Updating Run Counter
@@ -460,44 +549,38 @@ cargo test                      # Verify snapshots match
 **Solution:**
 ```rust
 fn main() {
-    let mut counter = literal!(0u32);
+    let mut counter = cell(0u32);
     println!("This program has run {} times", *counter + 1);
     *counter += 1;  // Source code now contains new count
 }
 ```
 
-### 3. Development-Time Configuration
+### 3. One-Time Code Generation
+
+**Problem:** Compute a value once during development, embed it in source.
+
+**Solution:**
+```rust
+let author = replace(std::env::var("USER").unwrap_or_default());
+// After first run, becomes: let author = "jeremy";
+```
+
+### 4. Development-Time Configuration
 
 **Problem:** Tweaking configuration values during development.
 
 **Solution:**
 ```rust
 fn dev_server() {
-    let mut config = literal!(ServerConfig {
+    let mut config = cell(ServerConfig {
         port: 8080,
         debug: true,
     });
 
     // Modify config at runtime, persists to source
-    config.literal.port = 3000;
+    config.value.port = 3000;
     // Next run starts with port 3000
 }
-```
-
-### 4. Interactive Data Exploration
-
-**Problem:** Refining data transformations through iteration.
-
-**Solution:**
-```rust
-let mut filters = literal!(vec!["spam", "ads"]);
-let cleaned = data.filter(|item| {
-    !filters.iter().any(|f| item.contains(f))
-});
-
-// Discover new filter needed
-filters.literal.push("promotions");
-// Re-run with updated filters without editing code
 ```
 
 ### 5. Regression Test Generation
@@ -510,7 +593,7 @@ filters.literal.push("promotions");
 fn test_parse_response() {
     let response = fetch_api_response();
     let parsed = parse(response);
-    let snapshot = literal!(ParsedResponse::default());
+    let snapshot = cell(ParsedResponse::default());
 
     // First run in write mode: captures actual parsed value
     // Future runs: verify parsing stays consistent
@@ -528,7 +611,7 @@ fn test_parse_response() {
 
 ### Hot Paths
 
-**Accessing a literal (already in registry):**
+**Accessing a cell (already in registry):**
 - Registry lookup: `O(1)` hash map access
 - Mutex lock: `O(1)` uncontended (typically)
 - Clone value twice: `O(n)` in value size
@@ -540,7 +623,7 @@ fn test_parse_response() {
 
 ### Cold Paths
 
-**First access to a literal (not in registry):**
+**First access to a cell (not in registry):**
 - Create registry entry: `O(1)`
 - No file I/O on reads
 - **Total: Fast**, just hash map insertion
@@ -560,14 +643,14 @@ fn test_parse_response() {
 
 **Shared source state:**
 - `Arc<RwLock<SharedState>>` shared across threads
-- Read-heavy workload (many literals, few writes)
+- Read-heavy workload (many cells, few writes)
 - RwLock allows concurrent readers
 
 ### Scalability Limits
 
-**Number of literals:** Grows registry size (leaked memory)
-- 10,000 literals × 1KB each = 10MB (fine)
-- 1,000,000 literals = 1GB (problematic)
+**Number of cells:** Grows registry size (leaked memory)
+- 10,000 cells × 1KB each = 10MB (fine)
+- 1,000,000 cells = 1GB (problematic)
 
 **File size:** Affects parse time and splice time
 - 10,000 line file: ~100ms parse time (acceptable)
@@ -612,7 +695,7 @@ fn test_parse_response() {
 **Assumptions:**
 - Single process modifies each file (no external editors)
 - Source files remain valid Rust
-- Literal count remains stable (adding/removing shifts indices)
+- Call count remains stable (adding/removing shifts indices)
 
 ### Limitations
 
@@ -628,13 +711,13 @@ fn test_parse_response() {
 - Custom types need manual `Bake` impl or derive
 
 **3. Concurrency**
-- Same literal from multiple threads: Last writer wins
+- Same cell from multiple threads: Last writer wins
 - No transaction semantics
 - No conflict resolution (accept it or use Mutex externally)
 
 **4. Index Stability**
-- Adding literal above shifts indices of literals below
-- Removing literal shifts all subsequent indices
+- Adding calls above shifts indices of calls below
+- Removing calls shifts all subsequent indices
 - Acceptable for snapshot testing (update in write mode)
 
 **5. Value Size**
@@ -651,16 +734,16 @@ fn test_parse_response() {
 
 **Don't:**
 - ❌ Use for production data storage (experimental, modifies source)
-- ❌ Store secrets in literals (they'll be in source code!)
+- ❌ Store secrets in cells (they'll be in source code!)
 - ❌ Use for very large values (performance degrades)
-- ❌ Rely on literal order (indices shift when literals added)
+- ❌ Rely on call order (indices shift when calls added)
 - ❌ Edit source files externally while running (changes may be lost)
 
 **Do:**
 - ✅ Use for snapshot testing in tests
 - ✅ Use for development-time configuration
 - ✅ Run in verify mode in CI
-- ✅ Commit source files with literals to version control
+- ✅ Commit source files with cells to version control
 - ✅ Use write mode locally to update snapshots
 
 ### Platform Support
@@ -683,11 +766,21 @@ fn test_parse_response() {
 
 ### Implemented Features
 
-**1. Extension Trait (`LiteralExt`)** ✅
+**1. Extension Trait (`InlineCellExt`)** ✅
 - Provides `flush()` for immediate writes (vs waiting for drop)
+- Provides `reset_to_default()` to reset to type's default value
 - Provides `path()`, `line()`, `column()`, `index()` for source location info
-- Opt-in via `use jeb_literal::LiteralExt;`
-- Also available as free functions: `jeb_literal::flush(&mut x)`
+- Opt-in via `use inline::InlineCellExt;`
+- Also available as free functions: `inline::flush(&mut x)`
+
+**2. One-Shot Replacement (`replace()`)** ✅
+- `replace(expr)` evaluates once, replaces entire call with baked value
+- `replace_default::<T>()` uses `Default::default()`
+- Macro versions: `replace!()`, `replace_default!()`
+
+**3. Macro Syntax** ✅
+- `cell!()`, `cell_default!()`, `replace!()`, `replace_default!()`
+- Entire macro contents replaced (not just argument)
 
 ### Planned Features
 
@@ -696,13 +789,13 @@ fn test_parse_response() {
 - Serialize to `ron` or `json`, embed in source as string literal
 - Broader type support at cost of less idiomatic Rust
 
-**2. File-Backed Literals**
+**2. File-Backed Cells**
 - Store snapshots in separate `.snap` files (like `insta` crate)
 - Stable identifiers independent of line numbers
 - Better for very large snapshots
 
 **3. Tooling Integration**
-- `cargo-literal` command for reviewing snapshot changes
+- `cargo-inline` command for reviewing snapshot changes
 - Interactive mode like `git add -p`
 - Diff viewer for changed snapshots
 
@@ -724,7 +817,7 @@ fn test_parse_response() {
 - Requires explicit flush or atexit hook
 
 **3. Transaction Semantics**
-- Group multiple literal updates
+- Group multiple cell updates
 - All-or-nothing write (rollback on error)
 - Useful for multi-file snapshots
 
@@ -735,26 +828,8 @@ fn test_parse_response() {
 
 **5. IDE Integration**
 - Language server protocol extension
-- Highlight literals that have changed
+- Highlight cells that have changed
 - Quick-fix to accept/reject changes
-
-### Open Questions
-
-**1. Macro syntax:**
-- Support `literal! { value }` in addition to `literal!(value)`?
-- Named literals: `literal!(counter: 0)`?
-
-**2. Scoping:**
-- Should literals be scoped to module, file, or global?
-- Current: global per-file, indexed by position
-
-**3. Versioning:**
-- How to handle snapshot format changes across versions?
-- Migration path for incompatible changes?
-
-**4. Testing:**
-- How to test the library itself without self-modification?
-- Current: Fixture files, careful test isolation
 
 <!-- END SECTION: Future Directions -->
 
@@ -773,12 +848,13 @@ fn test_parse_response() {
 
 **Differences:**
 - `expect-test`: String-based, uses `expect![[...]]` syntax
-- `jeb-literal`: Typed values, uses `literal!(value)` syntax
-- `jeb-literal`: Supports non-test use cases (self-modifying code)
-- `jeb-literal`: Persistence across runs (registry)
+- `inline`: Typed values, uses `cell(value)` syntax
+- `inline`: Supports non-test use cases (self-modifying code)
+- `inline`: Persistence across runs (registry)
+- `inline`: Uses `#[track_caller]` functions, not macros
 
 **Inspiration:**
-jeb-literal is heavily based on `expect-test`, extending the concept to typed values and runtime persistence.
+`inline` is heavily based on `expect-test`, extending the concept to typed values and runtime persistence.
 
 ### vs. `insta`
 
@@ -789,13 +865,13 @@ jeb-literal is heavily based on `expect-test`, extending the concept to typed va
 
 **Differences:**
 - `insta`: External `.snap` files
-- `jeb-literal`: Inline in source code
+- `inline`: Inline in source code
 - `insta`: Review workflow with `cargo insta review`
-- `jeb-literal`: Simpler (just environment variable)
+- `inline`: Simpler (just environment variable)
 
 **Trade-offs:**
 - `insta`: Better for large snapshots, stable file layout
-- `jeb-literal`: Better for small values, no extra files
+- `inline`: Better for small values, no extra files
 
 ### vs. Self-Modifying Code (General)
 
@@ -804,13 +880,13 @@ jeb-literal is heavily based on `expect-test`, extending the concept to typed va
 - Code generation tools (build scripts)
 - Configuration management systems
 
-**jeb-literal advantages:**
+**inline advantages:**
 - No external files needed
 - Type-safe, compiler-checked values
 - Integrates with Rust's ownership system
 - Version control friendly (values in source)
 
-**jeb-literal disadvantages:**
+**inline disadvantages:**
 - Modifying source is unconventional
 - Requires careful mode management
 - Not suitable for production deployment
@@ -824,4 +900,4 @@ jeb-literal is heavily based on `expect-test`, extending the concept to typed va
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1.0 | 2026-01-04 | Initial draft, all sections unapproved |
-
+| 0.2.0 | 2026-01-07 | Major rewrite: updated for `inline` crate, `#[track_caller]` functions, position-based matching |

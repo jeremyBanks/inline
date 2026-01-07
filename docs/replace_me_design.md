@@ -1,35 +1,68 @@
-# `replace_me` Feature Design
+# `replace()` Feature Design
 
 ## Overview
 
-`replace_me<T>(value: T) -> T` is a one-shot code generation function that:
+`replace<T>(value: T) -> T` is a one-shot code generation function that:
 1. On first execution: evaluates the expression, writes it to source code, returns the value
 2. On subsequent executions: returns a clone of the persisted value (ignoring the new argument)
-3. The source file transformation replaces the entire `replace_me(...)` call with the literal value
+3. The source file transformation replaces the **entire call expression** with the baked value
+
+## Implementation Status
+
+**Status: Implemented** ✅
+
+The `replace()` function and its variants are fully implemented in `src/replace.rs`.
 
 ## Motivation
 
-While `code_cell` provides ongoing mutable persistence, `replace_me` serves a different use case:
-- **One-time code generation**: Generate a value once, bake it into source, never need the function again
+While `cell()` provides ongoing mutable persistence, `replace()` serves a different use case:
+- **One-time code generation**: Generate a value once, bake it into source, function call disappears
 - **Build-time constants**: Compute expensive values once during development
 - **Snapshot testing style**: Capture computed values as source literals
 
 Example transformation:
 ```rust
 // Before (first run)
-let uuid = replace_me(Uuid::new_v4());
+let uuid = replace(Uuid::new_v4().to_string());
 
 // After (source file is modified)
-let uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
-// or if we can bake Uuid directly:
-let uuid = uuid::Uuid(/* baked representation */);
+let uuid = "550e8400-e29b-41d4-a716-446655440000";
+```
+
+## API
+
+### Functions
+
+```rust
+/// One-shot replacement - evaluates once, replaces entire call with baked value
+#[track_caller]
+pub fn replace<T: Bake + Clone + PartialEq + 'static>(value: T) -> T;
+
+/// One-shot replacement with default value
+#[track_caller]
+pub fn replace_default<T: Bake + Clone + PartialEq + Default + 'static>() -> T;
+```
+
+### Function Aliases
+
+All aliases behave identically:
+- `replace` - Standard name
+- `val` - Short alias
+- `eval` - "Evaluate once" semantic
+- `REPLACE_ME` - Loud, obvious marker
+
+### Macros
+
+```rust
+replace!(expression)      // Macro version
+replace_default!()        // Macro version with default
 ```
 
 ## Detailed Semantics
 
 ### Return Type: `T` (not a wrapper)
 
-Unlike `code_cell()` which returns `CodeCell<T>`, `replace_me()` returns `T` directly:
+Unlike `cell()` which returns `InlineCell<T>`, `replace()` returns `T` directly:
 - No ongoing shared state needed after replacement
 - Callers get owned values
 - Simpler API for the primary use case
@@ -40,7 +73,7 @@ Before the source is replaced, the in-memory persistence mechanism is still need
 
 ```rust
 fn generate_config() -> Config {
-    replace_me(Config::compute_expensive())
+    replace(Config::compute_expensive())
 }
 
 // Multiple calls during the same run:
@@ -52,24 +85,13 @@ let c3 = generate_config(); // Later: returns clone from memory (no recompute)
 Key behaviors:
 - **First call**: Evaluates argument, stores in registry, writes to source, returns value
 - **Subsequent calls (same run)**: Returns `clone()` of stored value, ignores argument
-- **After replacement**: The `replace_me()` call no longer exists in source
-
-### Argument Mismatch Handling
-
-If subsequent calls pass different argument values:
-- **Normal mode**: Silently ignore the difference, return stored value
-- **Verify mode**: Panic if argument differs from stored value (catches non-determinism bugs)
-
-```rust
-// Potentially non-deterministic
-replace_me(SystemTime::now())  // Second call would differ - verify mode catches this
-```
+- **After replacement**: The `replace()` call no longer exists in source
 
 ### Mode Behavior
 
 | Mode | First Call | Subsequent Calls | Source Update |
 |------|------------|------------------|---------------|
-| Write | Evaluate + store + return | Clone from memory | Yes |
+| Write | Evaluate + store + return | Clone from memory | Yes (entire call replaced) |
 | Memory | Evaluate + store + return | Clone from memory | No |
 | Verify | Evaluate + verify match | Verify + clone | N/A |
 | Reject | Panic | Panic | N/A |
@@ -78,128 +100,77 @@ replace_me(SystemTime::now())  // Second call would differ - verify mode catches
 
 ### What Gets Replaced
 
-The entire `replace_me(...)` expression is replaced with the baked literal:
+The **entire call expression** is replaced with the baked value:
 
 ```rust
 // Before
-let x = replace_me(vec![1, 2, 3]);
+let x = replace(vec![1, 2, 3]);
 
 // After
 let x = <[_]>::into_vec(Box::new([1i32, 2i32, 3i32]));
 ```
 
-### AST Modification Strategy
+### Difference from `cell()`
 
-Unlike `code_cell` which replaces only the *argument* tokens, `replace_me` replaces the *entire call*:
-
-Current `code_cell` approach:
+`cell()` replaces only the value argument, keeping the function call:
 ```rust
-// Source:       code_cell(42u32)
-// Replacement:  code_cell(100u32)  <- only argument changes
+// cell() behavior:
+// Before: cell(42u32)
+// After:  cell(100u32)  <- only argument changes
+
+// replace() behavior:
+// Before: replace(compute())
+// After:  "baked_value"  <- entire call removed
 ```
 
-New `replace_me` approach:
-```rust
-// Source:       replace_me(compute())
-// Replacement:  baked_value         <- entire call removed
-```
+### Replacement by Call Type
 
-This requires different span handling:
-- `code_cell`: Find the argument span within the call
-- `replace_me`: Find the entire `ExprCall` span
+| Call Type | What Gets Replaced |
+|-----------|-------------------|
+| Function call `replace(x)` | Entire `replace(x)` expression |
+| Method call `x.replace_me()` | Entire `x.replace_me()` expression |
+| Macro `replace!(x)` | Entire `replace!(x)` expression |
 
-### Span Calculation
+## Implementation Details
 
-Using `#[track_caller]`:
-- `Location::caller()` gives us line/column of the *function name* start
-- Need to find the matching `ExprCall` and get its *full span* (including closing paren)
+### `#[track_caller]` for Location
+
+The function uses `#[track_caller]` to capture the call site:
 
 ```rust
-fn find_replace_me_span(file: &Path, line: u32, col: u32) -> (usize, usize) {
-    // Parse file, find ExprCall at (line, col)
-    // Return (start_byte, end_byte) of entire expression
-}
-```
-
-### Handling Nested Expressions
-
-```rust
-let x = foo(replace_me(bar()));
-//          ^------------------^ this span
-```
-
-The replacement affects only the `replace_me(...)` portion, not the outer call.
-
-## Implementation Plan
-
-### 1. Core Function
-
-```rust
-// src/replace.rs
-
 #[track_caller]
-pub fn replace_me<T: Value + Clone + 'static>(value: T) -> T {
+pub fn replace<T: Bake + Clone + PartialEq + 'static>(value: T) -> T {
     let loc = std::panic::Location::caller();
-    replace_me_at(value, loc.file(), loc.line(), loc.column())
-}
-
-pub fn replace_me_at<T: Value + Clone + 'static>(
-    value: T,
-    file: &str,
-    line: u32,
-    column: u32,
-) -> T {
-    // 1. Check registry for existing value at this location
-    // 2. If exists: return clone (ignore `value` argument)
-    // 3. If not: store value, trigger replacement, return value
+    replace_impl(value, loc.file(), loc.line(), loc.column())
 }
 ```
 
-### 2. Registry Changes
+### AST Span Calculation
 
-Need a separate registry or marker for `replace_me` vs `code_cell`:
-- `replace_me` entries are "fire-once" - no ongoing mutation expected
-- Could share the same storage but with different write behavior
-
-### 3. Source Writer Changes
-
-New function to replace entire expression:
+Finding the entire expression span:
+- `Location::caller()` gives line/column of the function name start
+- AST visitor finds the matching `ExprCall`, `ExprMethodCall`, or `ExprMacro`
+- Returns the full span (start to closing paren/bracket)
 
 ```rust
-// src/runtime.rs
-
-pub fn replace_expression(
-    file: &Path,
-    line: u32,
-    column: u32,
-    replacement: proc_macro2::TokenStream,
-) -> Result<(), Error> {
-    // 1. Parse file
-    // 2. Find ExprCall at position
-    // 3. Get full span of expression
-    // 4. Replace source[start..end] with replacement tokens
-}
+// The span finder in runtime.rs handles this:
+fn find_call_expression_span_static(
+    ast: &syn::File,
+    index: usize,
+    source: &str,
+) -> Result<ByteSpan, String>
 ```
 
-### 4. Verify Mode Integration
+### Registry Integration
 
-In verify mode, check that the baked value matches what would be computed:
+`replace()` shares the same registry infrastructure as `cell()`:
+- Same position-based indexing
+- Same type-erased storage
+- Different write behavior (replace entire expression vs. just argument)
 
-```rust
-fn verify_replace_me<T: Value + PartialEq>(stored: &T, computed: &T) {
-    assert!(
-        stored == computed,
-        "replace_me value mismatch: source has {:?} but computed {:?}",
-        stored, computed
-    );
-}
-```
+### Dead Import Handling
 
-Note: Requires `T: PartialEq` for meaningful verification.
-
-### 5. Dead Import Handling
-
-After replacement, `use code_cell::replace_me` becomes unused. Per user decision:
+After replacement, `use inline::replace` becomes unused:
 - **Do not attempt cleanup**
 - Dead imports are acceptable
 - Users can clean manually or let `rustfmt`/linters handle it
@@ -208,13 +179,13 @@ After replacement, `use code_cell::replace_me` becomes unused. Per user decision
 
 ### 1. Replacement Already Happened
 
-If the source no longer contains `replace_me(...)`:
-- The function isn't called at all (it's been replaced)
+If the source no longer contains `replace(...)`:
+- The function isn't called at all (it's been replaced with a literal)
 - No special handling needed
 
 ### 2. File Not Found / Parse Error
 
-Same handling as `code_cell`:
+Same handling as `cell()`:
 - In write mode: panic or error
 - In memory mode: continue in-memory only
 
@@ -222,119 +193,65 @@ Same handling as `code_cell`:
 
 Position-based matching handles this correctly:
 ```rust
-let (a, b) = (replace_me(1), replace_me(2));
-//            ^col=12         ^col=28
+let (a, b) = (replace(1), replace(2));
+//            ^col=12     ^col=25
 ```
 
 Each has distinct column, works as expected.
 
-### 4. Generic Types
+### 4. Nested Expressions
 
 ```rust
-replace_me::<Vec<u32>>(vec![1, 2, 3])
+let x = foo(replace(bar()));
+//          ^--------------^ this span only
+```
+
+The replacement affects only the `replace(...)` portion, not the outer call.
+
+### 5. Generic Types
+
+```rust
+replace::<Vec<u32>>(vec![1, 2, 3])
 ```
 
 The turbofish is part of the expression and gets replaced entirely.
 
-### 5. Macro Invocations in Argument
+## Testing
+
+Tests are in `tests/macro_syntax_serial_test.rs`:
+- `test_replace_macro_basic` - Basic replacement functionality
+
+Additional test coverage needed:
+- Multiple calls return same value
+- Complex types with Bake implementations
+- All four modes
+- Expression replacement span calculation
+
+## Future Work
+
+### Extension Trait Method
+
+Could add a method-style API via extension trait:
 
 ```rust
-replace_me(format!("hello {}", name))
-```
-
-Works fine - the argument is evaluated, result is baked.
-
-## Testing Strategy
-
-1. **Basic replacement**: Verify source file is modified correctly
-2. **Memory persistence**: Multiple calls return same value
-3. **Clone semantics**: Returned values are independent
-4. **Mode behavior**: Test all four modes
-5. **Verify mode**: Catches non-determinism
-6. **Complex types**: Nested structures, generics, custom Bake impls
-
-## API Summary
-
-```rust
-// Primary function
-#[track_caller]
-pub fn replace_me<T: Value + Clone + 'static>(value: T) -> T;
-
-// For testing with explicit location
-pub fn replace_me_at<T: Value + Clone + 'static>(
-    value: T,
-    file: &str,
-    line: u32,
-    column: u32,
-) -> T;
-```
-
----
-
-## Future Work: Extension Trait Methods
-
-After `replace_me` is implemented, we plan to add extension trait methods:
-
-```rust
-pub trait ReplaceExt: Value + Clone + Sized + 'static {
-    #[track_caller]
-    fn replace_me(self) -> Self;
-
-    #[track_caller]
-    fn code_cell(self) -> CodeCell<Self>;
-}
-
-impl<T: Value + Clone + 'static> ReplaceExt for T {
-    fn replace_me(self) -> Self {
-        crate::replace::replace_me(self)
-    }
-
-    fn code_cell(self) -> CodeCell<Self> {
-        crate::code_cell(self)
-    }
-}
-```
-
-This enables fluent syntax:
-```rust
-use code_cell::ReplaceExt;
+use inline::ReplaceExt;
 
 let uuid = Uuid::new_v4().replace_me();
-let counter = 0u32.code_cell();
 ```
 
-This is a separate project to tackle after the core `replace_me` function is complete.
+This would use the same `#[track_caller]` mechanism.
+
+### Verify Mode Enhancement
+
+In verify mode, could check that computed value matches baked value:
+- Catches non-determinism bugs
+- Requires `T: PartialEq` (already required)
 
 ---
 
-## Future Work: Macro Syntax
+## Document History
 
-For users who prefer macro syntax (even though we're not using macros for anything special anymore), we could provide macro wrappers:
-
-```rust
-// These macros would work identically to the function versions
-inline::cell!(value)
-inline::replace!(value)
-```
-
-### Challenges
-
-The main challenge is **overlapping macro invocations**. When a macro is replaced, the span changes and any nested macros become orphaned:
-
-```rust
-// Nested call - outer replacement affects inner span
-let x = inline::replace!(inline::cell!(compute()));
-```
-
-Potential solutions:
-1. **Depth-first processing**: Process innermost macros first
-2. **Span markers**: Use unique identifiers instead of position
-3. **Prohibition**: Simply disallow nesting macros (document as limitation)
-
-### Implementation Notes
-
-- Macros would be thin wrappers around the function versions
-- The macro body span would be used instead of function call span
-- Need special AST handling to find `macro_rules!` invocations vs function calls
-
-This is a separate project to tackle after the extension trait methods.
+| Version | Date | Changes |
+|---------|------|---------|
+| 0.1.0 | 2026-01-05 | Initial design document |
+| 0.2.0 | 2026-01-07 | Updated to reflect implementation, `#[track_caller]` approach |
