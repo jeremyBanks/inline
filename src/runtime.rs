@@ -25,7 +25,7 @@ pub enum Mode {
     /// DEFAULT IN TESTS
     Verify,
     /// Actually writes changes to source files
-    /// Fails if files can't be found or literal macros missing at expected positions
+    /// Fails if files can't be found or calls/macros missing at expected positions
     /// DEFAULT OUTSIDE TESTS (self-modifying code!)
     Write,
     /// Changes in memory only, never writes to disk
@@ -229,7 +229,7 @@ impl FileState {
         })
     }
 
-    /// Build a map from (line, column) to literal call index by traversing the AST
+    /// Build a map from (line, column) to call/macro index by traversing the AST
     /// Indices are assigned in AST traversal order and never change
     fn build_index_map(ast: &syn::File) -> HashMap<(u32, u32), usize> {
         use syn::visit::Visit;
@@ -369,7 +369,7 @@ impl FileState {
     /// - Function calls: the last argument (trailing position)
     /// - Method calls: the receiver
     /// - Macros: entire contents inside delimiters
-    pub fn update_literal_by_index(
+    pub fn update_value_by_index(
         &self,
         index: usize,
         new_tokens: proc_macro2::TokenStream,
@@ -380,13 +380,13 @@ impl FileState {
         // Get the source while holding the lock (avoid deadlock)
         let source = shared.source.clone();
 
-        // Parse the current source to find the literal call
+        // Parse the current source to find the call
         let ast = syn::parse_file(&source)
             .map_err(|e| format!("Failed to parse source: {}", e))?;
 
         // Find the byte span of the target call's argument
         // Pass source as parameter to avoid deadlock
-        let value_span = Self::find_literal_arg_span_static(&ast, index, &source)?;
+        let value_span = Self::find_value_span_static(&ast, index, &source)?;
 
         // Generate the new value string
         let new_value_str = new_tokens.to_string();
@@ -414,14 +414,14 @@ impl FileState {
         index: usize,
         new_tokens: proc_macro2::TokenStream,
     ) -> Result<(), String> {
-        self.update_literal_by_index(index, new_tokens)
+        self.update_value_by_index(index, new_tokens)
     }
 
     /// Find the byte span of the replaceable part of a call/macro (static method)
     /// - Function calls: span of the last argument
     /// - Method calls: span of the receiver
     /// - Macros: span of contents inside delimiters
-    fn find_literal_arg_span_static(
+    fn find_value_span_static(
         ast: &syn::File,
         target_index: usize,
         source: &str,
@@ -572,13 +572,13 @@ impl FileState {
         ))
     }
 
-    /// Get the current tokens of a literal() call's argument at the given index
-    pub fn get_literal_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
+    /// Get the current tokens of the replaceable value at the given index
+    pub fn get_value_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
         let (ast, _) = self
             .get_cached_ast()
             .map_err(|e| format!("Failed to get AST: {}", e))?;
 
-        let mut reader = IndexedLiteralReader {
+        let mut reader = IndexedValueReader {
             target_index: index,
             current_index: 0,
             tokens: None,
@@ -595,7 +595,7 @@ impl FileState {
 
     // Keep old name as alias for compatibility
     pub fn get_macro_tokens(&self, index: usize) -> Result<proc_macro2::TokenStream, String> {
-        self.get_literal_tokens(index)
+        self.get_value_tokens(index)
     }
 
     /// Write the current shared source to disk.
@@ -655,7 +655,7 @@ impl FileState {
 
     /// Replace the entire function call expression at the given index with new tokens.
     ///
-    /// Unlike `update_literal_by_index` which only replaces the argument,
+    /// Unlike `update_value_by_index` which only replaces the argument,
     /// this replaces the entire `func(arg)` expression with the replacement tokens.
     ///
     /// Used by `replace_me()` to substitute the whole call with the baked value.
@@ -786,14 +786,14 @@ impl FileState {
 /// - Function calls: reads the last argument tokens
 /// - Method calls: reads the receiver tokens
 /// - Macros: reads the contents inside delimiters
-struct IndexedLiteralReader {
+struct IndexedValueReader {
     target_index: usize,
     current_index: usize,
     tokens: Option<proc_macro2::TokenStream>,
     skip_macros: bool,
 }
 
-impl<'ast> syn::visit::Visit<'ast> for IndexedLiteralReader {
+impl<'ast> syn::visit::Visit<'ast> for IndexedValueReader {
     fn visit_expr(&mut self, node: &'ast syn::Expr) {
         // Must match the same traversal logic as IndexBuilder
         match node {

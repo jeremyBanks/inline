@@ -3,7 +3,7 @@
 // This demonstrates using inline with more complex types via databake.
 //
 // To run:
-// LITERAL_MODE=write cargo run --example config
+// INLINE_MODE=write cargo run --example config
 
 use inline::cell;
 

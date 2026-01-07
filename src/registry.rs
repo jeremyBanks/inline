@@ -1,6 +1,6 @@
-//! Type-erased value registry for static persistence of literal values.
+//! Type-erased value registry for static persistence of cell values.
 //!
-//! This module provides a global registry that allows literal values to persist
+//! This module provides a global registry that allows cell values to persist
 //! across function calls within the same execution. Each unique source location
 //! (file, stable_index) and type gets exactly one shared value that lives for
 //! the entire program lifetime.
@@ -8,8 +8,8 @@
 //! # Registry Key Stability
 //!
 //! The registry uses **index-based keys** `(file, stable_index, TypeId)` where
-//! `stable_index` is the Nth literal in the file (0, 1, 2, ...). This index
-//! remains constant even when lines are inserted above the literal, enabling
+//! `stable_index` is the Nth call/macro in the file (0, 1, 2, ...). This index
+//! remains constant even when lines are inserted above the call, enabling
 //! values to persist across source code edits.
 //!
 //! The stable index is resolved from compile-time `(line, column)` coordinates
@@ -40,7 +40,7 @@ use std::path::PathBuf;
 /// Registry key that can represent either a stable index or a (line, column) position
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum IndexOrPosition {
-    /// Stable index (Nth literal in file) - preferred when file exists
+    /// Stable index (Nth call/macro in file) - preferred when file exists
     Index(usize),
     /// Fallback (line, column) position - used when file doesn't exist
     Position(u32, u32),
@@ -49,7 +49,7 @@ enum IndexOrPosition {
 /// Type alias for the registry key: (file, index_or_position, type_id)
 ///
 /// Prefers stable index when the file exists, which remains constant even when
-/// lines are inserted above the literal. Falls back to (line, column) position
+/// lines are inserted above the call. Falls back to (line, column) position
 /// when the file doesn't exist (e.g., for testing or compiled binaries).
 type RegistryKey = (PathBuf, IndexOrPosition, TypeId);
 
@@ -65,11 +65,11 @@ type RegistryValue = usize;
 static VALUE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, RegistryValue>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
-/// Get or create a static literal value at the given source location.
+/// Get or create a static cell value at the given source location.
 ///
 /// Resolves the stable index from (line, column) on first access to a file,
 /// with efficient caching to avoid repeated parsing. The stable index ensures
-/// values persist even when lines are inserted above the literal.
+/// values persist even when lines are inserted above the call.
 ///
 /// Uses `#[track_caller]` to automatically capture the call site location.
 ///
@@ -84,7 +84,7 @@ pub fn get_or_create<T: Value + 'static>(
     get_or_create_at(initial, loc.file(), loc.line(), loc.column())
 }
 
-/// Get or create a static literal value at an explicit source location.
+/// Get or create a static cell value at an explicit source location.
 ///
 /// This is the internal implementation that takes explicit location parameters.
 /// Used by tests that need to specify synthetic file locations.
@@ -95,7 +95,7 @@ pub fn get_or_create_at<T: Value + 'static>(
     line: u32,
     column: u32,
 ) -> &'static Mutex<InlineCellInner<T>> {
-    // Auto-start background flush thread on first literal access
+    // Auto-start background flush thread on first cell access
     let _ = crate::flush::start_background_flush_internal();
 
     // Try to resolve the stable index from (line, column)
@@ -106,7 +106,7 @@ pub fn get_or_create_at<T: Value + 'static>(
         Ok(index) => IndexOrPosition::Index(index),
         Err(_) => {
             // File doesn't exist or can't be parsed - use (line, column) as fallback
-            // This allows literals to work in test scenarios with non-existent files
+            // This allows cells to work in test scenarios with non-existent files
             IndexOrPosition::Position(line, column)
         }
     };

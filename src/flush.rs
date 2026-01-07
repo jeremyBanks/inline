@@ -16,15 +16,15 @@ static BACKGROUND_STARTED: AtomicBool = AtomicBool::new(false);
 /// Global shutdown signal for background thread
 static SHUTDOWN: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
 
-/// Flush all dirty literals to disk.
+/// Flush all dirty cells to disk.
 ///
-/// This function writes all literals that have been modified but not yet
+/// This function writes all cells that have been modified but not yet
 /// written to their source files. It's called automatically by the background
 /// flush thread, but can also be called manually.
 ///
 /// # Errors
 ///
-/// Returns the first error encountered while flushing. Note that some literals
+/// Returns the first error encountered while flushing. Note that some cells
 /// may have been successfully flushed even if an error is returned.
 ///
 /// # Example
@@ -43,8 +43,8 @@ static SHUTDOWN: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(f
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn flush_all() -> Result<(), Box<dyn std::error::Error>> {
-    // Get snapshot of dirty literals
-    let dirty = crate::dirty::get_dirty_literals();
+    // Get snapshot of dirty cells
+    let dirty = crate::dirty::get_dirty_cells();
 
     if dirty.is_empty() {
         return Ok(());
@@ -58,13 +58,13 @@ pub fn flush_all() -> Result<(), Box<dyn std::error::Error>> {
         by_file.entry(file).or_insert_with(Vec::new).push((line, column));
     }
 
-    // Flush each file's literals
-    // Note: We can't actually flush individual literals from here because we don't
+    // Flush each file's cells
+    // Note: We can't actually flush individual cells from here because we don't
     // have access to the registry. The background thread will handle the actual
     // flushing through the normal Drop mechanism or by triggering writes.
     //
     // For now, this is more of a "force write to disk" for already-updated values.
-    // The real flushing happens in Drop or through LiteralExt::flush().
+    // The real flushing happens in Drop or through InlineCellExt::flush().
 
     // Actually, we should write the files to disk if they have pending changes
     for (file, _positions) in by_file {
@@ -83,7 +83,7 @@ pub fn flush_all() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Start the background flush thread with exponential backoff.
 ///
-/// This is called automatically on first literal access. The thread:
+/// This is called automatically on first cell access. The thread:
 /// - Starts with 64ms interval
 /// - Doubles interval when no changes detected
 /// - Resets to 64ms when changes are flushed
@@ -108,8 +108,8 @@ pub(crate) fn start_background_flush_internal() -> Option<JoinHandle<()>> {
             let jittered = add_jitter(current_interval);
             thread::sleep(jittered);
 
-            if crate::dirty::has_dirty_literals() {
-                // Flush all dirty literals
+            if crate::dirty::has_dirty_cells() {
+                // Flush all dirty cells
                 let _ = flush_all(); // Ignore errors in background thread
 
                 // Reset to minimum interval
@@ -162,7 +162,7 @@ fn add_jitter(duration: Duration) -> Duration {
 
 /// Explicitly start the background flush thread (for testing/control).
 ///
-/// Normally the thread starts automatically on first literal access.
+/// Normally the thread starts automatically on first cell access.
 /// This function allows manual control if needed.
 ///
 /// Returns `None` if the thread was already started.

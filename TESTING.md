@@ -24,22 +24,22 @@ cargo test
 
 ## Regenerating Test Snapshots
 
-The `cargo regenerate-test-literals` subcommand makes it easy to update all literal snapshots:
+The `cargo inline-write` subcommand makes it easy to update all cell snapshots:
 
 ```bash
 # Install the subcommand (one-time setup)
-cargo install --path . --bin cargo-regenerate-test-literals
+cargo install --path . --bin cargo-inline-write
 
 # Regenerate all test snapshots
-cargo regenerate-test-literals
+cargo inline-write
 
 # Pass additional arguments to cargo test
-cargo regenerate-test-literals -- --test-threads=1
-cargo regenerate-test-literals test_name
-cargo regenerate-test-literals -- --nocapture
+cargo inline-write -- --test-threads=1
+cargo inline-write test_name
+cargo inline-write -- --nocapture
 ```
 
-This is equivalent to running `LITERAL_MODE=write cargo test` but more convenient.
+This is equivalent to running `INLINE_MODE=write cargo test` but more convenient.
 
 **Note:** The subcommand is installed to `~/.cargo/bin/` and can be used from any directory once installed.
 
@@ -79,14 +79,14 @@ test result: ok. 49 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out
 
 ## Design Changes Implemented
 
-✅ **Completed:**
-1. PartialEq-based change detection (replacing token comparison)
-2. Hybrid registry key (stable index when file exists, (line, column) fallback)
-3. Cargo detection for mode defaults
-4. "write" feature flag (default-enabled, can be disabled)
-5. Index stability - values persist across line insertions
+- PartialEq-based change detection (replacing token comparison)
+- Hybrid registry key (stable index when file exists, (line, column) fallback)
+- Cargo detection for mode defaults
+- "write" feature flag (default-enabled, can be disabled)
+- Index stability - values persist across line insertions
+- `#[track_caller]` functions replacing macros
 
-⚠️ **Disabled:**
+**Disabled:**
 - Initial value verification (disabled due to false positives with databake formatting differences)
 
 ## Critical Tests
@@ -99,7 +99,7 @@ cargo test --test index_stability_serial_test -- --test-threads=1
 All 3 tests should pass:
 - `test_index_resolution_is_consistent` - Index resolution remains stable
 - `test_value_persists_across_line_insertions` - Values persist when lines inserted above
-- `test_multiple_literals_maintain_distinct_identities` - Each literal maintains unique identity
+- `test_multiple_cells_maintain_distinct_identities` - Each cell maintains unique identity
 
 **Lazy Loading** - Tests behavior with non-existent files:
 ```bash
