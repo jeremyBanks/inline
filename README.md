@@ -1,20 +1,21 @@
-# jeb-literal
+# inline
 
-`jeb-literal` provides mutable literals as smart pointers into your source code.
+Self-modifying values that update their source code at runtime.
 
 ## Overview
 
-jeb-literal lets you create values that can update themselves in your source code. This is an experimental approach to snapshot testing and self-modifying code in Rust.
+`inline` lets you create values that can update themselves in your source code. This is an experimental approach to snapshot testing and self-modifying code in Rust.
 
 ```rust
-use jeb_literal::literal;
+use inline::cell;
 
 fn main() {
-    let mut counter = literal!(0u32);
+    let mut counter = cell(0u32);
 
     println!("Run #{}", *counter + 1);
 
-    *counter += 1;  // Mutate directly - writes on drop!
+    let current = *counter;
+    counter.value = current + 1;
     // The source file is now updated with the new value!
 }
 ```
@@ -23,7 +24,8 @@ fn main() {
 
 - **Self-Modifying Code**: Values that update their own source code
 - **Write-on-Drop**: Mutations through `DerefMut` automatically persist
-- **Default Values**: `literal!()` with no arguments uses `Default::default()`
+- **Default Values**: `cell_default::<T>()` uses `Default::default()`
+- **One-Shot Replacement**: `replace()` substitutes entire expressions
 - **Type-Safe**: Uses Rust's type system and databake for serialization
 - **Mode-Based**: Control when updates happen via environment variables
 - **Stable Positions**: Index-based tracking survives line insertions
@@ -36,75 +38,101 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-jeb-literal = "0.0.1-dev.1"
+inline = "0.0.1-dev.1"
 ```
 
-Create a literal value:
+### Mutable Cells
+
+Create a mutable cell that persists changes to source code:
 
 ```rust
-use jeb_literal::literal;
+use inline::cell;
 
-let mut value = literal!(42u32);
-let counter: Literal<u32> = literal!();  // Uses Default::default()
+let mut value = cell(42u32);
+let counter = cell_default::<u32>();  // Uses Default::default()
+
+// Mutate via DerefMut (writes on drop)
+*value += 1;
+
+// Or direct field assignment
+value.value = 100u32;
+
+// Both write to your source file in Write mode!
 ```
 
-Update it (two syntaxes):
+Function aliases: `cell`, `var`, `snapshot`, `HACK`
+
+Macro versions: `cell!()`, `cell_default!()`
+
+### One-Shot Replacement
+
+Replace the entire call expression with a baked value:
 
 ```rust
-// Option 1: DerefMut syntax (most ergonomic)
-*value += 1;  // Automatically writes when dropped
+use inline::replace;
 
-// Option 2: Direct field assignment
-value.literal = 100u32;
-
-// Both write to your source file in WRITE mode!
+// First run: evaluates expression, replaces call with result
+let author = replace(std::env::var("USER").unwrap_or_default());
+// After first run, this becomes: let author = "jeremy";
 ```
+
+Function aliases: `replace`, `val`, `eval`, `REPLACE_ME`
+
+Macro versions: `replace!()`, `replace_default!()`
 
 ## Modes
 
-jeb-literal has four modes, controlled by the `LITERAL_MODE` environment variable:
+`inline` has four modes, controlled by the `INLINE_MODE` environment variable:
 
-- **Write** (default outside tests when running under cargo): Changes are written back to source files
+- **Write** (default outside tests): Changes are written back to source files
 - **Verify** (default in tests): Validates that values round-trip correctly
-- **Memory** (`LITERAL_MODE=memory`): Changes in memory only, no file writes
-- **Reject** (`LITERAL_MODE=reject`): Rejects any write attempts, always fails
+- **Memory** (`INLINE_MODE=memory`): Changes in memory only, no file writes
+- **Reject** (`INLINE_MODE=reject`): Rejects any write attempts, always fails
 
 ```bash
-LITERAL_MODE=write cargo run          # Enable self-modifying mode
-LITERAL_MODE=memory cargo run         # Run without file writes
+INLINE_MODE=write cargo run          # Enable self-modifying mode
+INLINE_MODE=memory cargo run         # Run without file writes
 cargo test                            # Verify mode (default in tests)
-LITERAL_MODE=write cargo test         # Update all snapshots
+INLINE_MODE=write cargo test         # Update all snapshots
 ```
 
 ### Cargo Subcommand
 
-For convenience, install the `cargo regenerate-test-literals` subcommand:
+For convenience, install the `cargo inline-write` subcommand:
 
 ```bash
-cargo install --path . --bin cargo-regenerate-test-literals
+cargo install --path . --bin cargo-inline-write
 
 # Now you can regenerate all test snapshots easily:
-cargo regenerate-test-literals
-cargo regenerate-test-literals -- --test-threads=1
+cargo inline-write
+cargo inline-write -- --test-threads=1
 ```
 
-This is equivalent to `LITERAL_MODE=write cargo test` but easier to remember and type.
+This is equivalent to `INLINE_MODE=write cargo test` but easier to remember and type.
 
 ## How It Works
 
-1. The `literal!()` macro captures the source location (file, line, column)
+1. Functions capture the source location via `#[track_caller]`
 2. Values implement the `Bake` trait from [databake](https://docs.rs/databake) for serialization
-3. The registry uses **index-based keys** (Nth literal in file) for stability across line insertions
-4. When mutated (via `.literal =` field or `DerefMut`), jeb-literal:
+3. The registry uses **index-based keys** (Nth call in file) for stability across line insertions
+4. When mutated, inline:
    - Detects the change (using `PartialEq`)
    - Parses the source file
-   - Finds the macro by its stable index
-   - Uses character-range splicing to replace only the macro's value
+   - Finds the call by its stable index
+   - Uses character-range splicing to replace only the value
    - Writes the file back (original formatting is preserved)
+
+### Replacement Behavior
+
+- **Function calls**: the last argument is replaced (trailing position for extensibility)
+- **Method calls**: the receiver expression is replaced
+- **Macros**: entire contents inside delimiters are replaced
+
+For `replace()` mode, the entire call/macro expression is replaced with the baked value.
 
 ## Supported Types
 
-Any type implementing `Bake + Clone + PartialEq` works with jeb-literal:
+Any type implementing `Bake + Clone + PartialEq` works with inline:
 
 - Primitives: `u32`, `i64`, `f32`, `bool`, etc.
 - Strings: `String`, `&str`
@@ -115,25 +143,18 @@ Note: `Clone` is required for write-on-drop functionality. Values are compared u
 
 ### Extension Trait
 
-The `LiteralExt` trait provides additional methods without polluting the inner type's namespace:
+The `InlineCellExt` trait provides additional methods without polluting the inner type's namespace:
 
 ```rust
-use jeb_literal::{literal, LiteralExt};
+use inline::{cell, InlineCellExt};
 
-let mut x = literal!(42);
-x.literal = 100;
+let mut x = cell(42);
+x.value = 100;
 x.flush()?;  // Write immediately, don't wait for drop
+x.reset_to_default();  // Reset to type's default value
 ```
 
-Methods: `flush()`, `path()`, `line()`, `column()`, `index()`.
-
-### Future Ideas
-
-**Serde Compatibility**: Add support for any type implementing `Serialize + Deserialize`, expanding beyond databake's current type coverage.
-
-**Tooling Integration**: A `cargo-literal` command for reviewing and accepting snapshot changes interactively, similar to `git add -p`.
-
-**File-Backed Literals**: Support external snapshot files for better organization and stability. This would provide stable identifiers independent of line numbers, but requires careful design around compile-time vs runtime tradeoffs.
+Methods: `flush()`, `reset_to_default()`, `path()`, `line()`, `column()`, `index()`.
 
 ## Examples
 
@@ -165,8 +186,8 @@ Note: This is an experimental library. Production use is not recommended.
 
 - Single process modifies each file (no external editors while updating)
 - Source files are valid Rust that can be parsed
-- Literal count remains stable (adding/removing literals changes indices)
-- Only value content changes (the literal's position in file remains the same)
+- Call count remains stable (adding/removing calls changes indices)
+- Only value content changes (the call's position in file remains the same)
 
 ## Testing
 
@@ -181,21 +202,9 @@ Run all tests serially (recommended):
 cargo test -- --test-threads=1
 ```
 
-Run only parallel-safe tests:
-
-```bash
-cargo test --test concurrent_process_detection --test multi_threaded
-```
-
-Run a specific serial test:
-
-```bash
-cargo test --test integration_serial_test -- --test-threads=1
-```
-
 ## License
 
-`jeb-literal` is Copyright Jeremy Banks, released under the familiar choice of `MIT OR Apache-2.0`.
+`inline` is Copyright Jeremy Banks, released under the familiar choice of `MIT OR Apache-2.0`.
 
 This is heavily based on [the `expect-test` library](https://docs.rs/expect-test), which is also under `MIT OR Apache-2.0` and is Copyright the rust-analyzer developers, including Aleksey Kladov and Dylan MacKenzie.
 

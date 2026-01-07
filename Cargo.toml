@@ -18,8 +18,8 @@ write = []
 no-write = []
 
 [[bin]]
-name = "cargo-regenerate-test-literals"
-path = "src/bin/cargo-regenerate-test-literals.rs"
+name = "cargo-inline-write"
+path = "src/bin/cargo-inline-write.rs"
 
 [dependencies]
 once_cell = "1.13.0"

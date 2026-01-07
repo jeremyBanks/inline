@@ -98,7 +98,7 @@ pub use inline::*;
 pub use runtime::*;
 pub use ext::*;
 pub use flush::{flush_all, start_background_flush};
-pub use dirty::{has_dirty_literals, dirty_count};
+pub use dirty::{has_dirty_cells, dirty_count};
 
 // Re-export replace functions and aliases
 pub use replace::{replace, replace_at, replace_default, val, eval, REPLACE_ME};

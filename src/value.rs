@@ -1,5 +1,5 @@
 // Re-export databake's Bake trait as our "Value" concept
-// This allows any type implementing Bake to be used with literal values
+// This allows any type implementing Bake to be used with inline cells
 
 pub use databake::Bake;
 
