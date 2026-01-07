@@ -68,6 +68,24 @@ pub trait InlineCellExt<T: Value + 'static> {
     /// index (Nth call in the file). Returns `None` if the index hasn't been
     /// resolved yet (e.g., for non-existent files in testing scenarios).
     fn index(&self) -> Option<usize>;
+
+    /// Reset the cell's value to the type's default.
+    ///
+    /// This is useful for clearing a cell back to its initial state.
+    /// The write happens on drop (or via explicit `flush()`).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use inline::{cell, InlineCellExt};
+    ///
+    /// let mut counter = cell(42u32);
+    /// counter.reset_to_default(); // Sets to 0
+    /// assert_eq!(*counter, 0);
+    /// ```
+    fn reset_to_default(&mut self)
+    where
+        T: Default;
 }
 
 impl<T: Value + 'static> InlineCellExt<T> for InlineCell<T> {
@@ -134,6 +152,13 @@ impl<T: Value + 'static> InlineCellExt<T> for InlineCell<T> {
     fn index(&self) -> Option<usize> {
         self.guard.call_index
     }
+
+    fn reset_to_default(&mut self)
+    where
+        T: Default,
+    {
+        self.value = T::default();
+    }
 }
 
 // Re-export as free functions for use without trait import
@@ -176,4 +201,21 @@ pub fn column<T: Value + 'static>(cell: &InlineCell<T>) -> u32 {
 /// Get the stable index for a code cell, if resolved.
 pub fn index<T: Value + 'static>(cell: &InlineCell<T>) -> Option<usize> {
     InlineCellExt::index(cell)
+}
+
+/// Reset a code cell's value to the type's default.
+///
+/// This is a free function version of [`InlineCellExt::reset_to_default`].
+///
+/// # Example
+///
+/// ```no_run
+/// use inline::cell;
+///
+/// let mut counter = cell(42u32);
+/// inline::reset_to_default(&mut counter); // Sets to 0
+/// assert_eq!(*counter, 0);
+/// ```
+pub fn reset_to_default<T: Value + Default + 'static>(cell: &mut InlineCell<T>) {
+    InlineCellExt::reset_to_default(cell)
 }

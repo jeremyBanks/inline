@@ -257,7 +257,8 @@ impl FileState {
                             let name = seg.ident.to_string();
                             matches!(
                                 name.as_str(),
-                                "cell" | "var" | "snapshot" | "HACK" | "replace" | "val" | "eval" | "REPLACE_ME"
+                                "cell" | "cell_default" | "var" | "snapshot" | "HACK"
+                                    | "replace" | "replace_default" | "val" | "eval" | "REPLACE_ME"
                             )
                         });
                         if is_our_macro {
@@ -415,7 +416,8 @@ impl FileState {
                             let name = seg.ident.to_string();
                             matches!(
                                 name.as_str(),
-                                "cell" | "var" | "snapshot" | "HACK" | "replace" | "val" | "eval" | "REPLACE_ME"
+                                "cell" | "cell_default" | "var" | "snapshot" | "HACK"
+                                    | "replace" | "replace_default" | "val" | "eval" | "REPLACE_ME"
                             )
                         });
                         if is_our_macro {
@@ -665,7 +667,8 @@ impl FileState {
                             let name = seg.ident.to_string();
                             matches!(
                                 name.as_str(),
-                                "cell" | "var" | "snapshot" | "HACK" | "replace" | "val" | "eval" | "REPLACE_ME"
+                                "cell" | "cell_default" | "var" | "snapshot" | "HACK"
+                                    | "replace" | "replace_default" | "val" | "eval" | "REPLACE_ME"
                             )
                         });
                         if is_our_macro {
@@ -729,7 +732,8 @@ impl<'ast> syn::visit::Visit<'ast> for IndexedLiteralReader {
                     let name = seg.ident.to_string();
                     matches!(
                         name.as_str(),
-                        "cell" | "var" | "snapshot" | "HACK" | "replace" | "val" | "eval" | "REPLACE_ME"
+                        "cell" | "cell_default" | "var" | "snapshot" | "HACK"
+                            | "replace" | "replace_default" | "val" | "eval" | "REPLACE_ME"
                     )
                 });
                 if is_our_macro {

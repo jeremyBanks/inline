@@ -90,7 +90,7 @@ pub use flush::{flush_all, start_background_flush};
 pub use dirty::{has_dirty_literals, dirty_count};
 
 // Re-export replace functions and aliases
-pub use replace::{replace, replace_at, val, eval, REPLACE_ME};
+pub use replace::{replace, replace_at, replace_default, val, eval, REPLACE_ME};
 
 // =============================================================================
 // Macro wrappers
@@ -119,6 +119,24 @@ macro_rules! cell {
     };
 }
 
+/// Macro version of [`cell_default()`].
+///
+/// Creates a self-modifying value initialized with the type's default.
+/// Identical to calling the `cell_default()` function directly.
+///
+/// # Example
+///
+/// ```no_run
+/// let mut counter = inline::cell_default!(u32);
+/// *counter += 1;
+/// ```
+#[macro_export]
+macro_rules! cell_default {
+    ($type:ty) => {
+        $crate::cell_default::<$type>()
+    };
+}
+
 /// Macro version of [`replace()`].
 ///
 /// One-shot code generation that replaces the entire macro invocation
@@ -133,5 +151,22 @@ macro_rules! cell {
 macro_rules! replace {
     ($value:expr) => {
         $crate::replace($value)
+    };
+}
+
+/// Macro version of [`replace_default()`].
+///
+/// One-shot code generation initialized with the type's default value.
+/// Identical to calling the `replace_default()` function directly.
+///
+/// # Example
+///
+/// ```no_run
+/// let config = inline::replace_default!(Vec<String>);
+/// ```
+#[macro_export]
+macro_rules! replace_default {
+    ($type:ty) => {
+        $crate::replace_default::<$type>()
     };
 }

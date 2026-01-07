@@ -157,6 +157,24 @@ pub fn replace_at<T: Value + 'static>(
     stored.value.clone()
 }
 
+/// One-shot code generation initialized with the type's default value.
+///
+/// This is equivalent to `replace(T::default())` but more concise for types
+/// that implement `Default`.
+///
+/// # Example
+///
+/// ```no_run
+/// use inline::replace_default;
+///
+/// let config = replace_default::<Vec<u32>>();
+/// // Equivalent to: replace(Vec::new())
+/// ```
+#[track_caller]
+pub fn replace_default<T: Value + Default + 'static>() -> T {
+    replace(T::default())
+}
+
 // =============================================================================
 // Aliases for replace()
 // =============================================================================
