@@ -237,43 +237,52 @@ impl FileState {
         struct IndexBuilder {
             map: HashMap<(u32, u32), usize>,
             current_index: usize,
+            /// When true, don't index macros (we're inside a function call's args)
+            skip_macros: bool,
         }
 
         impl<'ast> Visit<'ast> for IndexBuilder {
             fn visit_expr(&mut self, node: &'ast syn::Expr) {
                 use syn::spanned::Spanned;
 
-                // Index both function calls AND macro invocations by position.
+                // Index function calls and macro invocations by position.
                 // When a macro like cell!() expands to cell(), #[track_caller]
                 // reports the macro call site. So we need to index macros too.
                 //
-                // For macros, we only index ones with paths ending in our known names
-                // to avoid indexing unrelated macros like vec![], format![], etc.
-                let span_start = match node {
-                    syn::Expr::Call(call) => Some(call.func.span().start()),
-                    syn::Expr::Macro(mac) => {
-                        // Only index macros that could be our cell!/replace! macros
-                        let is_our_macro = mac.mac.path.segments.last().map_or(false, |seg| {
-                            let name = seg.ident.to_string();
-                            matches!(
-                                name.as_str(),
-                                "cell" | "cell_default" | "var" | "snapshot" | "HACK"
-                                    | "replace" | "replace_default" | "val" | "eval" | "REPLACE_ME"
-                            )
-                        });
-                        if is_our_macro {
-                            Some(mac.mac.path.span().start())
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                };
+                // IMPORTANT: We skip macros inside function call arguments
+                // (like vec![] in cell(vec![1,2])) to avoid indexing confusion.
+                match node {
+                    syn::Expr::Call(call) => {
+                        // Index this function call
+                        let start = call.func.span().start();
+                        let pos = (start.line as u32, start.column as u32);
+                        self.map.insert(pos, self.current_index);
+                        self.current_index += 1;
 
-                if let Some(start) = span_start {
-                    let pos = (start.line as u32, start.column as u32);
-                    self.map.insert(pos, self.current_index);
-                    self.current_index += 1;
+                        // Recurse into function position (for chained calls like foo().bar())
+                        self.visit_expr(&call.func);
+
+                        // Recurse into args, but skip any macros found there
+                        let was_skipping = self.skip_macros;
+                        self.skip_macros = true;
+                        for arg in &call.args {
+                            self.visit_expr(arg);
+                        }
+                        self.skip_macros = was_skipping;
+                        return;
+                    }
+                    syn::Expr::Macro(mac) => {
+                        // Only index macros if we're not inside a function call's args
+                        if !self.skip_macros {
+                            let start = mac.mac.path.span().start();
+                            let pos = (start.line as u32, start.column as u32);
+                            self.map.insert(pos, self.current_index);
+                            self.current_index += 1;
+                        }
+                        // Don't recurse into macro tokens - they're opaque
+                        return;
+                    }
+                    _ => {}
                 }
 
                 syn::visit::visit_expr(self, node);
@@ -283,6 +292,7 @@ impl FileState {
         let mut builder = IndexBuilder {
             map: HashMap::new(),
             current_index: 0,
+            skip_macros: false,
         };
         builder.visit_file(ast);
         builder.map
@@ -398,55 +408,52 @@ impl FileState {
             target_index: usize,
             current_index: usize,
             span: Option<(proc_macro2::LineColumn, proc_macro2::LineColumn)>,
+            skip_macros: bool,
         }
 
         impl<'ast> Visit<'ast> for SpanFinder {
             fn visit_expr(&mut self, node: &'ast syn::Expr) {
                 use syn::spanned::Spanned;
 
-                // Handle both function calls and macro invocations
-                // For macros, only process ones that are our known macros
-                let arg_span = match node {
+                // Must match the same traversal logic as IndexBuilder
+                match node {
                     syn::Expr::Call(call) => {
-                        call.args.first().map(|arg| arg.span())
+                        // Check if this is our target
+                        if self.current_index == self.target_index {
+                            if let Some(arg) = call.args.first() {
+                                self.span = Some((arg.span().start(), arg.span().end()));
+                            }
+                        }
+                        self.current_index += 1;
+
+                        // Recurse into function position
+                        self.visit_expr(&call.func);
+
+                        // Recurse into args, but skip macros
+                        let was_skipping = self.skip_macros;
+                        self.skip_macros = true;
+                        for arg in &call.args {
+                            self.visit_expr(arg);
+                        }
+                        self.skip_macros = was_skipping;
+                        return;
                     }
                     syn::Expr::Macro(mac) => {
-                        // Only process macros that are ours
-                        let is_our_macro = mac.mac.path.segments.last().map_or(false, |seg| {
-                            let name = seg.ident.to_string();
-                            matches!(
-                                name.as_str(),
-                                "cell" | "cell_default" | "var" | "snapshot" | "HACK"
-                                    | "replace" | "replace_default" | "val" | "eval" | "REPLACE_ME"
-                            )
-                        });
-                        if is_our_macro {
-                            // For macros, parse the tokens as an expression to get full span.
-                            // This handles cases like cell!(1 + 2) correctly.
-                            // The delimiters (!, (), [], {}) are NOT included in tokens,
-                            // so they will be preserved when we replace the content.
-                            let tokens = mac.mac.tokens.clone();
-                            if !tokens.is_empty() {
-                                syn::parse2::<syn::Expr>(tokens)
-                                    .ok()
-                                    .map(|expr| expr.span())
-                            } else {
-                                None
+                        if !self.skip_macros {
+                            if self.current_index == self.target_index {
+                                // For macros, parse tokens as expression for full span
+                                let tokens = mac.mac.tokens.clone();
+                                if !tokens.is_empty() {
+                                    if let Ok(expr) = syn::parse2::<syn::Expr>(tokens) {
+                                        self.span = Some((expr.span().start(), expr.span().end()));
+                                    }
+                                }
                             }
-                        } else {
-                            None
+                            self.current_index += 1;
                         }
+                        return;
                     }
-                    _ => None,
-                };
-
-                if arg_span.is_some() {
-                    if self.current_index == self.target_index {
-                        if let Some(span) = arg_span {
-                            self.span = Some((span.start(), span.end()));
-                        }
-                    }
-                    self.current_index += 1;
+                    _ => {}
                 }
 
                 syn::visit::visit_expr(self, node);
@@ -457,6 +464,7 @@ impl FileState {
             target_index,
             current_index: 0,
             span: None,
+            skip_macros: false,
         };
 
         finder.visit_file(ast);
@@ -530,6 +538,7 @@ impl FileState {
             target_index: index,
             current_index: 0,
             tokens: None,
+            skip_macros: false,
         };
 
         use syn::visit::Visit;
@@ -651,40 +660,41 @@ impl FileState {
             target_index: usize,
             current_index: usize,
             span: Option<(proc_macro2::LineColumn, proc_macro2::LineColumn)>,
+            skip_macros: bool,
         }
 
         impl<'ast> Visit<'ast> for ExprSpanFinder {
             fn visit_expr(&mut self, node: &'ast syn::Expr) {
                 use syn::spanned::Spanned;
 
-                // Handle both function calls and macro invocations
-                // For macros, only process ones that are our known macros
-                let expr_span = match node {
-                    syn::Expr::Call(call) => Some(call.span()),
-                    syn::Expr::Macro(mac) => {
-                        // Only process macros that are ours
-                        let is_our_macro = mac.mac.path.segments.last().map_or(false, |seg| {
-                            let name = seg.ident.to_string();
-                            matches!(
-                                name.as_str(),
-                                "cell" | "cell_default" | "var" | "snapshot" | "HACK"
-                                    | "replace" | "replace_default" | "val" | "eval" | "REPLACE_ME"
-                            )
-                        });
-                        if is_our_macro {
-                            Some(mac.span())
-                        } else {
-                            None
+                // Must match the same traversal logic as IndexBuilder
+                match node {
+                    syn::Expr::Call(call) => {
+                        if self.current_index == self.target_index {
+                            self.span = Some((call.span().start(), call.span().end()));
                         }
-                    }
-                    _ => None,
-                };
+                        self.current_index += 1;
 
-                if let Some(span) = expr_span {
-                    if self.current_index == self.target_index {
-                        self.span = Some((span.start(), span.end()));
+                        self.visit_expr(&call.func);
+
+                        let was_skipping = self.skip_macros;
+                        self.skip_macros = true;
+                        for arg in &call.args {
+                            self.visit_expr(arg);
+                        }
+                        self.skip_macros = was_skipping;
+                        return;
                     }
-                    self.current_index += 1;
+                    syn::Expr::Macro(mac) => {
+                        if !self.skip_macros {
+                            if self.current_index == self.target_index {
+                                self.span = Some((mac.span().start(), mac.span().end()));
+                            }
+                            self.current_index += 1;
+                        }
+                        return;
+                    }
+                    _ => {}
                 }
 
                 syn::visit::visit_expr(self, node);
@@ -695,6 +705,7 @@ impl FileState {
             target_index,
             current_index: 0,
             span: None,
+            skip_macros: false,
         };
 
         finder.visit_file(ast);
@@ -716,46 +727,44 @@ struct IndexedLiteralReader {
     target_index: usize,
     current_index: usize,
     tokens: Option<proc_macro2::TokenStream>,
+    skip_macros: bool,
 }
 
 impl<'ast> syn::visit::Visit<'ast> for IndexedLiteralReader {
     fn visit_expr(&mut self, node: &'ast syn::Expr) {
-        // Match both function calls and macro invocations - we use position-based matching
-        // For macros, only process ones that are our known macros
-        let arg_tokens = match node {
+        // Must match the same traversal logic as IndexBuilder
+        match node {
             syn::Expr::Call(call) => {
-                call.args.first().map(|first_arg| quote::quote!(#first_arg))
+                if self.tokens.is_none() && self.current_index == self.target_index {
+                    if let Some(first_arg) = call.args.first() {
+                        self.tokens = Some(quote::quote!(#first_arg));
+                    }
+                }
+                self.current_index += 1;
+
+                self.visit_expr(&call.func);
+
+                let was_skipping = self.skip_macros;
+                self.skip_macros = true;
+                for arg in &call.args {
+                    self.visit_expr(arg);
+                }
+                self.skip_macros = was_skipping;
+                return;
             }
             syn::Expr::Macro(mac) => {
-                // Only process macros that are ours
-                let is_our_macro = mac.mac.path.segments.last().map_or(false, |seg| {
-                    let name = seg.ident.to_string();
-                    matches!(
-                        name.as_str(),
-                        "cell" | "cell_default" | "var" | "snapshot" | "HACK"
-                            | "replace" | "replace_default" | "val" | "eval" | "REPLACE_ME"
-                    )
-                });
-                if is_our_macro {
-                    // For macros, the tokens are already in mac.mac.tokens
-                    let tokens = mac.mac.tokens.clone();
-                    if !tokens.is_empty() {
-                        Some(tokens)
-                    } else {
-                        None
+                if !self.skip_macros {
+                    if self.tokens.is_none() && self.current_index == self.target_index {
+                        let tokens = mac.mac.tokens.clone();
+                        if !tokens.is_empty() {
+                            self.tokens = Some(tokens);
+                        }
                     }
-                } else {
-                    None
+                    self.current_index += 1;
                 }
+                return;
             }
-            _ => None,
-        };
-
-        if arg_tokens.is_some() {
-            if self.tokens.is_none() && self.current_index == self.target_index {
-                self.tokens = arg_tokens;
-            }
-            self.current_index += 1;
+            _ => {}
         }
 
         syn::visit::visit_expr(self, node);
