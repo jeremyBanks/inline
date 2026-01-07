@@ -317,11 +317,11 @@ impl FileState {
         builder.map
     }
 
-    /// Get the stable index for a function call at the given position
+    /// Get the stable index for a call/macro at the given position
     ///
     /// Note: column matching is flexible because Location::caller().column()
-    /// returns the start of the function call. We match on line and find the
-    /// closest function call on that line.
+    /// returns the start of the expression. We match on line and find the
+    /// closest call/macro on that line.
     pub fn get_index(&self, line: u32, column: u32) -> Result<usize, io::Error> {
         let (_, position_to_index) = self.get_cached_ast()?;
 
@@ -361,11 +361,14 @@ impl FileState {
         Ok(*closest.1)
     }
 
-    /// Update the literal() call at the given index with new tokens
+    /// Update the call/macro at the given index with new tokens
     /// CRITICAL: Holds write lock for the entire operation to prevent concurrent modifications
     ///
     /// IMPORTANT: Uses character-range splicing to preserve formatting!
-    /// Only the function argument is replaced - everything else stays untouched.
+    /// What gets replaced depends on the expression type:
+    /// - Function calls: the last argument (trailing position)
+    /// - Method calls: the receiver
+    /// - Macros: entire contents inside delimiters
     pub fn update_literal_by_index(
         &self,
         index: usize,
@@ -414,8 +417,10 @@ impl FileState {
         self.update_literal_by_index(index, new_tokens)
     }
 
-    /// Find the byte span of a call's argument in the source code (static method)
-    /// Handles both function calls and macro invocations.
+    /// Find the byte span of the replaceable part of a call/macro (static method)
+    /// - Function calls: span of the last argument
+    /// - Method calls: span of the receiver
+    /// - Macros: span of contents inside delimiters
     fn find_literal_arg_span_static(
         ast: &syn::File,
         target_index: usize,
@@ -777,7 +782,10 @@ impl FileState {
     }
 }
 
-/// Visitor that reads the Nth function call or macro's argument (by index)
+/// Visitor that reads the replaceable part of the Nth call/macro (by index)
+/// - Function calls: reads the last argument tokens
+/// - Method calls: reads the receiver tokens
+/// - Macros: reads the contents inside delimiters
 struct IndexedLiteralReader {
     target_index: usize,
     current_index: usize,
@@ -870,13 +878,13 @@ fn get_or_load_file_state(path: &Path) -> Result<FileState, io::Error> {
     Ok(state)
 }
 
-/// Get the stable index for a literal macro at the given position
+/// Get the stable index for a call/macro at the given position
 pub fn get_macro_index(path: &Path, line: u32, column: u32) -> Result<usize, io::Error> {
     let state = get_or_load_file_state(path)?;
     state.get_index(line, column)
 }
 
-/// Update a literal macro by its stable index
+/// Update a call/macro by its stable index
 /// This only updates the in-memory shared state.
 /// To persist to disk, you must call write_to_disk separately.
 pub fn update_macro_by_index(
@@ -895,7 +903,7 @@ pub fn write_to_disk(path: &Path) -> Result<(), io::Error> {
     state.write_to_disk()
 }
 
-/// Convenience function: update a literal macro at the given position
+/// Convenience function: update a call/macro at the given position
 /// This combines get_macro_index, update_macro_by_index, and write_to_disk
 pub fn update_source_file(
     path: &Path,
@@ -909,7 +917,7 @@ pub fn update_source_file(
     Ok(())
 }
 
-/// Get the current tokens of a literal macro by its stable index
+/// Get the current tokens of a call/macro's replaceable part by stable index
 pub fn get_macro_tokens_by_index(
     path: &Path,
     index: usize,
@@ -938,12 +946,12 @@ pub fn clear_file_state_cache() {
     });
 }
 
-/// Replace an entire function call expression with new tokens.
+/// Replace an entire call/macro expression with new tokens.
 ///
-/// Unlike `update_macro_by_index` which replaces only the call's argument,
-/// this replaces the entire `func(arg)` expression with the replacement tokens.
+/// Unlike `update_macro_by_index` which replaces only the replaceable part,
+/// this replaces the entire expression with the replacement tokens.
 ///
-/// Used by `replace_me()` to substitute the whole call with the baked value.
+/// Used by `replace()` to substitute the whole call with the baked value.
 pub fn replace_expression(
     path: &Path,
     index: usize,

@@ -15,7 +15,7 @@ pub struct InlineCellInner<T: Value> {
     pub(crate) file: PathBuf,
     pub(crate) line: u32,
     pub(crate) column: u32,
-    /// Stable index into the file's function calls (resolved lazily)
+    /// Stable index into the file's calls/macros (resolved lazily)
     /// This never changes even if line numbers shift!
     pub(crate) call_index: Option<usize>,
 }

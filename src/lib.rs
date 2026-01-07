@@ -36,18 +36,24 @@
 //! Returns an `InlineCell<T>` that persists mutations to source code.
 //!
 //! - `inline::cell(value)` - canonical
+//! - `inline::cell_default::<T>()` - with default value
 //! - `inline::var(value)` - alias
 //! - `inline::snapshot(value)` - alias
 //! - `inline::HACK(value)` - alias (playful placeholder)
+//!
+//! Macro versions: `cell!()`, `cell_default!()`
 //!
 //! ## One-shot replacement (canonical: `replace`)
 //!
 //! Returns `T` directly, replacing the entire call with the baked value.
 //!
 //! - `inline::replace(value)` - canonical
+//! - `inline::replace_default::<T>()` - with default value
 //! - `inline::val(value)` - alias
 //! - `inline::eval(value)` - alias
 //! - `inline::REPLACE_ME(value)` - alias (playful placeholder)
+//!
+//! Macro versions: `replace!()`, `replace_default!()`
 //!
 //! # Supported Types
 //!
@@ -63,11 +69,16 @@
 //!
 //! # How It Works
 //!
-//! 1. The `cell()` function captures the source location via `#[track_caller]`
+//! 1. Functions capture the source location via `#[track_caller]`
 //! 2. Mutations are detected on drop (comparing original vs current value)
-//! 3. The source file is parsed and the function call is located by stable index
-//! 4. Character-range splicing replaces only the call's argument
+//! 3. The source file is parsed and the call is located by stable index
+//! 4. Character-range splicing replaces the appropriate part:
+//!    - **Function calls**: the last argument (trailing position for extensibility)
+//!    - **Method calls**: the receiver expression
+//!    - **Macros**: entire contents inside delimiters
 //! 5. Original formatting is preserved
+//!
+//! For `replace()` mode, the entire call/macro expression is replaced.
 
 // Compile-time check: write and no-write features are mutually exclusive
 #[cfg(all(feature = "write", feature = "no-write"))]
