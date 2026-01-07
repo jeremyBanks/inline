@@ -4,7 +4,7 @@
 //
 // To run:
 // 1. Compile: rustc --edition 2021 -L ../target/debug/deps examples/counter.rs
-// 2. Run with LITERAL_MODE=write ./counter
+// 2. Run with INLINE_MODE=write ./counter
 // 3. Check the source file - the counter value will have been updated!
 
 use inline::cell;
