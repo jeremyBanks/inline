@@ -15,7 +15,7 @@ use std::path::Path;
 /// # Example
 ///
 /// ```no_run
-/// use cell::{cell, InlineCellExt};
+/// use inline::{cell, InlineCellExt};
 ///
 /// let mut x = cell(42);
 /// x.value = 100;
@@ -38,7 +38,7 @@ pub trait InlineCellExt<T: Value + 'static> {
     /// # Example
     ///
     /// ```no_run
-    /// use cell::{cell, InlineCellExt};
+    /// use inline::{cell, InlineCellExt};
     ///
     /// let mut counter = cell(0);
     /// counter.value = 42;
@@ -145,11 +145,11 @@ impl<T: Value + 'static> InlineCellExt<T> for InlineCell<T> {
 /// # Example
 ///
 /// ```no_run
-/// use cell::cell;
+/// use inline::cell;
 ///
 /// let mut x = cell(42);
 /// x.value = 100;
-/// cell::flush(&mut x)?; // No trait import needed
+/// inline::flush(&mut x)?; // No trait import needed
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn flush<T: Value + 'static>(

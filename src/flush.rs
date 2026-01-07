@@ -30,16 +30,16 @@ static SHUTDOWN: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(f
 /// # Example
 ///
 /// ```no_run
-/// use jeb_literal::literal;
+/// use inline::cell;
 ///
-/// let mut x = literal!(1);
-/// let mut y = literal!(2);
+/// let mut x = cell(1);
+/// let mut y = cell(2);
 ///
-/// x.literal = 10;
-/// y.literal = 20;
+/// x.value = 10;
+/// y.value = 20;
 ///
 /// // Flush all pending writes
-/// jeb_literal::flush_all()?;
+/// inline::flush_all()?;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn flush_all() -> Result<(), Box<dyn std::error::Error>> {

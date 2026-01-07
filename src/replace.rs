@@ -8,13 +8,12 @@
 //!
 //! ```no_run
 //! use inline::replace;
-//! use uuid::Uuid;
 //!
-//! // First run: generates UUID, writes to source, returns value
-//! let uuid = replace(Uuid::new_v4());
+//! // First run: computes current time, writes to source, returns value
+//! let timestamp = replace(std::time::SystemTime::UNIX_EPOCH.elapsed().unwrap().as_secs());
 //!
 //! // After source replacement, the code becomes:
-//! // let uuid = Uuid::from_bytes([0x55, 0x0e, ...]);
+//! // let timestamp = 1234567890u64;
 //! ```
 //!
 //! # Semantics
@@ -70,10 +69,10 @@ static REPLACE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, usize>>> =
 /// use inline::replace;
 ///
 /// // First run: computes and bakes to source
-/// let config = replace(Config::compute_expensive());
+/// let values = replace(vec![1, 2, 3].iter().map(|x| x * 2).collect::<Vec<_>>());
 ///
 /// // Source becomes:
-/// // let config = Config { field: value, ... };
+/// // let values = <[_]>::into_vec(Box::new([2i32, 4i32, 6i32]));
 /// ```
 ///
 /// # Requirements

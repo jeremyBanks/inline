@@ -7,7 +7,7 @@ fn test_static_persistence_same_value() {
 
     // Calling the macro from the same line should give the same underlying value
     fn get_value() -> inline::InlineCell<u32> {
-        cell(100u32)  // Always the same source location
+        cell(42u32)  // Always the same source location
     }
 
     let mut val1 = get_value();
@@ -28,7 +28,7 @@ fn test_static_persistence_value_mutation() {
     env::set_var("INLINE_MODE", "memory");
 
     fn get_counter() -> inline::InlineCell<u32> {
-        cell(100u32)  // Always same source location
+        cell(1u32)  // Always same source location
     }
 
     let mut val = get_counter();
@@ -76,10 +76,10 @@ fn test_static_persistence_across_function_calls() {
         let mut counter = cell(1u32);
         let current = *counter;
         counter.value = current + 1;
-        current + 1
+        current  // Return the value before incrementing
     }
 
-    // Call the function multiple times
+    // Call the function multiple times - each returns the current value, then increments
     assert_eq!(increment_counter(), 1);
     assert_eq!(increment_counter(), 2);
     assert_eq!(increment_counter(), 3);
@@ -96,7 +96,7 @@ fn test_static_persistence_thread_safety() {
 
     // Helper function to ensure all threads access the same source location
     fn get_counter() -> inline::InlineCell<u32> {
-        cell(66u32)
+        cell(0u32)
     }
 
     // Spawn multiple threads that all access the same static value

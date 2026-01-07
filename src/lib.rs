@@ -91,3 +91,47 @@ pub use dirty::{has_dirty_literals, dirty_count};
 
 // Re-export replace functions and aliases
 pub use replace::{replace, replace_at, val, eval, REPLACE_ME};
+
+// =============================================================================
+// Macro wrappers
+// =============================================================================
+// These macros provide an alternative syntax for users who prefer macro invocations.
+// They work identically to the function versions - #[track_caller] on the inner
+// function captures the macro call site correctly.
+
+/// Macro version of [`cell()`].
+///
+/// Creates a self-modifying value that can update its source code.
+/// Identical to calling the `cell()` function directly.
+///
+/// # Example
+///
+/// ```no_run
+/// use inline::cell;
+///
+/// let mut counter = inline::cell!(0u32);
+/// *counter += 1;
+/// ```
+#[macro_export]
+macro_rules! cell {
+    ($value:expr) => {
+        $crate::cell($value)
+    };
+}
+
+/// Macro version of [`replace()`].
+///
+/// One-shot code generation that replaces the entire macro invocation
+/// with the baked value. Identical to calling the `replace()` function directly.
+///
+/// # Example
+///
+/// ```no_run
+/// let author = inline::replace!(std::env::var("USER").unwrap_or_default());
+/// ```
+#[macro_export]
+macro_rules! replace {
+    ($value:expr) => {
+        $crate::replace($value)
+    };
+}

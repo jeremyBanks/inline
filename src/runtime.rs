@@ -241,13 +241,35 @@ impl FileState {
 
         impl<'ast> Visit<'ast> for IndexBuilder {
             fn visit_expr(&mut self, node: &'ast syn::Expr) {
-                // Index ALL function calls by position - we match by exact position,
-                // not by name. The position from #[track_caller] is guaranteed to be
-                // correct because it's the actual call site.
-                if let syn::Expr::Call(call) = node {
-                    use syn::spanned::Spanned;
-                    let span = call.func.span();
-                    let start = span.start();
+                use syn::spanned::Spanned;
+
+                // Index both function calls AND macro invocations by position.
+                // When a macro like cell!() expands to cell(), #[track_caller]
+                // reports the macro call site. So we need to index macros too.
+                //
+                // For macros, we only index ones with paths ending in our known names
+                // to avoid indexing unrelated macros like vec![], format![], etc.
+                let span_start = match node {
+                    syn::Expr::Call(call) => Some(call.func.span().start()),
+                    syn::Expr::Macro(mac) => {
+                        // Only index macros that could be our cell!/replace! macros
+                        let is_our_macro = mac.mac.path.segments.last().map_or(false, |seg| {
+                            let name = seg.ident.to_string();
+                            matches!(
+                                name.as_str(),
+                                "cell" | "var" | "snapshot" | "HACK" | "replace" | "val" | "eval" | "REPLACE_ME"
+                            )
+                        });
+                        if is_our_macro {
+                            Some(mac.mac.path.span().start())
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+
+                if let Some(start) = span_start {
                     let pos = (start.line as u32, start.column as u32);
                     self.map.insert(pos, self.current_index);
                     self.current_index += 1;
@@ -362,7 +384,8 @@ impl FileState {
         self.update_literal_by_index(index, new_tokens)
     }
 
-    /// Find the byte span of a literal() call's argument in the source code (static method)
+    /// Find the byte span of a call's argument in the source code (static method)
+    /// Handles both function calls and macro invocations.
     fn find_literal_arg_span_static(
         ast: &syn::File,
         target_index: usize,
@@ -378,18 +401,52 @@ impl FileState {
 
         impl<'ast> Visit<'ast> for SpanFinder {
             fn visit_expr(&mut self, node: &'ast syn::Expr) {
-                // Match ALL function calls - we use position-based matching, not name
-                if let syn::Expr::Call(call) = node {
+                use syn::spanned::Spanned;
+
+                // Handle both function calls and macro invocations
+                // For macros, only process ones that are our known macros
+                let arg_span = match node {
+                    syn::Expr::Call(call) => {
+                        call.args.first().map(|arg| arg.span())
+                    }
+                    syn::Expr::Macro(mac) => {
+                        // Only process macros that are ours
+                        let is_our_macro = mac.mac.path.segments.last().map_or(false, |seg| {
+                            let name = seg.ident.to_string();
+                            matches!(
+                                name.as_str(),
+                                "cell" | "var" | "snapshot" | "HACK" | "replace" | "val" | "eval" | "REPLACE_ME"
+                            )
+                        });
+                        if is_our_macro {
+                            // For macros, parse the tokens as an expression to get full span.
+                            // This handles cases like cell!(1 + 2) correctly.
+                            // The delimiters (!, (), [], {}) are NOT included in tokens,
+                            // so they will be preserved when we replace the content.
+                            let tokens = mac.mac.tokens.clone();
+                            if !tokens.is_empty() {
+                                syn::parse2::<syn::Expr>(tokens)
+                                    .ok()
+                                    .map(|expr| expr.span())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+
+                if arg_span.is_some() {
                     if self.current_index == self.target_index {
-                        // Found our target! Extract the span of the first argument
-                        if let Some(first_arg) = call.args.first() {
-                            use syn::spanned::Spanned;
-                            let arg_span = first_arg.span();
-                            self.span = Some((arg_span.start(), arg_span.end()));
+                        if let Some(span) = arg_span {
+                            self.span = Some((span.start(), span.end()));
                         }
                     }
                     self.current_index += 1;
                 }
+
                 syn::visit::visit_expr(self, node);
             }
         }
@@ -404,7 +461,7 @@ impl FileState {
 
         let (start_lc, end_lc) = finder
             .span
-            .ok_or_else(|| format!("Could not find function call at index {}", target_index))?;
+            .ok_or_else(|| format!("Could not find call/macro at index {}", target_index))?;
 
         // Convert line/column to byte offsets
         let start_byte = Self::line_col_to_byte_static(source, start_lc.line, start_lc.column)?;
@@ -580,7 +637,7 @@ impl FileState {
         Ok(())
     }
 
-    /// Find the byte span of an entire function call expression at the given index.
+    /// Find the byte span of an entire function call or macro expression at the given index.
     fn find_call_expression_span_static(
         ast: &syn::File,
         target_index: usize,
@@ -596,17 +653,37 @@ impl FileState {
 
         impl<'ast> Visit<'ast> for ExprSpanFinder {
             fn visit_expr(&mut self, node: &'ast syn::Expr) {
-                if let syn::Expr::Call(call) = node {
+                use syn::spanned::Spanned;
+
+                // Handle both function calls and macro invocations
+                // For macros, only process ones that are our known macros
+                let expr_span = match node {
+                    syn::Expr::Call(call) => Some(call.span()),
+                    syn::Expr::Macro(mac) => {
+                        // Only process macros that are ours
+                        let is_our_macro = mac.mac.path.segments.last().map_or(false, |seg| {
+                            let name = seg.ident.to_string();
+                            matches!(
+                                name.as_str(),
+                                "cell" | "var" | "snapshot" | "HACK" | "replace" | "val" | "eval" | "REPLACE_ME"
+                            )
+                        });
+                        if is_our_macro {
+                            Some(mac.span())
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+
+                if let Some(span) = expr_span {
                     if self.current_index == self.target_index {
-                        // Found our target! Get the span of the entire call expression
-                        use syn::spanned::Spanned;
-                        // The call expression spans from the function to the closing paren
-                        // We need to get the span of the entire ExprCall
-                        let call_span = call.span();
-                        self.span = Some((call_span.start(), call_span.end()));
+                        self.span = Some((span.start(), span.end()));
                     }
                     self.current_index += 1;
                 }
+
                 syn::visit::visit_expr(self, node);
             }
         }
@@ -631,7 +708,7 @@ impl FileState {
     }
 }
 
-/// Visitor that reads the Nth function call's argument (by index)
+/// Visitor that reads the Nth function call or macro's argument (by index)
 struct IndexedLiteralReader {
     target_index: usize,
     current_index: usize,
@@ -640,16 +717,43 @@ struct IndexedLiteralReader {
 
 impl<'ast> syn::visit::Visit<'ast> for IndexedLiteralReader {
     fn visit_expr(&mut self, node: &'ast syn::Expr) {
-        // Match ALL function calls - we use position-based matching, not name
-        if let syn::Expr::Call(call) = node {
-            if self.tokens.is_none() && self.current_index == self.target_index {
-                // Found our target! Get the first argument's tokens
-                if let Some(first_arg) = call.args.first() {
-                    self.tokens = Some(quote::quote!(#first_arg));
+        // Match both function calls and macro invocations - we use position-based matching
+        // For macros, only process ones that are our known macros
+        let arg_tokens = match node {
+            syn::Expr::Call(call) => {
+                call.args.first().map(|first_arg| quote::quote!(#first_arg))
+            }
+            syn::Expr::Macro(mac) => {
+                // Only process macros that are ours
+                let is_our_macro = mac.mac.path.segments.last().map_or(false, |seg| {
+                    let name = seg.ident.to_string();
+                    matches!(
+                        name.as_str(),
+                        "cell" | "var" | "snapshot" | "HACK" | "replace" | "val" | "eval" | "REPLACE_ME"
+                    )
+                });
+                if is_our_macro {
+                    // For macros, the tokens are already in mac.mac.tokens
+                    let tokens = mac.mac.tokens.clone();
+                    if !tokens.is_empty() {
+                        Some(tokens)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
                 }
+            }
+            _ => None,
+        };
+
+        if arg_tokens.is_some() {
+            if self.tokens.is_none() && self.current_index == self.target_index {
+                self.tokens = arg_tokens;
             }
             self.current_index += 1;
         }
+
         syn::visit::visit_expr(self, node);
     }
 }
