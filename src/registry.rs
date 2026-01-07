@@ -18,7 +18,7 @@
 //!
 //! # Implementation
 //!
-//! Uses a global `HashMap` storing raw pointers to `Box<Mutex<LiteralInner<T>>>`.
+//! Uses a global `HashMap` storing raw pointers to `Box<Mutex<InlineCellInner<T>>>`.
 //! The boxes are intentionally leaked to provide true `'static` lifetime.
 //! Type safety is ensured by including `TypeId` in the registry key.
 //!
@@ -29,8 +29,8 @@
 //! - `TypeId` in the key guarantees we only cast to the correct type
 //! - Boxes are allocated by this module, pointers are valid for `'static`
 
-use crate::inline::LiteralInner;
-use crate::literal::Value;
+use crate::inline::InlineCellInner;
+use crate::value::Value;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::any::TypeId;
@@ -58,7 +58,7 @@ type RegistryValue = usize;
 
 /// Global registry mapping (file, index_or_position, type) to raw pointers.
 ///
-/// Each entry is a `Box<Mutex<LiteralInner<T>>>` cast to `usize` for type erasure.
+/// Each entry is a `Box<Mutex<InlineCellInner<T>>>` cast to `usize` for type erasure.
 /// The TypeId in the key ensures type safety when casting back.
 /// Uses stable index when file exists (values persist across line insertions),
 /// or (line, column) as fallback when file doesn't exist (for testing).
@@ -71,15 +71,30 @@ static VALUE_REGISTRY: Lazy<Mutex<HashMap<RegistryKey, RegistryValue>>> =
 /// with efficient caching to avoid repeated parsing. The stable index ensures
 /// values persist even when lines are inserted above the literal.
 ///
-/// **Note:** This is an internal function called by the `literal!` macro.
-/// Users should use the macro instead.
+/// Uses `#[track_caller]` to automatically capture the call site location.
+///
+/// **Note:** This is an internal function called by `cell()` and `cell_default()`.
+/// Users should use those functions instead.
 #[doc(hidden)]
+#[track_caller]
 pub fn get_or_create<T: Value + 'static>(
     initial: T,
-    file: &'static str,
+) -> &'static Mutex<InlineCellInner<T>> {
+    let loc = std::panic::Location::caller();
+    get_or_create_at(initial, loc.file(), loc.line(), loc.column())
+}
+
+/// Get or create a static literal value at an explicit source location.
+///
+/// This is the internal implementation that takes explicit location parameters.
+/// Used by tests that need to specify synthetic file locations.
+#[doc(hidden)]
+pub fn get_or_create_at<T: Value + 'static>(
+    initial: T,
+    file: &str,
     line: u32,
     column: u32,
-) -> &'static Mutex<LiteralInner<T>> {
+) -> &'static Mutex<InlineCellInner<T>> {
     // Auto-start background flush thread on first literal access
     let _ = crate::flush::start_background_flush_internal();
 
@@ -98,14 +113,14 @@ pub fn get_or_create<T: Value + 'static>(
 
     // Build the registry key
     // Prefers stable index for files that exist, falls back to (line, column) otherwise
-    let key = (path, index_or_position, TypeId::of::<LiteralInner<T>>());
+    let key = (path, index_or_position, TypeId::of::<InlineCellInner<T>>());
 
     // Get or create the raw pointer in the registry
     let ptr_as_usize = {
         let mut registry = VALUE_REGISTRY.lock();
         *registry.entry(key).or_insert_with(|| {
             // Create a new boxed value and leak it for 'static lifetime
-            let inner = LiteralInner::new(initial.clone(), file, line, column);
+            let inner = InlineCellInner::new(initial.clone(), file, line, column);
 
             // TODO: Initial value verification disabled due to false positives
             // When databake serializes values like vec![1,2,3], it produces alloc::vec![1,2,3,]
@@ -123,5 +138,5 @@ pub fn get_or_create<T: Value + 'static>(
     // - TypeId in key guarantees we only cast to the correct type T
     // - Box was allocated above, pointer is valid for 'static
     // - Multiple threads can safely share the &'static reference
-    unsafe { &*(ptr_as_usize as *const Mutex<LiteralInner<T>>) }
+    unsafe { &*(ptr_as_usize as *const Mutex<InlineCellInner<T>>) }
 }

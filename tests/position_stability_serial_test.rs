@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 use tempfile::TempDir;
-use jeb_literal::LiteralPrivate;
+use inline::InlineCellPrivate;
 
 #[test]
 fn test_multiple_updates_same_litter() {
@@ -12,12 +12,12 @@ fn test_multiple_updates_same_litter() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let x = literal!(42u32);
+    let x = cell(42u32);
 }
 "#;
     fs::write(&path, original).unwrap();
 
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Find initial position
     let source = fs::read_to_string(&path).unwrap();
@@ -30,15 +30,20 @@ fn test_multiple_updates_same_litter() {
     }
 
     impl<'ast> Visit<'ast> for MacroFinder {
-        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            if let Some(ident) = node.mac.path.get_ident() {
-                if ident == "literal" {
-                    let span = ident.span();
-                    let start = span.start();
-                    self.line = Some(start.line as u32);
-                    self.column = Some(start.column as u32);
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if let syn::Expr::Call(call) = node {
+                if let syn::Expr::Path(path) = &*call.func {
+                    if let Some(segment) = path.path.segments.last() {
+                        if segment.ident == "cell" {
+                            let span = segment.ident.span();
+                            let start = span.start();
+                            self.line = Some(start.line as u32);
+                            self.column = Some(start.column as u32);
+                        }
+                    }
                 }
             }
+            syn::visit::visit_expr(self, node);
         }
     }
 
@@ -55,7 +60,7 @@ fn test_multiple_updates_same_litter() {
     );
 
     // Create a Inline instance with the captured position
-    let mut value = jeb_literal::Literal::__new(
+    let mut value = inline::InlineCell::__new(
         42u32,
         path.to_str().unwrap(),
         original_line,
@@ -63,7 +68,7 @@ fn test_multiple_updates_same_litter() {
     );
 
     // Update 1: 42 -> 100
-    value.literal = 100u32;
+    value.value = 100u32;
     println!("After update 1:");
     println!("{}", fs::read_to_string(&path).unwrap());
 
@@ -87,7 +92,7 @@ fn test_multiple_updates_same_litter() {
     );
 
     // Update 2: 100 -> 999
-    value.literal = 999u32;
+    value.value = 999u32;
     println!("After update 2:");
     println!("{}", fs::read_to_string(&path).unwrap());
 
@@ -111,7 +116,7 @@ fn test_multiple_updates_same_litter() {
     );
 
     // Update 3: 999 -> 1
-    value.literal = 1u32;
+    value.value = 1u32;
     println!("After update 3:");
     println!("{}", fs::read_to_string(&path).unwrap());
 
@@ -141,5 +146,5 @@ fn test_multiple_updates_same_litter() {
     );
     println!("  Final:    line {}, column {}", line_after_3, col_after_3);
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }

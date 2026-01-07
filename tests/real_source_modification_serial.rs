@@ -10,7 +10,7 @@ use std::panic;
 
 #[test]
 fn test_counter_a_modification() {
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Verify starts at default
     {
@@ -22,14 +22,14 @@ fn test_counter_a_modification() {
     {
         let mut value = fixtures::counter_a::get();
         let test_val = 42u32;
-        value.literal = test_val;
+        value.value = test_val;
         // Drop triggers write
     }
 
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_a.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(42u32)"),
+        disk_content.contains("cell(42u32)"),
         "Disk should contain updated value. Content:\n{}",
         disk_content
     );
@@ -37,24 +37,24 @@ fn test_counter_a_modification() {
     // Restore to default
     {
         let mut value = fixtures::counter_a::get();
-        value.literal = 0u32;
+        value.value = 0u32;
         // Drop triggers write
     }
 
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_a.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(0u32)"),
+        disk_content.contains("cell(0u32)"),
         "Disk should be restored to default. Content:\n{}",
         disk_content
     );
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_counter_b_modification() {
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Verify starts at default
     {
@@ -66,14 +66,14 @@ fn test_counter_b_modification() {
     {
         let mut value = fixtures::counter_b::get();
         let test_val = 999u32;
-        value.literal = test_val;
+        value.value = test_val;
         // Drop triggers write
     }
 
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_b.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(999u32)"),
+        disk_content.contains("cell(999u32)"),
         "Disk should contain updated value. Content:\n{}",
         disk_content
     );
@@ -81,24 +81,24 @@ fn test_counter_b_modification() {
     // Restore to default
     {
         let mut value = fixtures::counter_b::get();
-        value.literal = 0u32;
+        value.value = 0u32;
         // Drop triggers write
     }
 
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_b.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(0u32)"),
+        disk_content.contains("cell(0u32)"),
         "Disk should be restored to default. Content:\n{}",
         disk_content
     );
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_counter_c_modification() {
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Verify starts at default
     {
@@ -110,14 +110,14 @@ fn test_counter_c_modification() {
     {
         let mut value = fixtures::counter_c::get();
         let test_val = 12345u32;
-        value.literal = test_val;
+        value.value = test_val;
         // Drop triggers write
     }
 
     // Check disk actually changed
     let disk_content = fs::read_to_string("tests/fixtures/counter_c.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(12345u32)"),
+        disk_content.contains("cell(12345u32)"),
         "Disk should contain updated value. Content:\n{}",
         disk_content
     );
@@ -125,24 +125,24 @@ fn test_counter_c_modification() {
     // Restore to default
     {
         let mut value = fixtures::counter_c::get();
-        value.literal = 0u32;
+        value.value = 0u32;
         // Drop triggers write
     }
 
     // Check disk restored
     let disk_content = fs::read_to_string("tests/fixtures/counter_c.rs").unwrap();
     assert!(
-        disk_content.contains("literal!(0u32)"),
+        disk_content.contains("cell(0u32)"),
         "Disk should be restored to default. Content:\n{}",
         disk_content
     );
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_config_a_modification() {
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Verify starts at default
     {
@@ -154,7 +154,7 @@ fn test_config_a_modification() {
     {
         let mut value = fixtures::config_a::get();
         let test_val = "test_config_value".to_string();
-        value.literal = test_val;
+        value.value = test_val;
         // Drop triggers write
     }
 
@@ -169,7 +169,7 @@ fn test_config_a_modification() {
     // Restore to default
     {
         let mut value = fixtures::config_a::get();
-        value.literal = "default".to_string();
+        value.value = "default".to_string();
         // Drop triggers write
     }
 
@@ -181,54 +181,54 @@ fn test_config_a_modification() {
         disk_content
     );
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_multiple_modifications_same_value() {
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Do multiple modifications
     {
         let mut value = fixtures::counter_d::get();
-        value.literal = 100u32;
+        value.value = 100u32;
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("literal!(100u32)"));
+    assert!(disk.contains("cell(100u32)"));
 
     {
         let mut value = fixtures::counter_d::get();
-        value.literal = 200u32;
+        value.value = 200u32;
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("literal!(200u32)"));
+    assert!(disk.contains("cell(200u32)"));
 
     {
         let mut value = fixtures::counter_d::get();
-        value.literal = 300u32;
+        value.value = 300u32;
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("literal!(300u32)"));
+    assert!(disk.contains("cell(300u32)"));
 
     // Restore
     {
         let mut value = fixtures::counter_d::get();
-        value.literal = 0u32;
+        value.value = 0u32;
         // Drop triggers write
     }
     let disk = fs::read_to_string("tests/fixtures/counter_d.rs").unwrap();
-    assert!(disk.contains("literal!(0u32)"));
+    assert!(disk.contains("cell(0u32)"));
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 #[ignore] // TODO: Adapt for write-on-drop - concurrent modification detection needs redesign
 fn test_concurrent_modification_detection() {
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut value = fixtures::counter_e::get();
 
@@ -237,8 +237,8 @@ fn test_concurrent_modification_detection() {
 
     // Force the file to be loaded by doing a set operation
     // This establishes the baseline for concurrent modification detection
-    value.literal = 1u32;
-    value.literal = 0u32; // Set back to default
+    value.value = 1u32;
+    value.value = 0u32; // Set back to default
 
     // NOW simulate external modification to the file
     // This mimics what would happen if another process modified the file
@@ -247,8 +247,8 @@ fn test_concurrent_modification_detection() {
         "tests/fixtures/counter_e.rs",
         r#"/// Fixture E: Counter for testing concurrent modification detection
 /// Default value: 0
-pub fn get() -> jeb_literal::Literal<u32> {
-    jeb_literal::literal!(777u32)  // Externally modified!
+pub fn get() -> inline::InlineCell<u32> {
+    inline::cell(777u32)  // Externally modified!
 }
 "#,
     )
@@ -256,7 +256,7 @@ pub fn get() -> jeb_literal::Literal<u32> {
 
     // Now try to modify with our Inline value - this should panic!
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        value.literal = 100u32;
+        value.value = 100u32;
     }));
 
     // Verify we got the expected panic
@@ -287,20 +287,20 @@ pub fn get() -> jeb_literal::Literal<u32> {
         "tests/fixtures/counter_e.rs",
         r#"/// Fixture E: Counter for testing concurrent modification detection
 /// Default value: 0
-pub fn get() -> jeb_literal::Literal<u32> {
-    jeb_literal::literal!(0u32)
+pub fn get() -> inline::InlineCell<u32> {
+    inline::cell(0u32)
 }
 "#,
     )
     .unwrap();
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 fn test_formatting_preservation() {
     // This test demonstrates what happens to formatting when we modify a inline value
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Capture the original content before any modifications
     let original_content = fs::read_to_string("tests/fixtures/counter_f.rs").unwrap();
@@ -313,7 +313,7 @@ fn test_formatting_preservation() {
 
     // Now modify the value
     let mut value = fixtures::counter_f::get();
-    value.literal = 42u32;
+    value.value = 42u32;
 
     // Read back the file and see what happened to formatting
     let modified_content = fs::read_to_string("tests/fixtures/counter_f.rs").unwrap();
@@ -325,10 +325,10 @@ fn test_formatting_preservation() {
     println!("Line count: {}", modified_line_count);
 
     // Restore to default
-    value.literal = 0u32;
+    value.value = 0u32;
     let restored_content = fs::read_to_string("tests/fixtures/counter_f.rs").unwrap();
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 
     // Report findings
     println!("=== FORMATTING ANALYSIS ===");
@@ -349,9 +349,9 @@ fn test_formatting_preservation() {
 #[test]
 #[ignore] // TODO: Adapt for write-on-drop - needs explicit drops between modifications
 fn test_multiple_macros_same_file() {
-    // Test modifying multiple different literal! macros in the same file
+    // Test modifying multiple different cell() calls in the same file
     // in various orders, including on the same line and different lines
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut first = fixtures::counter_g::get_first();
     let mut second = fixtures::counter_g::get_second();
@@ -363,59 +363,59 @@ fn test_multiple_macros_same_file() {
     assert_eq!(*third.get(), 30u32);
 
     // Modify first macro
-    first.literal = 100u32;
+    first.value = 100u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(100u32)"));
-    assert!(disk.contains("literal!(20u32)"));
-    assert!(disk.contains("literal!(30u32)"));
+    assert!(disk.contains("cell(100u32)"));
+    assert!(disk.contains("cell(20u32)"));
+    assert!(disk.contains("cell(30u32)"));
 
     // Modify second macro
-    second.literal = 200u32;
+    second.value = 200u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(100u32)"));
-    assert!(disk.contains("literal!(200u32)"));
-    assert!(disk.contains("literal!(30u32)"));
+    assert!(disk.contains("cell(100u32)"));
+    assert!(disk.contains("cell(200u32)"));
+    assert!(disk.contains("cell(30u32)"));
 
     // Modify third macro
-    third.literal = 300u32;
+    third.value = 300u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(100u32)"));
-    assert!(disk.contains("literal!(200u32)"));
-    assert!(disk.contains("literal!(300u32)"));
+    assert!(disk.contains("cell(100u32)"));
+    assert!(disk.contains("cell(200u32)"));
+    assert!(disk.contains("cell(300u32)"));
 
     // Modify first again
-    first.literal = 111u32;
+    first.value = 111u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(111u32)"));
-    assert!(disk.contains("literal!(200u32)"));
-    assert!(disk.contains("literal!(300u32)"));
+    assert!(disk.contains("cell(111u32)"));
+    assert!(disk.contains("cell(200u32)"));
+    assert!(disk.contains("cell(300u32)"));
 
     // Modify in reverse order
-    third.literal = 333u32;
-    second.literal = 222u32;
-    first.literal = 11u32;
+    third.value = 333u32;
+    second.value = 222u32;
+    first.value = 11u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(11u32)"));
-    assert!(disk.contains("literal!(222u32)"));
-    assert!(disk.contains("literal!(333u32)"));
+    assert!(disk.contains("cell(11u32)"));
+    assert!(disk.contains("cell(222u32)"));
+    assert!(disk.contains("cell(333u32)"));
 
     // Restore all to defaults
-    first.literal = 10u32;
-    second.literal = 20u32;
-    third.literal = 30u32;
+    first.value = 10u32;
+    second.value = 20u32;
+    third.value = 30u32;
     let disk = fs::read_to_string("tests/fixtures/counter_g.rs").unwrap();
-    assert!(disk.contains("literal!(10u32)"));
-    assert!(disk.contains("literal!(20u32)"));
-    assert!(disk.contains("literal!(30u32)"));
+    assert!(disk.contains("cell(10u32)"));
+    assert!(disk.contains("cell(20u32)"));
+    assert!(disk.contains("cell(30u32)"));
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 #[test]
 #[ignore] // TODO: Adapt for write-on-drop - needs explicit drops between modifications
 fn test_multiple_files_interleaved() {
     // Test modifying macros across multiple files in arbitrary order
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     let mut counter_a = fixtures::counter_a::get();
     let mut counter_b = fixtures::counter_b::get();
@@ -429,74 +429,74 @@ fn test_multiple_files_interleaved() {
     assert_eq!(*counter_d.get(), 0u32);
 
     // Modify in arbitrary interleaved order
-    counter_a.literal = 1u32;
+    counter_a.value = 1u32;
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(1u32)"));
+        .contains("cell(1u32)"));
 
-    counter_b.literal = 2u32;
+    counter_b.value = 2u32;
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("literal!(2u32)"));
+        .contains("cell(2u32)"));
 
-    counter_a.literal = 11u32; // Modify counter_a again
+    counter_a.value = 11u32; // Modify counter_a again
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(11u32)"));
+        .contains("cell(11u32)"));
 
-    config_a.literal = "test_value".to_string();
+    config_a.value = "test_value".to_string();
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
         .unwrap()
         .contains(r#""test_value""#));
 
-    counter_d.literal = 4u32;
+    counter_d.value = 4u32;
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
-        .contains("literal!(4u32)"));
+        .contains("cell(4u32)"));
 
-    counter_b.literal = 22u32; // Modify counter_b again
+    counter_b.value = 22u32; // Modify counter_b again
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("literal!(22u32)"));
+        .contains("cell(22u32)"));
 
-    counter_a.literal = 111u32; // Modify counter_a third time
+    counter_a.value = 111u32; // Modify counter_a third time
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(111u32)"));
+        .contains("cell(111u32)"));
 
     // Verify all files have correct values
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(111u32)"));
+        .contains("cell(111u32)"));
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("literal!(22u32)"));
+        .contains("cell(22u32)"));
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
         .unwrap()
         .contains(r#""test_value""#));
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
-        .contains("literal!(4u32)"));
+        .contains("cell(4u32)"));
 
     // Restore all to defaults
-    counter_a.literal = 0u32;
-    counter_b.literal = 0u32;
-    config_a.literal = "default".to_string();
-    counter_d.literal = 0u32;
+    counter_a.value = 0u32;
+    counter_b.value = 0u32;
+    config_a.value = "default".to_string();
+    counter_d.value = 0u32;
 
     // Verify restoration
     assert!(fs::read_to_string("tests/fixtures/counter_a.rs")
         .unwrap()
-        .contains("literal!(0u32)"));
+        .contains("cell(0u32)"));
     assert!(fs::read_to_string("tests/fixtures/counter_b.rs")
         .unwrap()
-        .contains("literal!(0u32)"));
+        .contains("cell(0u32)"));
     assert!(fs::read_to_string("tests/fixtures/config_a.rs")
         .unwrap()
         .contains(r#""default""#));
     assert!(fs::read_to_string("tests/fixtures/counter_d.rs")
         .unwrap()
-        .contains("literal!(0u32)"));
+        .contains("cell(0u32)"));
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }

@@ -5,7 +5,7 @@
 //!   cargo regenerate-test-literals [CARGO_TEST_ARGS...]
 //!
 //! This is equivalent to:
-//!   LITERAL_MODE=write cargo test [ARGS...]
+//!   CODE_CELL_MODE=write cargo test [ARGS...]
 //!
 //! Examples:
 //!   cargo regenerate-test-literals
@@ -29,14 +29,14 @@ fn main() {
     }
 
     // Set the environment variable to enable write mode
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("CODE_CELL_MODE", "write");
 
     // Execute cargo test with all the provided arguments
     let mut cmd = Command::new("cargo");
     cmd.arg("test");
     cmd.args(&args);
 
-    // Preserve the current environment (including our LITERAL_MODE=write)
+    // Preserve the current environment (including our CODE_CELL_MODE=write)
     cmd.envs(env::vars());
 
     // Execute and forward the exit code

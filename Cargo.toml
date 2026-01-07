@@ -1,13 +1,13 @@
 [package]
-name = "jeb-literal"
+name = "inline"
 version = "0.0.1-dev.1"
 edition = "2021"
 authors = ["Jeremy Banks"]
 license = "MIT OR Apache-2.0"
-description = "Self-modifying literal values that update their source code at runtime"
+description = "Self-modifying values that update their source code at runtime"
 repository = "https://github.com/jeremyBanks/inline"
 homepage = "https://github.com/jeremyBanks/inline"
-documentation = "https://docs.rs/jeb-literal"
+documentation = "https://docs.rs/inline"
 readme = "README.md"
 keywords = ["snapshot", "testing", "self-modifying", "codegen"]
 categories = ["development-tools::testing", "development-tools"]
@@ -27,6 +27,7 @@ databake = "0.1"
 syn = { version = "2", features = ["full", "visit", "extra-traits"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 parking_lot = "0.12"
+quote = "1"
 
 [dev-dependencies]
 tempfile = "3"

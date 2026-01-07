@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 use tempfile::TempDir;
-use jeb_literal::LiteralPrivate;
+use inline::InlineCellPrivate;
 
 #[test]
 fn test_line_number_stability_with_multiple_litters() {
@@ -12,16 +12,16 @@ fn test_line_number_stability_with_multiple_litters() {
     let path = dir.path().join("test.rs");
 
     let original = r#"fn main() {
-    let a = literal!(1u32);
-    let b = literal!(2u32);
-    let c = literal!(3u32);
+    let a = cell(1u32);
+    let b = cell(2u32);
+    let c = cell(3u32);
 }
 "#;
     fs::write(&path, original).unwrap();
     println!("=== ORIGINAL FILE ===");
     println!("{}", original);
 
-    env::set_var("LITERAL_MODE", "write");
+    env::set_var("INLINE_MODE", "write");
 
     // Find all positions initially
     let positions = find_all_positions(&path);
@@ -36,13 +36,13 @@ fn test_line_number_stability_with_multiple_litters() {
     let (c_line, c_col) = positions[2];
 
     // Create inline instances
-    let mut litter_a = jeb_literal::Literal::__new(1u32, path.to_str().unwrap(), a_line, a_col);
-    let mut litter_b = jeb_literal::Literal::__new(2u32, path.to_str().unwrap(), b_line, b_col);
-    let mut litter_c = jeb_literal::Literal::__new(3u32, path.to_str().unwrap(), c_line, c_col);
+    let mut litter_a = inline::InlineCell::__new(1u32, path.to_str().unwrap(), a_line, a_col);
+    let mut litter_b = inline::InlineCell::__new(2u32, path.to_str().unwrap(), b_line, b_col);
+    let mut litter_c = inline::InlineCell::__new(3u32, path.to_str().unwrap(), c_line, c_col);
 
     // Update A
     println!("\n=== UPDATING A (1 -> 999) ===");
-    litter_a.literal = 999u32;
+    litter_a.value = 999u32;
     println!("{}", fs::read_to_string(&path).unwrap());
 
     // Check positions after updating A
@@ -64,7 +64,7 @@ fn test_line_number_stability_with_multiple_litters() {
 
     // Now update B
     println!("\n=== UPDATING B (2 -> 888) ===");
-    litter_b.literal = 888u32;
+    litter_b.value = 888u32;
     println!("{}", fs::read_to_string(&path).unwrap());
 
     let positions_after_b = find_all_positions(&path);
@@ -81,7 +81,7 @@ fn test_line_number_stability_with_multiple_litters() {
 
     // Finally update C
     println!("\n=== UPDATING C (3 -> 777) ===");
-    litter_c.literal = 777u32;
+    litter_c.value = 777u32;
     println!("{}", fs::read_to_string(&path).unwrap());
 
     let positions_final = find_all_positions(&path);
@@ -106,7 +106,7 @@ fn test_line_number_stability_with_multiple_litters() {
 
     println!("\n✓ ALL LINE NUMBERS REMAINED STABLE!");
 
-    env::remove_var("LITERAL_MODE");
+    env::remove_var("INLINE_MODE");
 }
 
 fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
@@ -119,20 +119,20 @@ fn find_all_positions(path: &std::path::Path) -> Vec<(u32, u32)> {
     }
 
     impl<'ast> Visit<'ast> for MacroCollector {
-        fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-            let is_litter = if let Some(segment) = node.mac.path.segments.last() {
-                segment.ident == "literal"
-            } else {
-                false
-            };
-
-            if is_litter {
-                let span = node.mac.path.segments.last().unwrap().ident.span();
-                let start = span.start();
-                self.positions
-                    .push((start.line as u32, start.column as u32));
+        fn visit_expr(&mut self, node: &'ast syn::Expr) {
+            if let syn::Expr::Call(call) = node {
+                if let syn::Expr::Path(path) = &*call.func {
+                    if let Some(segment) = path.path.segments.last() {
+                        if segment.ident == "cell" {
+                            let span = segment.ident.span();
+                            let start = span.start();
+                            self.positions
+                                .push((start.line as u32, start.column as u32));
+                        }
+                    }
+                }
             }
-            syn::visit::visit_expr_macro(self, node);
+            syn::visit::visit_expr(self, node);
         }
     }
 
