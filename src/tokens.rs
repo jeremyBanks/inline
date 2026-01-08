@@ -133,4 +133,24 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
     }
+
+    #[test]
+    fn test_tokens_from_quote_macro() {
+        // Users can use the quote! macro from the quote crate to generate Tokens
+        use quote::quote;
+
+        // Via From<TokenStream>
+        let toks: Tokens = quote!(foo bar 123).into();
+        assert_eq!(toks.as_str(), "foo bar 123");
+
+        // Via Tokens::new()
+        let toks = Tokens::new(quote!(hello world));
+        assert_eq!(toks.as_str(), "hello world");
+
+        // More complex tokens
+        let toks: Tokens = quote!(
+            fn example() -> i32 { 42 }
+        ).into();
+        assert!(toks.as_str().contains("fn example"));
+    }
 }

@@ -105,9 +105,6 @@ pub use tokens::Tokens;
 // Re-export replace functions and aliases
 pub use replace::{replace, replace_at, replace_default, val, eval, REPLACE_ME};
 
-// Re-export quote for macro users
-pub use quote::quote;
-
 // =============================================================================
 // Macro wrappers
 // =============================================================================
