@@ -187,34 +187,30 @@ macro_rules! replace_default {
     };
 }
 
-/// Create a [`Tokens`] wrapper that preserves arbitrary tokens.
+/// Create a self-modifying [`InlineCell`] containing arbitrary tokens.
 ///
-/// The `Tokens` type implements [`Bake`](databake::Bake) to produce a macro call
-/// that reproduces the original tokens. This is useful when you want to store
-/// and bake arbitrary Rust syntax.
+/// The [`Tokens`] type implements [`Bake`](databake::Bake) to produce a macro call
+/// that reproduces the original tokens. This macro wraps the tokens in an
+/// `InlineCell` for automatic source code updates.
 ///
 /// # Example
 ///
-/// ```
+/// ```no_run
 /// use inline::tokens;
 ///
-/// let toks = tokens!(foo bar 123 "hello");
+/// let mut toks = tokens!(foo bar 123 "hello");
 ///
-/// // When baked, produces: inline::tokens!(foo bar 123 "hello")
+/// // Mutate the tokens
+/// toks.value = inline::Tokens::from_str("new tokens here");
+///
+/// // On drop, source updates to: tokens!(new tokens here)
 /// ```
 ///
-/// Combined with `cell()` for self-modifying token storage:
-///
-/// ```no_run
-/// use inline::{cell, tokens};
-///
-/// let mut toks = cell(tokens!(initial value));
-/// // Can be mutated and will update source on drop
-/// toks.value = tokens!(new value);
-/// ```
+/// For a raw `Tokens` value without the `InlineCell` wrapper, use
+/// [`Tokens::from_str()`] directly.
 #[macro_export]
 macro_rules! tokens {
     ($($tt:tt)*) => {
-        $crate::Tokens::from_str(stringify!($($tt)*))
+        $crate::cell($crate::Tokens::from_str(stringify!($($tt)*)))
     };
 }
