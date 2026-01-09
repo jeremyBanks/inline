@@ -782,6 +782,45 @@ fn test_parse_response() {
 - `cell!()`, `cell_default!()`, `replace!()`, `replace_default!()`
 - Entire macro contents replaced (not just argument)
 
+**4. Token Preservation (`Tokens` and `tokens!`)** ✅
+- `Tokens` wrapper type stores arbitrary tokens
+- `tokens!` macro creates `InlineCell<Tokens>` for self-modifying token storage
+- Implements `Bake` to output raw tokens (round-trips through macro calls)
+- Accepts arbitrary token sequences, not just valid Rust expressions
+
+```rust
+let mut toks = tokens!(foo bar 123 "hello");
+toks.value = Tokens::from_str("updated tokens");
+// Source becomes: tokens!(updated tokens)
+```
+
+### Workspace Structure
+
+The crate is organized as a Cargo workspace:
+
+```
+inline/
+├── Cargo.toml          # Workspace root + main crate
+├── src/                # Main inline crate
+└── crates/
+    └── stringify_verbatim/  # Proc-macro for whitespace-preserving stringify
+```
+
+**`stringify_verbatim`** is a proc-macro crate that stringifies tokens while preserving original whitespace (unlike the built-in `stringify!` which normalizes to single spaces). It uses span position information to reconstruct whitespace.
+
+```rust
+use stringify_verbatim::stringify_verbatim;
+
+// Built-in: stringify!(foo   bar) → "foo bar"
+// Verbatim: stringify_verbatim!(foo   bar) → "foo   bar"
+```
+
+Features:
+- Preserves multiple spaces, newlines, indentation
+- Round-trips `///` doc comments back to `///` syntax (detects synthetic attributes)
+- Keeps explicit `#[doc = "..."]` attributes as-is
+- Documents limitations (regular comments lost, leading/trailing whitespace)
+
 ### Planned Features
 
 **1. Serde Compatibility**
@@ -901,3 +940,4 @@ fn test_parse_response() {
 |---------|------|---------|
 | 0.1.0 | 2026-01-04 | Initial draft, all sections unapproved |
 | 0.2.0 | 2026-01-07 | Major rewrite: updated for `inline` crate, `#[track_caller]` functions, position-based matching |
+| 0.3.0 | 2026-01-09 | Added `Tokens` type, `tokens!` macro, workspace structure, `stringify_verbatim` crate |
