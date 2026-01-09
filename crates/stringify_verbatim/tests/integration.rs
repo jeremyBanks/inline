@@ -320,7 +320,8 @@ fn test_doc_comment_consistency() {
     assert_eq!(s1, s2, "Same input should produce same output");
 }
 
-/// Test that explicit #[doc] attributes are round-tripped to /// format
+/// Test that explicit #[doc] attributes are NOT converted to /// format
+/// Only actual /// comments are round-tripped, explicit attributes stay as-is
 #[test]
 fn test_explicit_doc_attribute() {
     let s = stringify_verbatim!(
@@ -328,24 +329,26 @@ fn test_explicit_doc_attribute() {
         fn foo() {}
     );
     println!("explicit doc attr: {:?}", s);
-    // Explicit #[doc = "..."] should also be converted to /// format
-    assert!(s.contains("///"), "Explicit doc should be converted to ///");
+    // Explicit #[doc = "..."] should NOT be converted to /// format
+    // It should remain as #[doc = "..."] because it was written that way
+    assert!(s.contains("#"), "Explicit doc should keep # prefix");
+    assert!(s.contains("doc"), "Should contain doc");
     assert!(s.contains("Explicit doc"), "Doc content should be preserved");
-    // Note: The output is "///Explicit doc" (no space) because the original
-    // string literal doesn't have a leading space. This is correct behavior.
-    assert!(s.contains("///Explicit doc"), "Should have no space after /// for explicit attrs");
+    // Should NOT have been converted to ///
+    assert!(!s.starts_with("///"), "Explicit attr should NOT become ///");
 }
 
-/// Document the difference between /// and #[doc = "..."] regarding spacing
+/// Document the difference between /// and #[doc = "..."]
+/// Only /// comments are round-tripped, explicit attributes remain as-is
 #[test]
-fn test_doc_comment_vs_explicit_attribute_spacing() {
-    // When you write `/// Text`, Rust converts it to `#[doc = " Text"]` with a leading space
+fn test_doc_comment_vs_explicit_attribute_behavior() {
+    // When you write `/// Text`, it's round-tripped back to ///
     let from_triple_slash = stringify_verbatim!(
         /// Text with space
         fn a() {}
     );
 
-    // When you write `#[doc = "Text"]`, there's no leading space
+    // When you write `#[doc = "Text"]` explicitly, it stays as #[doc = "..."]
     let from_explicit = stringify_verbatim!(
         #[doc = "Text without space"]
         fn b() {}
@@ -354,9 +357,13 @@ fn test_doc_comment_vs_explicit_attribute_spacing() {
     println!("from ///: {:?}", from_triple_slash);
     println!("from #[doc]: {:?}", from_explicit);
 
-    // Both should be converted to /// format
-    assert!(from_triple_slash.contains("/// Text with space"), "/// should preserve leading space");
-    assert!(from_explicit.contains("///Text without space"), "Explicit should have no space after ///");
+    // /// comments are converted back to /// format
+    assert!(from_triple_slash.contains("/// Text with space"), "/// should round-trip to ///");
+
+    // Explicit #[doc = "..."] should NOT be converted
+    assert!(from_explicit.contains("#"), "Explicit should keep #");
+    assert!(from_explicit.contains("doc"), "Explicit should keep doc");
+    assert!(!from_explicit.starts_with("///"), "Explicit should NOT become ///");
 }
 
 /// Test that non-doc attributes are NOT converted (only doc attributes are round-tripped)

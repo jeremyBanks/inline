@@ -102,6 +102,9 @@ fn reconstruct_with_whitespace(tokens: proc_macro2::TokenStream) -> String {
 
 /// Try to parse a doc attribute pattern and convert it back to /// or //! syntax.
 /// Returns (doc_comment_string, tokens_consumed, end_position) if successful.
+///
+/// Only converts if the span positions indicate this was originally a `///` comment
+/// (where all tokens map to the same location), NOT an explicit `#[doc = "..."]`.
 fn try_parse_doc_attribute(tokens: &[TokenTree]) -> Option<(String, usize, LineColumn)> {
     // Pattern: # [ doc = "..." ] or # ! [ doc = "..." ]
     if tokens.is_empty() {
@@ -109,10 +112,10 @@ fn try_parse_doc_attribute(tokens: &[TokenTree]) -> Option<(String, usize, LineC
     }
 
     // Check for #
-    match &tokens[0] {
-        TokenTree::Punct(p) if p.as_char() == '#' => {}
+    let hash_span = match &tokens[0] {
+        TokenTree::Punct(p) if p.as_char() == '#' => p.span(),
         _ => return None,
-    }
+    };
 
     let mut idx = 1;
     let is_inner;
@@ -185,7 +188,25 @@ fn try_parse_doc_attribute(tokens: &[TokenTree]) -> Option<(String, usize, LineC
         _ => return None,
     };
 
-    // Successfully parsed a doc attribute!
+    // Check if this was originally a /// comment or an explicit #[doc = "..."]
+    // For /// comments, the # and [ tokens are synthetic and have identical spans
+    // (both point to the original /// location).
+    // For explicit #[doc = "..."], the [ starts one column after the #.
+    let hash_start = hash_span.start();
+    let group_start = group.span().start();
+
+    // For "/// comment" (synthetic):
+    //   - Both hash and group have the same start column (pointing to /)
+    // For "#[doc = "comment"]" (explicit):
+    //   - hash is at position of #, group starts at position of [
+    let is_synthetic = hash_start.column == group_start.column;
+
+    if !is_synthetic {
+        // This is an explicit #[doc = "..."], don't convert
+        return None;
+    }
+
+    // Successfully parsed a synthetic doc attribute from ///!
     let prefix = if is_inner { "//!" } else { "///" };
     let doc_comment = format!("{}{}", prefix, doc_content);
 
