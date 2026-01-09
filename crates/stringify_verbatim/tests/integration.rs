@@ -121,3 +121,104 @@ fn test_compare_with_stringify() {
     // Verbatim preserves multiple spaces
     assert_eq!(verbatim, "foo   bar   baz", "Verbatim preserves whitespace");
 }
+
+/// Test that regular comments are completely lost (not part of token stream)
+#[test]
+fn test_regular_comments_lost() {
+    let s = stringify_verbatim!(
+        foo // this comment is lost
+        bar
+    );
+    println!("with line comment: {:?}", s);
+    assert!(s.contains("foo"), "Should contain foo");
+    assert!(s.contains("bar"), "Should contain bar");
+    assert!(!s.contains("comment"), "Regular comments should NOT be preserved");
+    assert!(!s.contains("//"), "Comment syntax should NOT appear");
+}
+
+#[test]
+fn test_block_comments_lost() {
+    let s = stringify_verbatim!(
+        foo /* block comment */ bar
+    );
+    println!("with block comment: {:?}", s);
+    assert!(s.contains("foo"), "Should contain foo");
+    assert!(s.contains("bar"), "Should contain bar");
+    assert!(!s.contains("block"), "Block comments should NOT be preserved");
+    assert!(!s.contains("/*"), "Comment syntax should NOT appear");
+}
+
+/// Doc comments ARE part of the token stream, but serialize as attributes
+#[test]
+fn test_doc_comments_become_attributes() {
+    let s = stringify_verbatim!(
+        /// This is a doc comment
+        fn example() {}
+    );
+    println!("with doc comment: {:?}", s);
+
+    // Doc comments become #[doc = "..."] attributes
+    assert!(s.contains("doc"), "Doc comment should become #[doc] attribute");
+    assert!(s.contains("fn example"), "Function should be preserved");
+
+    // The original /// syntax is NOT preserved - it becomes #[doc = "..."]
+    // This is how Rust's lexer works
+}
+
+#[test]
+fn test_inner_doc_comments() {
+    let s = stringify_verbatim!(
+        //! Inner doc comment
+        mod example {}
+    );
+    println!("with inner doc: {:?}", s);
+
+    // Inner doc comments also become attributes
+    assert!(s.contains("doc"), "Inner doc should become attribute");
+}
+
+/// Test various punctuation and operators
+#[test]
+fn test_punctuation_spacing() {
+    let s = stringify_verbatim!(a + b - c * d / e);
+    println!("operators: {:?}", s);
+    // Check operators are present
+    assert!(s.contains("+"));
+    assert!(s.contains("-"));
+    assert!(s.contains("*"));
+    assert!(s.contains("/"));
+}
+
+#[test]
+fn test_comma_separated() {
+    let s = stringify_verbatim!(a, b, c);
+    println!("comma separated: {:?}", s);
+    assert!(s.contains(","));
+}
+
+#[test]
+fn test_path_syntax() {
+    let s = stringify_verbatim!(std::collections::HashMap);
+    println!("path: {:?}", s);
+    assert!(s.contains("std"));
+    assert!(s.contains("::"));
+    assert!(s.contains("HashMap"));
+}
+
+#[test]
+fn test_generics() {
+    let s = stringify_verbatim!(Vec<String>);
+    println!("generics: {:?}", s);
+    assert!(s.contains("Vec"));
+    assert!(s.contains("<"));
+    assert!(s.contains(">"));
+    assert!(s.contains("String"));
+}
+
+#[test]
+fn test_lifetime() {
+    let s = stringify_verbatim!(&'a str);
+    println!("lifetime: {:?}", s);
+    assert!(s.contains("'a"));
+    assert!(s.contains("str"));
+}
