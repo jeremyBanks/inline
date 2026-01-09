@@ -90,6 +90,7 @@ mod dirty;
 mod ext;
 mod flush;
 mod replace;
+mod tokens;
 pub mod runtime;
 pub mod registry;
 
@@ -99,6 +100,7 @@ pub use runtime::*;
 pub use ext::*;
 pub use flush::{flush_all, start_background_flush};
 pub use dirty::{has_dirty_cells, dirty_count};
+pub use tokens::Tokens;
 
 // Re-export replace functions and aliases
 pub use replace::{replace, replace_at, replace_default, val, eval, REPLACE_ME};
@@ -179,5 +181,33 @@ macro_rules! replace {
 macro_rules! replace_default {
     ($type:ty) => {
         $crate::replace_default::<$type>()
+    };
+}
+
+/// Create a self-modifying [`InlineCell`] containing arbitrary tokens.
+///
+/// The [`Tokens`] type implements [`Bake`](databake::Bake) to produce a macro call
+/// that reproduces the original tokens. This macro wraps the tokens in an
+/// `InlineCell` for automatic source code updates.
+///
+/// # Example
+///
+/// ```no_run
+/// use inline::tokens;
+///
+/// let mut toks = tokens!(foo bar 123 "hello");
+///
+/// // Mutate the tokens
+/// toks.value = inline::Tokens::from_str("new tokens here");
+///
+/// // On drop, source updates to: tokens!(new tokens here)
+/// ```
+///
+/// For a raw `Tokens` value without the `InlineCell` wrapper, use
+/// [`Tokens::from_str()`] directly.
+#[macro_export]
+macro_rules! tokens {
+    ($($tt:tt)*) => {
+        $crate::cell($crate::Tokens::from_str(stringify!($($tt)*)))
     };
 }

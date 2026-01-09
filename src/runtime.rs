@@ -485,12 +485,29 @@ impl FileState {
                     syn::Expr::Macro(mac) => {
                         if !self.skip_macros {
                             if self.current_index == self.target_index {
-                                // For macros, parse tokens as expression for full span
+                                // For macros, get the span of the contents
                                 let tokens = mac.mac.tokens.clone();
                                 if !tokens.is_empty() {
-                                    if let Ok(expr) = syn::parse2::<syn::Expr>(tokens) {
+                                    // Try to parse as expression first (for valid Rust expressions)
+                                    if let Ok(expr) = syn::parse2::<syn::Expr>(tokens.clone()) {
                                         self.span = Some((expr.span().start(), expr.span().end()));
+                                    } else {
+                                        // For arbitrary tokens (like tokens!(foo bar 123)),
+                                        // get span from first and last tokens
+                                        use proc_macro2::TokenTree;
+                                        let tts: Vec<TokenTree> = tokens.into_iter().collect();
+                                        if !tts.is_empty() {
+                                            let first_span = tts.first().unwrap().span();
+                                            let last_span = tts.last().unwrap().span();
+                                            self.span = Some((first_span.start(), last_span.end()));
+                                        }
                                     }
+                                } else {
+                                    // Empty macro - use the delimiter span for position
+                                    // We'll use the path end as start and same as end
+                                    use syn::spanned::Spanned;
+                                    let path_end = mac.mac.path.span().end();
+                                    self.span = Some((path_end, path_end));
                                 }
                             }
                             self.current_index += 1;
