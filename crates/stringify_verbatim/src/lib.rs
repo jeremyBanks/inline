@@ -174,16 +174,14 @@ fn try_parse_doc_attribute(tokens: &[TokenTree]) -> Option<(String, usize, LineC
         return None;
     }
 
-    // Check for string literal
+    // Check for string literal and properly parse it to handle escape sequences
     let doc_content = match &inner[2] {
         TokenTree::Literal(lit) => {
-            let s = lit.to_string();
-            // Remove quotes from the string literal
-            if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-                s[1..s.len() - 1].to_string()
-            } else {
-                return None;
-            }
+            // Use syn to properly parse the string literal and unescape it
+            let token_stream: proc_macro2::TokenStream =
+                TokenTree::Literal(lit.clone()).into();
+            let lit_str: syn::LitStr = syn::parse2(token_stream).ok()?;
+            lit_str.value()
         }
         _ => return None,
     };

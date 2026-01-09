@@ -208,6 +208,46 @@ fn test_doc_comment_with_backslash() {
         "Backslashes in doc comments should be preserved");
 }
 
+#[test]
+fn test_doc_comment_backslash_n_is_literal() {
+    // In doc comments, \n is literal backslash-n, NOT a newline escape
+    // (Doc comments are not string literals - escape sequences are not processed)
+    let s = stringify_verbatim!(
+        /// Line1\nLine2
+        fn foo() {}
+    );
+    println!("doc with backslash-n: {:?}", s);
+    // Should contain literal backslash-n, not a newline
+    assert!(s.contains(r"/// Line1\nLine2"),
+        "Backslash-n in doc comments is literal, not an escape");
+}
+
+#[test]
+fn test_doc_comment_backslash_t_is_literal() {
+    // In doc comments, \t is literal backslash-t, NOT a tab escape
+    let s = stringify_verbatim!(
+        /// Col1\tCol2
+        fn foo() {}
+    );
+    println!("doc with backslash-t: {:?}", s);
+    // Should contain literal backslash-t, not a tab
+    assert!(s.contains(r"/// Col1\tCol2"),
+        "Backslash-t in doc comments is literal, not an escape");
+}
+
+#[test]
+fn test_doc_comment_backslash_u_is_literal() {
+    // In doc comments, \u{...} is literal text, NOT a unicode escape
+    let s = stringify_verbatim!(
+        /// Heart: \u{2764}
+        fn foo() {}
+    );
+    println!("doc with backslash-u: {:?}", s);
+    // Should contain literal \u{2764}, not the heart character
+    assert!(s.contains(r"/// Heart: \u{2764}"),
+        "Backslash-u in doc comments is literal, not an escape");
+}
+
 // =============================================================================
 // Explicit attributes (preserved as-is, not converted)
 // =============================================================================
