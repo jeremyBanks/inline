@@ -196,10 +196,11 @@ fn try_parse_doc_attribute(tokens: &[TokenTree]) -> Option<(String, usize, LineC
     let group_start = group.span().start();
 
     // For "/// comment" (synthetic):
-    //   - Both hash and group have the same start column (pointing to /)
+    //   - Both hash and group have the same start position (line AND column)
     // For "#[doc = "comment"]" (explicit):
     //   - hash is at position of #, group starts at position of [
-    let is_synthetic = hash_start.column == group_start.column;
+    let is_synthetic = hash_start.line == group_start.line
+        && hash_start.column == group_start.column;
 
     if !is_synthetic {
         // This is an explicit #[doc = "..."], don't convert
