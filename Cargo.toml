@@ -12,6 +12,9 @@ readme = "README.md"
 keywords = ["snapshot", "testing", "self-modifying", "codegen"]
 categories = ["development-tools::testing", "development-tools"]
 
+[workspace]
+members = ["crates/*"]
+
 [features]
 default = ["write"]
 write = []
