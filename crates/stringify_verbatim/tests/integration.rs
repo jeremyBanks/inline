@@ -148,21 +148,22 @@ fn test_block_comments_lost() {
     assert!(!s.contains("/*"), "Comment syntax should NOT appear");
 }
 
-/// Doc comments ARE part of the token stream, but serialize as attributes
+/// Doc comments ARE part of the token stream and are round-tripped back to /// format
 #[test]
-fn test_doc_comments_become_attributes() {
+fn test_doc_comments_round_trip() {
     let s = stringify_verbatim!(
         /// This is a doc comment
         fn example() {}
     );
     println!("with doc comment: {:?}", s);
 
-    // Doc comments become #[doc = "..."] attributes
-    assert!(s.contains("doc"), "Doc comment should become #[doc] attribute");
+    // Doc comments are detected and converted back to /// format
+    assert!(s.contains("///"), "Doc comment should be round-tripped to ///");
+    assert!(s.contains("This is a doc comment"), "Doc content should be preserved");
     assert!(s.contains("fn example"), "Function should be preserved");
 
-    // The original /// syntax is NOT preserved - it becomes #[doc = "..."]
-    // This is how Rust's lexer works
+    // The /// syntax IS preserved through round-tripping
+    assert!(s.contains("/// This is a doc comment"), "Full doc comment should be present");
 }
 
 #[test]
@@ -173,8 +174,9 @@ fn test_inner_doc_comments() {
     );
     println!("with inner doc: {:?}", s);
 
-    // Inner doc comments also become attributes
-    assert!(s.contains("doc"), "Inner doc should become attribute");
+    // Inner doc comments are round-tripped back to //! format
+    assert!(s.contains("//!"), "Inner doc should be round-tripped to //!");
+    assert!(s.contains("//! Inner doc comment"), "Inner doc content should be preserved");
 }
 
 /// Test various punctuation and operators
@@ -221,4 +223,171 @@ fn test_lifetime() {
     println!("lifetime: {:?}", s);
     assert!(s.contains("'a"));
     assert!(s.contains("str"));
+}
+
+// =============================================================================
+// Doc comment round-trip tests
+// =============================================================================
+
+/// Test exact output format of doc comments
+#[test]
+fn test_doc_comment_exact_format() {
+    let s = stringify_verbatim!(
+        /// Single line doc
+        fn foo() {}
+    );
+    println!("doc comment exact: {:?}", s);
+    // Doc comments are round-tripped back to /// format
+    assert!(s.starts_with("///"), "Should start with ///");
+    assert!(s.contains("/// Single line doc"), "Should preserve doc comment content");
+    assert!(s.contains("fn foo()"), "Should contain the function");
+}
+
+#[test]
+fn test_doc_comment_multiline() {
+    let s = stringify_verbatim!(
+        /// First line
+        /// Second line
+        fn foo() {}
+    );
+    println!("multiline doc: {:?}", s);
+    // Each /// line is round-tripped back to /// format
+    assert!(s.contains("/// First line"), "First doc line should be preserved");
+    assert!(s.contains("/// Second line"), "Second doc line should be preserved");
+    // Both doc comments should appear before the function
+    let first_pos = s.find("/// First line").unwrap();
+    let second_pos = s.find("/// Second line").unwrap();
+    let fn_pos = s.find("fn foo").unwrap();
+    assert!(first_pos < second_pos, "First line should come before second");
+    assert!(second_pos < fn_pos, "Doc comments should come before function");
+}
+
+#[test]
+fn test_doc_comment_with_code_block() {
+    let s = stringify_verbatim!(
+        /// Example:
+        /// ```
+        /// let x = 1;
+        /// ```
+        fn foo() {}
+    );
+    println!("doc with code block: {:?}", s);
+    // Doc comments with code blocks should be preserved
+    assert!(s.contains("/// Example:"), "Doc comment intro should be preserved");
+    assert!(s.contains("/// ```"), "Code fence should be preserved");
+    assert!(s.contains("/// let x = 1;"), "Code content should be preserved");
+}
+
+#[test]
+fn test_inner_doc_exact_format() {
+    let s = stringify_verbatim!(
+        //! Module doc
+        mod foo {}
+    );
+    println!("inner doc exact: {:?}", s);
+    // Inner doc comments are round-tripped back to //! format
+    assert!(s.starts_with("//!"), "Should start with //!");
+    assert!(s.contains("//! Module doc"), "Should preserve inner doc content");
+    assert!(s.contains("mod foo"), "Should contain the module");
+}
+
+/// Test that we can detect doc attributes and their content
+#[test]
+fn test_doc_attribute_detection() {
+    let s = stringify_verbatim!(
+        /// This is documentation
+        fn example() {}
+    );
+
+    // The output should contain the doc content
+    assert!(s.contains("This is documentation"), "Doc content should be preserved");
+
+    // Check current format (will update based on implementation)
+    println!("Doc attribute output: {:?}", s);
+}
+
+/// Test consistency: same input should always produce same output
+#[test]
+fn test_doc_comment_consistency() {
+    let s1 = stringify_verbatim!(
+        /// Doc comment
+        fn foo() {}
+    );
+    let s2 = stringify_verbatim!(
+        /// Doc comment
+        fn foo() {}
+    );
+    assert_eq!(s1, s2, "Same input should produce same output");
+}
+
+/// Test that explicit #[doc] attributes are round-tripped to /// format
+#[test]
+fn test_explicit_doc_attribute() {
+    let s = stringify_verbatim!(
+        #[doc = "Explicit doc"]
+        fn foo() {}
+    );
+    println!("explicit doc attr: {:?}", s);
+    // Explicit #[doc = "..."] should also be converted to /// format
+    assert!(s.contains("///"), "Explicit doc should be converted to ///");
+    assert!(s.contains("Explicit doc"), "Doc content should be preserved");
+    // Note: The output is "///Explicit doc" (no space) because the original
+    // string literal doesn't have a leading space. This is correct behavior.
+    assert!(s.contains("///Explicit doc"), "Should have no space after /// for explicit attrs");
+}
+
+/// Document the difference between /// and #[doc = "..."] regarding spacing
+#[test]
+fn test_doc_comment_vs_explicit_attribute_spacing() {
+    // When you write `/// Text`, Rust converts it to `#[doc = " Text"]` with a leading space
+    let from_triple_slash = stringify_verbatim!(
+        /// Text with space
+        fn a() {}
+    );
+
+    // When you write `#[doc = "Text"]`, there's no leading space
+    let from_explicit = stringify_verbatim!(
+        #[doc = "Text without space"]
+        fn b() {}
+    );
+
+    println!("from ///: {:?}", from_triple_slash);
+    println!("from #[doc]: {:?}", from_explicit);
+
+    // Both should be converted to /// format
+    assert!(from_triple_slash.contains("/// Text with space"), "/// should preserve leading space");
+    assert!(from_explicit.contains("///Text without space"), "Explicit should have no space after ///");
+}
+
+/// Test that non-doc attributes are NOT converted (only doc attributes are round-tripped)
+#[test]
+fn test_non_doc_attributes_not_converted() {
+    let s = stringify_verbatim!(
+        #[derive(Debug)]
+        #[allow(unused)]
+        struct Foo {}
+    );
+    println!("non-doc attrs: {:?}", s);
+    // Non-doc attributes should remain in attribute format
+    assert!(s.contains("#"), "Attribute should keep # prefix");
+    assert!(s.contains("derive"), "Should contain derive");
+    assert!(s.contains("Debug"), "Should contain Debug");
+    assert!(s.contains("allow"), "Should contain allow");
+    assert!(s.contains("unused"), "Should contain unused");
+}
+
+/// Test mixing doc and non-doc attributes
+#[test]
+fn test_mixed_doc_and_other_attributes() {
+    let s = stringify_verbatim!(
+        /// Documentation
+        #[derive(Clone)]
+        struct Bar {}
+    );
+    println!("mixed attrs: {:?}", s);
+    // Doc comment should be round-tripped to ///
+    assert!(s.contains("/// Documentation"), "Doc comment should be ///");
+    // But #[derive(Clone)] should remain as attribute
+    assert!(s.contains("derive"), "Derive should remain");
+    assert!(s.contains("Clone"), "Clone should remain");
 }

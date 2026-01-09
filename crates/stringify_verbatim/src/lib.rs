@@ -61,8 +61,25 @@ fn reconstruct_with_whitespace(tokens: proc_macro2::TokenStream) -> String {
 
     let mut result = String::new();
     let mut prev_end: Option<LineColumn> = None;
+    let mut i = 0;
 
-    for tt in &tts {
+    while i < tts.len() {
+        // Try to detect and convert doc attributes back to /// or //! syntax
+        if let Some((doc_comment, consumed, end_pos)) = try_parse_doc_attribute(&tts[i..]) {
+            // Add whitespace before the doc comment
+            if let Some(prev) = prev_end {
+                let start = tts[i].span().start();
+                let ws = compute_whitespace(prev, start);
+                result.push_str(&ws);
+            }
+
+            result.push_str(&doc_comment);
+            prev_end = Some(end_pos);
+            i += consumed;
+            continue;
+        }
+
+        let tt = &tts[i];
         let span = tt.span();
         let start = span.start();
         let end = span.end();
@@ -77,9 +94,105 @@ fn reconstruct_with_whitespace(tokens: proc_macro2::TokenStream) -> String {
         result.push_str(&token_to_string(tt));
 
         prev_end = Some(end);
+        i += 1;
     }
 
     result
+}
+
+/// Try to parse a doc attribute pattern and convert it back to /// or //! syntax.
+/// Returns (doc_comment_string, tokens_consumed, end_position) if successful.
+fn try_parse_doc_attribute(tokens: &[TokenTree]) -> Option<(String, usize, LineColumn)> {
+    // Pattern: # [ doc = "..." ] or # ! [ doc = "..." ]
+    if tokens.is_empty() {
+        return None;
+    }
+
+    // Check for #
+    match &tokens[0] {
+        TokenTree::Punct(p) if p.as_char() == '#' => {}
+        _ => return None,
+    }
+
+    let mut idx = 1;
+    let is_inner;
+
+    // Check for optional !
+    if idx < tokens.len() {
+        if let TokenTree::Punct(p) = &tokens[idx] {
+            if p.as_char() == '!' {
+                is_inner = true;
+                idx += 1;
+            } else {
+                is_inner = false;
+            }
+        } else {
+            is_inner = false;
+        }
+    } else {
+        return None;
+    }
+
+    // Check for [...]
+    if idx >= tokens.len() {
+        return None;
+    }
+
+    let group = match &tokens[idx] {
+        TokenTree::Group(g) if g.delimiter() == proc_macro2::Delimiter::Bracket => g,
+        _ => return None,
+    };
+
+    // Parse the group contents: doc = "..." or doc="..."
+    let inner: Vec<TokenTree> = group.stream().into_iter().collect();
+
+    // Need at least: doc = "string" (3 tokens) or doc="string" with no space (still 3)
+    if inner.len() < 3 {
+        return None;
+    }
+
+    // Check for "doc" ident
+    let is_doc = match &inner[0] {
+        TokenTree::Ident(i) => i.to_string() == "doc",
+        _ => false,
+    };
+
+    if !is_doc {
+        return None;
+    }
+
+    // Check for =
+    let has_eq = match &inner[1] {
+        TokenTree::Punct(p) => p.as_char() == '=',
+        _ => false,
+    };
+
+    if !has_eq {
+        return None;
+    }
+
+    // Check for string literal
+    let doc_content = match &inner[2] {
+        TokenTree::Literal(lit) => {
+            let s = lit.to_string();
+            // Remove quotes from the string literal
+            if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                s[1..s.len() - 1].to_string()
+            } else {
+                return None;
+            }
+        }
+        _ => return None,
+    };
+
+    // Successfully parsed a doc attribute!
+    let prefix = if is_inner { "//!" } else { "///" };
+    let doc_comment = format!("{}{}", prefix, doc_content);
+
+    let end_pos = group.span().end();
+    let consumed = idx + 1;
+
+    Some((doc_comment, consumed, end_pos))
 }
 
 /// Compute the whitespace string between two positions.
