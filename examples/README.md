@@ -29,22 +29,22 @@ The program adjusts its configuration and saves it back to the source file.
 
 ## How It Works
 
-1. The `inline!()` macro creates a special value that knows its location in the source code
-2. When you call `.set()` on a inline value, it updates both:
+1. The `cell()` function (or `cell!()` macro) creates a value that knows its location in the source code
+2. When you modify `cell.value` and the cell is dropped, it updates both:
    - The in-memory value (immediately)
    - The source file (if `INLINE_MODE=write` is set)
 3. The source file is parsed, modified using character-range splicing to preserve formatting
 
 ## Modes
 
-- **Write** (`INLINE_MODE=write`): Changes to inline values are written back to source
-- **Verify** (default in tests): Check that values round-trip correctly (for testing)
+- **Write** (`INLINE_MODE=write`): Changes to cell values are written back to source
+- **Verify** (default in tests): Check that values match source (for snapshot testing)
 - **Memory** (`INLINE_MODE=memory`): Changes in memory only, no file writes
 - **Reject** (`INLINE_MODE=reject`): Rejects any write attempts
 
 ## Use Cases
 
+- Snapshot testing with self-updating expected values
 - Self-modifying scripts that track state between runs
 - Configuration that evolves with usage
-- Scripts that "learn" from execution
 - Rust-script programs with embedded, persistent configuration
