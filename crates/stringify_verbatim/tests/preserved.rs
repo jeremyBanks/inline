@@ -182,6 +182,32 @@ fn test_doc_comment_consistency() {
     assert_eq!(s1, s2, "Same input should produce identical output");
 }
 
+#[test]
+fn test_doc_comment_with_escape_sequences() {
+    // Doc comments can contain escape sequences
+    let s = stringify_verbatim!(
+        /// This has a "quote" in it
+        fn foo() {}
+    );
+    println!("doc with quotes: {:?}", s);
+    // The quote should appear as a literal quote, not as \"
+    assert!(s.contains(r#"/// This has a "quote" in it"#),
+        "Escape sequences in doc comments should be unescaped");
+}
+
+#[test]
+fn test_doc_comment_with_backslash() {
+    // Doc comments can contain backslashes
+    let s = stringify_verbatim!(
+        /// Path: C:\Users\test
+        fn foo() {}
+    );
+    println!("doc with backslash: {:?}", s);
+    // Backslashes should appear correctly
+    assert!(s.contains(r"/// Path: C:\Users\test"),
+        "Backslashes in doc comments should be preserved");
+}
+
 // =============================================================================
 // Explicit attributes (preserved as-is, not converted)
 // =============================================================================
